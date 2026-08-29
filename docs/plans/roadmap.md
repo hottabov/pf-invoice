@@ -4,8 +4,8 @@ Spec: `docs/specs/2026-08-29-pathquote-design.md`. Detailed plans live in `docs/
 
 | Phase | Deliverable | Plan |
 |---|---|---|
-| 1. Foundation | Next.js + Prisma + Auth (credentials + magic link) + Docker Compose + Nginx conf + CI deploy. Login works on q.pathfindercut.com. | `2026-08-29-phase-1-2-foundation.md` |
-| 2. Schema & seed | Full DB schema, migrations, Excel → JSON → DB seed (M/X-Calibre/L/Punchline/Software/LNS/EasyLoader/EasyFeeder/FabricPro, options, AUD prices, compatibility). | same plan |
+| 1. Foundation ✅ | Next.js + Prisma + Auth (credentials + magic link) + Docker Compose + Nginx conf + CI deploy. Login works on q.pathfindercut.com. | `2026-08-29-phase-1-2-foundation.md` |
+| 2. Schema & seed ✅ | Full DB schema, migrations, Excel → JSON → DB seed (M/X-Calibre/L/Punchline/Software/LNS/EasyLoader/EasyFeeder/FabricPro, options, AUD prices, compatibility). Done 2026-08-29 (code complete; VPS bring-up pending per docs/runbook.md). | same plan |
 | 3. Catalog admin | CRUD: series/products/options, image upload, per-region prices, compatibility matrix editor. | TBD before start |
 | 4. Clients & builder | Companies + contacts CRUD; document wizard: multi-item, options, discounts with series caps, totals, autosave drafts. | TBD |
 | 5. Invoice PDF | Invoice HTML template (brand, entity legal block, tax), Gotenberg PDF, numbering sequences, finalize + snapshots. | TBD |
