@@ -153,6 +153,61 @@ Certbot's systemd timer renews automatically; confirm it's active with
 
 ## 4. Backups
 
+The live VPS runs `/usr/local/bin/pq-backup.sh` from root's crontab at 03:00.
+It dumps Postgres *and* the `uploads` volume (uploaded files are not in the
+database), writes each artifact to a `.tmp` path and renames it only after the
+command succeeds — a dump that dies partway leaves a `.tmp` behind instead of a
+truncated file that looks like a valid backup — then prunes anything older than
+14 days:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+BACKUP_DIR=/opt/backups
+COMPOSE=/opt/pathquote/docker-compose.yml
+KEEP_DAYS=14
+STAMP=$(date +%F)
+
+mkdir -p "$BACKUP_DIR"
+
+docker compose -f "$COMPOSE" exec -T postgres \
+  pg_dump -U pathquote pathquote | gzip > "$BACKUP_DIR/pq-$STAMP.sql.gz.tmp"
+mv "$BACKUP_DIR/pq-$STAMP.sql.gz.tmp" "$BACKUP_DIR/pq-$STAMP.sql.gz"
+
+docker run --rm \
+  -v pathquote_uploads:/data:ro \
+  -v "$BACKUP_DIR":/backup \
+  alpine tar czf "/backup/uploads-$STAMP.tar.gz.tmp" -C /data .
+mv "$BACKUP_DIR/uploads-$STAMP.tar.gz.tmp" "$BACKUP_DIR/uploads-$STAMP.tar.gz"
+
+find "$BACKUP_DIR" -name 'pq-*.sql.gz'      -mtime +$KEEP_DAYS -delete
+find "$BACKUP_DIR" -name 'uploads-*.tar.gz' -mtime +$KEEP_DAYS -delete
+find "$BACKUP_DIR" -name '*.tmp'            -mtime +1          -delete
+
+echo "$(date -Is) backup ok"
+```
+
+Crontab entry:
+
+```cron
+0 3 * * * /usr/local/bin/pq-backup.sh >> /var/log/pq-backup.log 2>&1
+```
+
+Verify a dump is real, not just present:
+
+```bash
+gunzip -t /opt/backups/pq-$(date +%F).sql.gz
+zcat /opt/backups/pq-$(date +%F).sql.gz | grep -c 'CREATE TABLE'   # expect ~19
+```
+
+`/opt/backups` sits on the same disk as the database, so it protects against a
+bad migration or an accidental `DROP`, not against losing the VPS. Off-site
+copies (rclone to object storage) are still TODO.
+
+The two plain cron entries below are the minimal equivalent, kept for
+reference on a host without the script.
+
 ### Nightly dump
 
 Add to the deploy user's crontab (`crontab -e`):
@@ -271,3 +326,113 @@ curl -fsS http://127.0.0.1:3010/api/health
 
 Return to `main` (`git checkout main`) once a fix is pushed, so the next
 automated deploy's `git pull --ff-only` succeeds.
+
+## 6. Host environment notes (IONOS + WordOps)
+
+The production box is an IONOS VPS running Ubuntu 22.04 with WordOps already
+installed (its own Nginx build, UFW, fail2ban). That combination breaks Docker
+in several non-obvious ways. Everything below is already applied on the live
+host — this section exists so a rebuild does not rediscover it the hard way.
+
+### systemd-networkd steals Docker's veth interfaces
+
+Symptom: every container is unreachable — DNS times out, `ping` to the bridge
+gateway fails, `bridge link show` is empty, and `tcpdump` on the bridge sees
+nothing at all. `iptables` counters stay at zero because the packets never make
+it past layer 2. `npm ci` inside a build fails with the misleading
+`npm error Exit handler never called!`.
+
+Cause: netplan generates `/run/systemd/network/10-netplan-all.network` with
+`Name=*`, so systemd-networkd manages `docker0`, `br-*` and every `veth*` and
+un-enslaves them from their bridge. networkd applies the *first* matching file
+in lexicographic order, so an override must sort before `10-`:
+
+```bash
+cat > /etc/systemd/network/05-docker-unmanaged.network <<'EOF'
+[Match]
+Name=docker0 veth* br-*
+
+[Link]
+Unmanaged=yes
+EOF
+
+systemctl restart systemd-networkd
+systemctl stop docker && ip link del docker0; systemctl start docker
+```
+
+Verify with `networkctl list` — Docker interfaces must read `unmanaged`, and
+`bridge link show` must list a veth with `master docker0 state forwarding`.
+
+### UFW blocks container egress
+
+WordOps ships `DEFAULT_FORWARD_POLICY="DROP"` in `/etc/default/ufw`, which
+drops forwarded container traffic. Set it to `ACCEPT` and `ufw reload`. Note
+this only restores forwarding; Docker publishes ports via its own `DOCKER-USER`
+chain and bypasses UFW either way, which is why `app` binds to
+`127.0.0.1:3010` rather than `0.0.0.0`.
+
+`/etc/docker/daemon.json` also pins the bridge address, since the daemon left
+`docker0` without an IPv4 address on this host:
+
+```json
+{ "bip": "172.17.0.1/16" }
+```
+
+### Nginx: do not add global directives
+
+WordOps already sets `client_max_body_size 100m` in `nginx.conf`. Adding
+another one in `/etc/nginx/conf.d/` makes `nginx -t` fail with `directive is
+duplicate`, which in turn makes acme.sh's `reloadcmd` fail, which makes
+`wo site update --letsencrypt` report `Deploying SSL cert [KO]` even though the
+certificate was issued successfully. Check `nginx -t` first whenever WordOps
+fails to deploy a certificate; per-site overrides belong in
+`/var/www/<domain>/conf/nginx/`.
+
+The site itself is a WordOps proxy site:
+
+```bash
+wo site create q.pathfindercut.com --proxy=127.0.0.1:3010
+wo site update q.pathfindercut.com --letsencrypt --dns=dns_cf   # or plain --letsencrypt for HTTP-01
+```
+
+DNS lives in Cloudflare with the record set to **DNS only**. If it is ever
+switched to Proxied, HTTP-01 validation stops working — use `--dns=dns_cf`
+(needs `CF_Token` + `CF_Account_ID` exported) and set Cloudflare's SSL mode to
+Full (strict).
+
+### SSH runs on a non-default port
+
+WordOps moves sshd to a custom port, so the deploy workflow reads it from the
+`VPS_PORT` secret (`appleboy/ssh-action` defaults to 22). Two *different* keys
+are involved and they are easy to confuse:
+
+- `~/.ssh/pf_invoice_deploy` — GitHub **deploy key**, public half registered on
+  the repository, used by `git pull` on the VPS via the `github-pf` host alias
+  in `~/.ssh/config`. Never goes into a GitHub secret.
+- `~/.ssh/gha_pathquote` — key for **GitHub Actions to log into the VPS**,
+  public half in the VPS's `~/.ssh/authorized_keys`, private half in the
+  `VPS_SSH_KEY` secret.
+
+Putting the deploy key in `VPS_SSH_KEY` produces
+`ssh: handshake failed: ... [none publickey]`. `/var/log/auth.log` on the VPS
+is the fastest way to tell a rejected key from a wrong port or a banned IP.
+
+### CI type-checking needs generated route types
+
+Next.js 16 generates `LayoutProps`/`PageProps` into `.next/types` during
+`next dev`/`next build`, so a bare `tsc --noEmit` in CI fails with
+`TS2304: Cannot find name 'LayoutProps'`. The `typecheck` script therefore runs
+`next typegen && tsc --noEmit`.
+
+### Creating the first admin: watch the password argument
+
+`scripts/create-user.ts` sets `passwordHash` only when a non-empty password is
+passed, and silently creates a login-less user otherwise. `read -rs ADMIN_PW`
+creates a *shell* variable while `docker compose run -e ADMIN_PW` forwards from
+the *environment*, so the password arrives empty unless it is exported — and
+pasting the `read` line together with the following lines makes `read` consume
+the next line instead of the typed password. Always confirm afterwards:
+
+```sql
+select email, active, ("passwordHash" is not null) as has_pw from "User";
+```
