@@ -123,6 +123,9 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          # WordOps moves sshd off port 22; set VPS_PORT to that port.
+          # Falls back to 22 when the secret is unset.
+          port: ${{ secrets.VPS_PORT || 22 }}
           script: |
             set -e
             cd /opt/pathquote
