@@ -3,8 +3,16 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 // Prisma 7 dropped the schema-embedded `datasource.url`; the runtime client
 // now requires an explicit driver adapter instead of reading DATABASE_URL on its own.
-const adapter = new PrismaPg(process.env.DATABASE_URL as string);
+function createClient() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is not set");
+  return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
+}
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-export const db = globalForPrisma.prisma ?? new PrismaClient({ adapter });
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+
+// Only construct the adapter/client (and its connection pool) when there is
+// no cached singleton — on dev hot-reload this avoids spinning up a fresh
+// pg pool on every module re-evaluation. Caching in production is harmless
+// (the module only evaluates once per process there) and keeps this simple.
+export const db = globalForPrisma.prisma ?? (globalForPrisma.prisma = createClient());

@@ -301,13 +301,37 @@ CREATE UNIQUE INDEX "Option_code_key" ON "Option"("code");
 CREATE UNIQUE INDEX "OptionCompatibility_optionId_seriesId_productId_key" ON "OptionCompatibility"("optionId", "seriesId", "productId");
 
 -- CreateIndex
+CREATE INDEX "Price_regionId_idx" ON "Price"("regionId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Price_productId_regionId_key" ON "Price"("productId", "regionId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Price_optionId_regionId_key" ON "Price"("optionId", "regionId");
 
 -- CreateIndex
+CREATE INDEX "Contact_companyId_idx" ON "Contact"("companyId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Document_number_key" ON "Document"("number");
+
+-- CreateIndex
+CREATE INDEX "Document_companyId_idx" ON "Document"("companyId");
+
+-- CreateIndex
+CREATE INDEX "Document_authorId_idx" ON "Document"("authorId");
+
+-- CreateIndex
+CREATE INDEX "Document_regionId_status_idx" ON "Document"("regionId", "status");
+
+-- CreateIndex
+CREATE INDEX "DocumentItem_documentId_idx" ON "DocumentItem"("documentId");
+
+-- CreateIndex
+CREATE INDEX "DocumentLine_documentId_idx" ON "DocumentLine"("documentId");
+
+-- CreateIndex
+CREATE INDEX "DocumentLine_itemId_idx" ON "DocumentLine"("itemId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ContentBlock_key_regionId_key" ON "ContentBlock"("key", "regionId");
@@ -378,3 +402,8 @@ ALTER TABLE "DocumentLine" ADD CONSTRAINT "DocumentLine_itemId_fkey" FOREIGN KEY
 -- AddForeignKey
 ALTER TABLE "ContentBlock" ADD CONSTRAINT "ContentBlock_regionId_fkey" FOREIGN KEY ("regionId") REFERENCES "Region"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
+-- Partial unique indexes: Postgres treats NULLs as distinct in the composite uniques above
+CREATE UNIQUE INDEX "OptionCompatibility_option_series_key" ON "OptionCompatibility"("optionId", "seriesId") WHERE "productId" IS NULL;
+CREATE UNIQUE INDEX "OptionCompatibility_option_product_key" ON "OptionCompatibility"("optionId", "productId") WHERE "seriesId" IS NULL;
+-- A price must belong to exactly one of product/option
+ALTER TABLE "Price" ADD CONSTRAINT "Price_target_check" CHECK (("productId" IS NULL) <> ("optionId" IS NULL));

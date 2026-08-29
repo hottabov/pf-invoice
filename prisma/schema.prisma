@@ -162,6 +162,7 @@ model Price {
 
   @@unique([productId, regionId])
   @@unique([optionId, regionId])
+  @@index([regionId])
 }
 
 model Company {
@@ -192,6 +193,8 @@ model Contact {
   position  String?
   isPrimary Boolean    @default(false)
   documents Document[]
+
+  @@index([companyId])
 }
 
 model Document {
@@ -222,6 +225,10 @@ model Document {
   lines          DocumentLine[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+
+  @@index([companyId])
+  @@index([authorId])
+  @@index([regionId, status])
 }
 
 model DocumentItem {
@@ -240,6 +247,8 @@ model DocumentItem {
   showImage    Boolean        @default(false)
   imageUrl     String?
   lines        DocumentLine[]
+
+  @@index([documentId])
 }
 
 model DocumentLine {
@@ -258,6 +267,9 @@ model DocumentLine {
   attributes  Json? // { metres: 4, tables: 2 }
   showImage   Boolean       @default(false)
   sortOrder   Int           @default(0)
+
+  @@index([documentId])
+  @@index([itemId])
 }
 
 model ContentBlock {
