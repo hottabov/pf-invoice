@@ -11,7 +11,8 @@
     "test": "vitest run",
     "extract:catalog": "tsx scripts/extract-catalog.ts",
     "db:migrate": "prisma migrate deploy",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "user:create": "tsx scripts/create-user.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
