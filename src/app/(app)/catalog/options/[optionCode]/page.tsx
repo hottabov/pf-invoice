@@ -2,10 +2,17 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { getOptionDetail, listSeriesWithCounts } from "@/lib/queries/catalog";
-import { updateOption, deleteOption, upsertPrice, setOptionCompatibility } from "@/lib/actions/catalog";
+import {
+  updateOption,
+  deleteOption,
+  upsertPrice,
+  setOptionCompatibility,
+  updateOptionImage,
+} from "@/lib/actions/catalog";
 import { OptionForm } from "@/components/catalog/option-form";
 import { PriceEditor } from "@/components/catalog/price-editor";
 import { CompatEditor } from "@/components/catalog/compat-editor";
+import { ImageUpload } from "@/components/catalog/image-upload";
 import { DeleteButton } from "@/components/catalog/delete-button";
 
 export const dynamic = "force-dynamic";
@@ -98,18 +105,12 @@ export default async function OptionEditorPage({ params }: { params: Promise<Par
       <section className="mt-6 rounded-xl border border-border bg-white p-4 sm:p-6">
         <h2 className="text-sm font-semibold text-brand-dark">Image</h2>
         <div className="mt-3">
-          {option.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={option.imageUrl}
-              alt={option.name}
-              className="h-40 w-40 rounded-lg border border-border object-cover"
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No image yet. Image upload is coming in a later phase.
-            </p>
-          )}
+          <ImageUpload
+            currentUrl={option.imageUrl}
+            alt={option.name}
+            onSave={updateOptionImage.bind(null, option.id)}
+            readOnly={!isAdmin}
+          />
         </div>
       </section>
 

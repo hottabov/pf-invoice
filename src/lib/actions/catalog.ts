@@ -7,6 +7,7 @@ import type { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/authz";
 import { productSchema, optionSchema, priceInputSchema, compatDiff } from "@/lib/validation/catalog";
+import { IMAGE_URL_PATTERN } from "@/lib/uploads";
 
 export type ActionResult = { error?: string };
 
@@ -240,6 +241,53 @@ export async function deleteOption(optionId: string): Promise<ActionResult> {
 
   revalidatePath("/catalog/options");
   redirect("/catalog/options");
+}
+
+// --- images --------------------------------------------------------------
+
+/** Validates that a submitted image URL is either `null` (clear the image)
+ * or exactly the `/api/files/<uuid>.<ext>` shape `saveUpload` produces —
+ * never an arbitrary string, which would let an admin point `imageUrl` at
+ * an unrelated path or external host. */
+function parseImageUrl(url: string | null): { ok: true; value: string | null } | { ok: false } {
+  if (url === null) return { ok: true, value: null };
+  if (!IMAGE_URL_PATTERN.test(url)) return { ok: false };
+  return { ok: true, value: url };
+}
+
+export async function updateProductImage(productId: string, url: string | null): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = parseImageUrl(url);
+  if (!parsed.ok) return { error: "Invalid image URL" };
+
+  const existing = await db.product.findUnique({
+    where: { id: productId },
+    include: { series: true },
+  });
+  if (!existing) return { error: "Product not found" };
+
+  await db.product.update({ where: { id: productId }, data: { imageUrl: parsed.value } });
+
+  revalidatePath(`/catalog/${existing.series.code}/${existing.code}`);
+  revalidatePath(`/catalog/${existing.series.code}`);
+  return {};
+}
+
+export async function updateOptionImage(optionId: string, url: string | null): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = parseImageUrl(url);
+  if (!parsed.ok) return { error: "Invalid image URL" };
+
+  const existing = await db.option.findUnique({ where: { id: optionId } });
+  if (!existing) return { error: "Option not found" };
+
+  await db.option.update({ where: { id: optionId }, data: { imageUrl: parsed.value } });
+
+  revalidatePath(`/catalog/options/${existing.code}`);
+  revalidatePath("/catalog/options");
+  return {};
 }
 
 // --- prices ----------------------------------------------------------------

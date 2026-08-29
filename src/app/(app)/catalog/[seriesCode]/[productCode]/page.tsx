@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { getProductDetail } from "@/lib/queries/catalog";
-import { updateProduct, deleteProduct, upsertPrice } from "@/lib/actions/catalog";
+import { updateProduct, deleteProduct, upsertPrice, updateProductImage } from "@/lib/actions/catalog";
 import { ProductForm } from "@/components/catalog/product-form";
 import { PriceEditor } from "@/components/catalog/price-editor";
+import { ImageUpload } from "@/components/catalog/image-upload";
 import { DeleteButton } from "@/components/catalog/delete-button";
 
 export const dynamic = "force-dynamic";
@@ -77,18 +78,12 @@ export default async function ProductEditorPage({ params }: { params: Promise<Pa
       <section className="mt-6 rounded-xl border border-border bg-white p-4 sm:p-6">
         <h2 className="text-sm font-semibold text-brand-dark">Image</h2>
         <div className="mt-3">
-          {product.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={product.imageUrl}
-              alt={product.name}
-              className="h-40 w-40 rounded-lg border border-border object-cover"
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No image yet. Image upload is coming in a later phase.
-            </p>
-          )}
+          <ImageUpload
+            currentUrl={product.imageUrl}
+            alt={product.name}
+            onSave={updateProductImage.bind(null, product.id)}
+            readOnly={!isAdmin}
+          />
         </div>
       </section>
 
