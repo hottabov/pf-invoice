@@ -5,10 +5,24 @@ import {
   getDocumentForBuilder,
   getItemPickerCatalog,
   listClientPickerCompanies,
+  listCompatibleOptions,
+  type CompatibleOption,
 } from "@/lib/queries/documents";
-import { addItem, deleteDraft, removeItem, setDocumentClient } from "@/lib/actions/documents";
+import {
+  addCustomLine,
+  addItem,
+  deleteDraft,
+  removeItem,
+  removeLine,
+  setDocumentClient,
+  setDocumentDiscount,
+  setItemDiscount,
+  setItemOptions,
+} from "@/lib/actions/documents";
 import { ClientSection } from "@/components/builder/client-section";
 import { ItemsSection } from "@/components/builder/items-section";
+import { ExtraLinesSection } from "@/components/builder/extra-lines-section";
+import { DocumentDiscountField } from "@/components/builder/document-discount-field";
 import { StickyFooter } from "@/components/builder/sticky-footer";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +62,17 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
     getItemPickerCatalog(document.regionCode),
   ]);
 
+  // Compatible options are preloaded once per distinct series across the
+  // document's items (not once per item) — most documents have items from
+  // a handful of series at most, so this is a small, cheap fan-out.
+  const seriesIds = Array.from(new Set(document.items.map((item) => item.seriesId).filter(Boolean))) as string[];
+  const compatibleOptionsEntries = await Promise.all(
+    seriesIds.map(async (seriesId) => [seriesId, await listCompatibleOptions(seriesId, document.regionId)] as const)
+  );
+  const compatibleOptionsBySeriesId: Record<string, CompatibleOption[]> = Object.fromEntries(
+    compatibleOptionsEntries
+  );
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-4">
       <div>
@@ -79,16 +104,33 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
         items={document.items}
         currency={document.currency}
         catalog={catalog}
+        compatibleOptionsBySeriesId={compatibleOptionsBySeriesId}
         removeItemAction={removeItem}
         addItemAction={addItem}
+        setItemOptionsAction={setItemOptions}
+        setItemDiscountAction={setItemDiscount}
+        readOnly={!isDraft}
+      />
+
+      <ExtraLinesSection
+        documentId={document.id}
+        lines={document.extraLines}
+        currency={document.currency}
+        addCustomLineAction={addCustomLine}
+        removeLineAction={removeLine}
         readOnly={!isDraft}
       />
 
       <section className="rounded-xl border border-border bg-white p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-brand-dark">Extra lines</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Freeform lines (delivery, install, etc.) — next task.
-        </p>
+        <h2 className="text-sm font-semibold text-brand-dark">Discounts</h2>
+        <div className="mt-3">
+          <DocumentDiscountField
+            documentId={document.id}
+            discountPct={document.discountPct}
+            setDiscountAction={setDocumentDiscount}
+            readOnly={!isDraft}
+          />
+        </div>
       </section>
 
       <StickyFooter
@@ -97,6 +139,8 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
         taxName={document.taxName}
         taxRate={document.taxRate}
         subtotal={document.subtotal}
+        discountPct={document.discountPct}
+        discountAmount={document.discountAmount}
         taxAmount={document.taxAmount}
         total={document.total}
         currency={document.currency}

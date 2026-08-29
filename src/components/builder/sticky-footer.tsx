@@ -19,6 +19,8 @@ export function StickyFooter({
   taxName,
   taxRate,
   subtotal,
+  discountPct,
+  discountAmount,
   taxAmount,
   total,
   currency,
@@ -29,6 +31,10 @@ export function StickyFooter({
   taxName: string;
   taxRate: string;
   subtotal: string;
+  /** The document-level discount percentage, or `null` when none is set —
+   * the discount row below only renders when this is non-null. */
+  discountPct: string | null;
+  discountAmount: string;
   taxAmount: string;
   total: string;
   currency: string;
@@ -62,6 +68,12 @@ export function StickyFooter({
           <dt className="text-muted-foreground">Subtotal</dt>
           <dd className="text-foreground">{formatMoney(subtotal, currency)}</dd>
         </div>
+        {discountPct !== null ? (
+          <div className="flex justify-between">
+            <dt className="text-muted-foreground">Discount ({discountPct}%)</dt>
+            <dd className="text-foreground">-{formatMoney(discountAmount, currency)}</dd>
+          </div>
+        ) : null}
         <div className="flex justify-between">
           <dt className="text-muted-foreground">
             {taxName} ({taxRate}%)

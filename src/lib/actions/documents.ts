@@ -2,16 +2,39 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
 import { companyWhereForUser, documentWhereForUser } from "@/lib/scope";
 import { computeTotals, type EngineInput, type EngineViolation } from "@/lib/pricing";
-import { documentTypeSchema, idSchema, optionalIdSchema, type DocumentTypeInput } from "@/lib/validation/documents";
+import {
+  customLineSchema,
+  discountPctSchema,
+  documentTypeSchema,
+  idSchema,
+  optionSelectionSchema,
+  optionalIdSchema,
+  type DocumentTypeInput,
+  type OptionSelectionInput,
+} from "@/lib/validation/documents";
 
 export type ActionResult = { error?: string };
 
 const NOT_FOUND_ERROR = "Not found";
 const FALLBACK_REGION_CODE = "AU";
+
+/** Join every zod issue message (form-level + field-level) into one string
+ * for a plain `{ error }` result — same helper as actions/catalog.ts, kept
+ * local here to avoid a cross-file dependency between the two action
+ * modules for one tiny function. */
+function flattenZodError(error: z.ZodError): string {
+  const flat = error.flatten();
+  const messages = [...flat.formErrors, ...Object.values(flat.fieldErrors).flat()].filter(
+    (m): m is string => Boolean(m)
+  );
+  return messages.length > 0 ? messages.join(" ") : "Invalid input";
+}
 
 // --- recalculation --------------------------------------------------------
 
@@ -265,5 +288,289 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
   await recalcDocument(item.documentId);
 
   revalidatePath(`/documents/${item.documentId}`);
+  return {};
+}
+
+// --- item options (Task D) --------------------------------------------------
+
+const MAX_OPTION_SELECTIONS = 100;
+
+/**
+ * Replaces an item's OPTION lines with exactly `selections`, preserving
+ * selection order as `sortOrder`. Every option code must (a) resolve to a
+ * real, active-or-not `Option` row, (b) be series-compatible with the
+ * item's product (series-level `OptionCompatibility` only, matching the
+ * rest of the catalog's phase-3 scope), and (c) carry a usable price
+ * (exists, not `needsReview`) in the *document's* region — otherwise
+ * nothing is written at all and the offending codes are named in the
+ * returned error, checked in that order (unknown, then incompatible, then
+ * unpriced) so the caller always gets one actionable message. Delete+create
+ * happens in a single transaction so a failed create can never leave an
+ * item with no options where it had some a moment ago. Scoped through
+ * item -> document -> author chain and DRAFT-only, like every other item
+ * mutation in this file.
+ */
+export async function setItemOptions(
+  itemId: string,
+  selections: OptionSelectionInput[]
+): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedItemId = idSchema.safeParse(itemId);
+  if (!parsedItemId.success) return { error: NOT_FOUND_ERROR };
+
+  if (!Array.isArray(selections) || selections.length > MAX_OPTION_SELECTIONS) {
+    return { error: "Invalid selection" };
+  }
+  const parsedSelections = z.array(optionSelectionSchema).safeParse(selections);
+  if (!parsedSelections.success) return { error: flattenZodError(parsedSelections.error) };
+
+  const codes = parsedSelections.data.map((s) => s.optionCode);
+  if (new Set(codes).size !== codes.length) {
+    return { error: "Each option can only be selected once" };
+  }
+
+  const item = await db.documentItem.findFirst({
+    where: {
+      id: parsedItemId.data,
+      document: { status: "DRAFT", ...documentWhereForUser(session.user) },
+    },
+    include: { document: true, product: { include: { series: true } } },
+  });
+  if (!item) return { error: NOT_FOUND_ERROR };
+  if (!item.product) return { error: "This item has no product to attach options to" };
+
+  if (codes.length === 0) {
+    await db.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } });
+    await recalcDocument(item.documentId);
+    revalidatePath(`/documents/${item.documentId}`);
+    return {};
+  }
+
+  const options = await db.option.findMany({
+    where: { code: { in: codes } },
+    include: {
+      prices: { where: { regionId: item.document.regionId } },
+      compat: { where: { seriesId: item.product.seriesId } },
+    },
+  });
+  const optionByCode = new Map(options.map((o) => [o.code, o]));
+
+  const missingCodes: string[] = [];
+  const incompatibleCodes: string[] = [];
+  const unpricedCodes: string[] = [];
+  for (const code of codes) {
+    const option = optionByCode.get(code);
+    if (!option) {
+      missingCodes.push(code);
+      continue;
+    }
+    if (option.compat.length === 0) {
+      incompatibleCodes.push(code);
+      continue;
+    }
+    const price = option.prices[0];
+    if (!price || price.needsReview) {
+      unpricedCodes.push(code);
+    }
+  }
+
+  if (missingCodes.length > 0) {
+    return { error: `Unknown option code(s): ${missingCodes.join(", ")}` };
+  }
+  if (incompatibleCodes.length > 0) {
+    return {
+      error: `Not compatible with ${item.product.series.name}: ${incompatibleCodes.join(", ")}`,
+    };
+  }
+  if (unpricedCodes.length > 0) {
+    return { error: `Price required for: ${unpricedCodes.join(", ")}` };
+  }
+
+  await db.$transaction([
+    db.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } }),
+    ...parsedSelections.data.map((selection, index) => {
+      const option = optionByCode.get(selection.optionCode)!;
+      const price = option.prices[0]!;
+      return db.documentLine.create({
+        data: {
+          documentId: item.documentId,
+          itemId: item.id,
+          kind: "OPTION",
+          refId: option.id,
+          code: option.code,
+          name: option.name,
+          description: option.shortDescription,
+          qty: selection.qty,
+          unitPrice: price.amount,
+          attributes: selection.attributes as Prisma.InputJsonValue | undefined,
+          sortOrder: index,
+        },
+      });
+    }),
+  ]);
+
+  await recalcDocument(item.documentId);
+
+  revalidatePath(`/documents/${item.documentId}`);
+  return {};
+}
+
+// --- extra lines (Task D) ---------------------------------------------------
+
+/**
+ * Adds a freeform document-level line (e.g. "Delivery", "Install") — always
+ * `kind: CUSTOM` with `itemId: null` — appended after every existing
+ * document-level line. Scoped to the caller's own DRAFT document.
+ */
+export async function addCustomLine(documentId: string, formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedDocumentId = idSchema.safeParse(documentId);
+  if (!parsedDocumentId.success) return { error: NOT_FOUND_ERROR };
+
+  const parsed = customLineSchema.safeParse({
+    name: formData.get("name"),
+    qty: formData.get("qty"),
+    unitPrice: formData.get("unitPrice"),
+    description: formData.get("description"),
+  });
+  if (!parsed.success) return { error: flattenZodError(parsed.error) };
+
+  const document = await db.document.findFirst({
+    where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
+  });
+  if (!document) return { error: NOT_FOUND_ERROR };
+
+  const maxSortOrder = await db.documentLine.aggregate({
+    where: { documentId: document.id, itemId: null },
+    _max: { sortOrder: true },
+  });
+
+  await db.documentLine.create({
+    data: {
+      documentId: document.id,
+      itemId: null,
+      kind: "CUSTOM",
+      name: parsed.data.name,
+      description: parsed.data.description ?? null,
+      qty: parsed.data.qty,
+      unitPrice: new Prisma.Decimal(parsed.data.unitPrice),
+      sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
+    },
+  });
+
+  await recalcDocument(document.id);
+
+  revalidatePath(`/documents/${document.id}`);
+  return {};
+}
+
+/**
+ * Removes a document-level CUSTOM line (an "extra line" like delivery).
+ * Scoped through line -> document -> author chain, and deliberately matches
+ * only a document-level CUSTOM line (`itemId: null`, `kind: "CUSTOM"`) — an
+ * item's OPTION lines are replaced as a whole set via `setItemOptions`,
+ * never deleted one at a time through this action.
+ */
+export async function removeLine(lineId: string): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedLineId = idSchema.safeParse(lineId);
+  if (!parsedLineId.success) return { error: NOT_FOUND_ERROR };
+
+  const line = await db.documentLine.findFirst({
+    where: {
+      id: parsedLineId.data,
+      itemId: null,
+      kind: "CUSTOM",
+      document: { status: "DRAFT", ...documentWhereForUser(session.user) },
+    },
+    select: { id: true, documentId: true },
+  });
+  if (!line) return { error: NOT_FOUND_ERROR };
+
+  await db.documentLine.delete({ where: { id: line.id } });
+
+  await recalcDocument(line.documentId);
+
+  revalidatePath(`/documents/${line.documentId}`);
+  return {};
+}
+
+// --- discounts (Task D) -----------------------------------------------------
+
+/**
+ * Sets (or, given an empty `pct`, clears) an item's discount percentage.
+ * The item's series cap (`Series.maxDiscountPct`) is enforced *before*
+ * persisting: unlike the pricing engine's own violation reporting (which
+ * happily computes with whatever percentage is already stored and just
+ * flags it — see EngineViolation), this action refuses the save outright
+ * when the requested pct exceeds the cap, so a violating discount is never
+ * actually written for a new save. A series with no cap configured
+ * (`maxDiscountPct` null) allows any 0..100 discount.
+ */
+export async function setItemDiscount(itemId: string, formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedItemId = idSchema.safeParse(itemId);
+  if (!parsedItemId.success) return { error: NOT_FOUND_ERROR };
+
+  const parsedPct = discountPctSchema.safeParse(formData.get("pct"));
+  if (!parsedPct.success) return { error: flattenZodError(parsedPct.error) };
+
+  const item = await db.documentItem.findFirst({
+    where: {
+      id: parsedItemId.data,
+      document: { status: "DRAFT", ...documentWhereForUser(session.user) },
+    },
+    include: { product: { include: { series: true } } },
+  });
+  if (!item) return { error: NOT_FOUND_ERROR };
+
+  const cap = item.product?.series.maxDiscountPct ? Number(item.product.series.maxDiscountPct) : null;
+  if (parsedPct.data !== null && cap !== null && parsedPct.data > cap) {
+    const seriesName = item.product?.series.name ?? "this series";
+    return { error: `Max discount for ${seriesName} is ${cap}%` };
+  }
+
+  await db.documentItem.update({
+    where: { id: item.id },
+    data: { discountPct: parsedPct.data === null ? null : new Prisma.Decimal(parsedPct.data) },
+  });
+
+  await recalcDocument(item.documentId);
+
+  revalidatePath(`/documents/${item.documentId}`);
+  return {};
+}
+
+/**
+ * Sets (or clears) the document-level discount percentage. There's no cap
+ * at the document level — only item discounts are bounded by their
+ * series' `maxDiscountPct`.
+ */
+export async function setDocumentDiscount(documentId: string, formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedDocumentId = idSchema.safeParse(documentId);
+  if (!parsedDocumentId.success) return { error: NOT_FOUND_ERROR };
+
+  const parsedPct = discountPctSchema.safeParse(formData.get("pct"));
+  if (!parsedPct.success) return { error: flattenZodError(parsedPct.error) };
+
+  const document = await db.document.findFirst({
+    where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
+  });
+  if (!document) return { error: NOT_FOUND_ERROR };
+
+  await db.document.update({
+    where: { id: document.id },
+    data: { discountPct: parsedPct.data === null ? null : new Prisma.Decimal(parsedPct.data) },
+  });
+
+  await recalcDocument(document.id);
+
+  revalidatePath(`/documents/${document.id}`);
   return {};
 }

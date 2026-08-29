@@ -1,30 +1,41 @@
 import { formatMoney } from "@/lib/format";
 import { RemoveItemButton } from "@/components/builder/remove-item-button";
 import { AddItemPicker } from "@/components/builder/add-item-picker";
+import { ItemOptionsEditor } from "@/components/builder/item-options-editor";
+import { ItemDiscountField } from "@/components/builder/item-discount-field";
 import type { ActionResult } from "@/lib/actions/documents";
-import type { BuilderItem, ItemPickerSeries } from "@/lib/queries/documents";
+import type { BuilderItem, CompatibleOption, ItemPickerSeries } from "@/lib/queries/documents";
+import type { OptionSelectionInput } from "@/lib/validation/documents";
 
 /**
  * The builder's "Items" section: one card per DocumentItem (product
- * snapshot + its option lines) plus the "Add item" picker. Option editing,
- * per-item discounts and extra lines are Task D — each item card shows
- * placeholders for them so the layout doesn't shift once those land.
+ * snapshot, its option chips/editor, its discount field and its computed
+ * total) plus the "Add item" picker. `compatibleOptionsBySeriesId` is
+ * preloaded once per distinct series on the page (see
+ * getDocumentForBuilder + listCompatibleOptions) and looked up per item by
+ * its `seriesId` rather than re-fetched per card.
  */
 export function ItemsSection({
   documentId,
   items,
   currency,
   catalog,
+  compatibleOptionsBySeriesId,
   removeItemAction,
   addItemAction,
+  setItemOptionsAction,
+  setItemDiscountAction,
   readOnly = false,
 }: {
   documentId: string;
   items: BuilderItem[];
   currency: string;
   catalog: ItemPickerSeries[];
+  compatibleOptionsBySeriesId: Record<string, CompatibleOption[]>;
   removeItemAction: (itemId: string) => Promise<ActionResult>;
   addItemAction: (documentId: string, productCode: string) => Promise<ActionResult>;
+  setItemOptionsAction: (itemId: string, selections: OptionSelectionInput[]) => Promise<ActionResult>;
+  setItemDiscountAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
   readOnly?: boolean;
 }) {
   return (
@@ -50,14 +61,11 @@ export function ItemsSection({
                   <div className="flex flex-col">
                     <span className="text-sm font-medium text-brand-dark">{item.name}</span>
                     <span className="font-mono text-xs text-muted-foreground">{item.code}</span>
-                    <span className="mt-1 text-xs text-muted-foreground">
-                      options: {item.lines.length}
-                    </span>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="text-sm font-medium text-brand-dark">
-                    {formatMoney(item.unitPrice, currency)}
+                    {formatMoney(item.total, currency)}
                   </span>
                   {!readOnly && (
                     <RemoveItemButton
@@ -67,7 +75,27 @@ export function ItemsSection({
                   )}
                 </div>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">Options & discounts — next task.</p>
+
+              <ItemOptionsEditor
+                itemId={item.id}
+                currentLines={item.lines
+                  .filter((line) => line.kind === "OPTION")
+                  .map((line) => ({ code: line.code, qty: line.qty, attributes: line.attributes }))}
+                compatibleOptions={item.seriesId ? (compatibleOptionsBySeriesId[item.seriesId] ?? []) : []}
+                currency={currency}
+                setOptionsAction={setItemOptionsAction}
+                readOnly={readOnly}
+              />
+
+              <div className="mt-2">
+                <ItemDiscountField
+                  itemId={item.id}
+                  discountPct={item.discountPct}
+                  maxDiscountPct={item.maxDiscountPct}
+                  setDiscountAction={setItemDiscountAction}
+                  readOnly={readOnly}
+                />
+              </div>
             </div>
           ))}
         </div>

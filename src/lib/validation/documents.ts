@@ -28,3 +28,83 @@ export const optionalIdSchema = z.preprocess(
       : value,
   idSchema.optional()
 );
+
+// --- Task D: options, custom lines, discounts ------------------------------
+
+/** Optional free text, ≤500 chars (a custom line's description — shorter
+ * than the 2000-char catalog description since this is a one-off freeform
+ * note, not a product blurb). Missing/empty collapses to `undefined`. */
+const customLineDescriptionSchema = z.preprocess(
+  (value) =>
+    value === null || value === undefined || (typeof value === "string" && value.trim() === "")
+      ? undefined
+      : value,
+  z.string().max(500, "Description must be at most 500 characters").optional()
+);
+
+/** Integer quantity, 1..999 — shared by custom lines and option selections. */
+const qtySchema = z.coerce
+  .number({ error: "Qty must be a number" })
+  .int("Qty must be a whole number")
+  .min(1, "Qty must be at least 1")
+  .max(999, "Qty must be at most 999");
+
+const NON_NEGATIVE_AMOUNT_REGEX = /^\d+(\.\d{1,2})?$/;
+
+/** A freeform document-level line (e.g. "Delivery", "Install") added via the
+ * builder's "Extra lines" section. `unitPrice` is kept as a validated string
+ * (not coerced to a number) so it can be handed straight to
+ * `new Prisma.Decimal(...)` without float rounding — same pattern as
+ * `priceInputSchema` in validation/catalog.ts. */
+export const customLineSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(200, "Name must be at most 200 characters"),
+  qty: qtySchema,
+  unitPrice: z
+    .string()
+    .trim()
+    .regex(NON_NEGATIVE_AMOUNT_REGEX, "Unit price must be a non-negative number with at most 2 decimal places"),
+  description: customLineDescriptionSchema,
+});
+export type CustomLineInput = z.infer<typeof customLineSchema>;
+
+const DISCOUNT_PCT_REGEX = /^\d{1,3}(\.\d{1,2})?$/;
+
+/**
+ * A discount percentage field (item- or document-level): an empty string
+ * (or a missing/`null` FormData value) means "clear the discount" and
+ * collapses to `null`; otherwise it must be a decimal in 0..100 with at
+ * most 2 decimal places, parsed to a `number`. "101" and "10.555" both
+ * fail — the former out of range, the latter too many decimal places —
+ * while "10.55" and "" (→ `null`) both succeed.
+ */
+export const discountPctSchema = z.preprocess(
+  (value) =>
+    value === null || value === undefined || (typeof value === "string" && value.trim() === "")
+      ? null
+      : value,
+  z.union([
+    z.null(),
+    z
+      .string()
+      .trim()
+      .regex(DISCOUNT_PCT_REGEX, "Discount must be a number between 0 and 100 with at most 2 decimal places")
+      .transform((value) => Number(value))
+      .refine((value) => value >= 0 && value <= 100, "Discount must be between 0 and 100"),
+  ])
+);
+export type DiscountPctInput = z.infer<typeof discountPctSchema>;
+
+/** One option selection from the item options editor: the option's code,
+ * the quantity of it on the item, and (when the option carries an
+ * `attributeSchema`) the freeform attribute values keyed by attribute
+ * `key`. Value type is loosely `string | number` — the editor renders
+ * "number" and "text" attribute inputs and this schema doesn't re-validate
+ * per-attribute types against the option's schema (that's a display/UX
+ * concern, not a data-integrity one: the value is stored as-is in
+ * `DocumentLine.attributes` Json). */
+export const optionSelectionSchema = z.object({
+  optionCode: z.string().trim().min(1, "Option code is required").max(120, "Option code is too long"),
+  qty: qtySchema,
+  attributes: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+});
+export type OptionSelectionInput = z.infer<typeof optionSelectionSchema>;
