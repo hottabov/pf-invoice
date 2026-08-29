@@ -41,3 +41,4 @@ venv/
 *.sqlite
 *.sqlite3
 tmp/
+RAW/
