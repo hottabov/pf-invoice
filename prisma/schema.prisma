@@ -49,19 +49,20 @@ model Region {
 }
 
 model User {
-  id            String     @id @default(cuid())
-  email         String     @unique
-  emailVerified DateTime?
-  name          String?
-  image         String?
-  passwordHash  String?
-  role          Role       @default(MANAGER)
-  regionId      String?
-  region        Region?    @relation(fields: [regionId], references: [id])
-  active        Boolean    @default(true)
-  documents     Document[]
-  accounts      Account[]
-  sessions      Session[]
+  id             String     @id @default(cuid())
+  email          String     @unique
+  emailVerified  DateTime?
+  name           String?
+  image          String?
+  passwordHash   String?
+  role           Role       @default(MANAGER)
+  regionId       String?
+  region         Region?    @relation(fields: [regionId], references: [id])
+  active         Boolean    @default(true)
+  documents      Document[]
+  accounts       Account[]
+  sessions       Session[]
+  companiesOwned Company[]  @relation("CompanyOwner")
 }
 
 model Account {
@@ -177,9 +178,13 @@ model Company {
   notes     String?
   regionId  String
   region    Region     @relation(fields: [regionId], references: [id])
+  ownerId   String?
+  owner     User?      @relation("CompanyOwner", fields: [ownerId], references: [id])
   contacts  Contact[]
   documents Document[]
   createdAt DateTime   @default(now())
+
+  @@index([ownerId])
 }
 
 model Contact {
