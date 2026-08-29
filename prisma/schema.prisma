@@ -207,8 +207,8 @@ model Document {
   type           DocumentType
   status         DocumentStatus @default(DRAFT)
   number         String?        @unique // Q-AU-2026-001, assigned on finalize
-  companyId      String
-  company        Company        @relation(fields: [companyId], references: [id])
+  companyId      String? // set once the client step of the builder is completed
+  company        Company?       @relation(fields: [companyId], references: [id], onDelete: Restrict)
   contactId      String?
   contact        Contact?       @relation(fields: [contactId], references: [id])
   authorId       String
