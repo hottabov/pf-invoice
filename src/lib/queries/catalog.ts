@@ -3,6 +3,24 @@ import { db } from "@/lib/db";
 
 const DEFAULT_REGION_CODE = "AU";
 
+export type RegionSummary = {
+  id: string;
+  code: string;
+  name: string;
+  currency: string;
+};
+
+/** All active regions, ordered by code, for the per-region price editors. */
+export const listActiveRegions = cache(async function listActiveRegions(): Promise<
+  RegionSummary[]
+> {
+  const regions = await db.region.findMany({
+    where: { active: true },
+    orderBy: { code: "asc" },
+  });
+  return regions.map((r) => ({ id: r.id, code: r.code, name: r.name, currency: r.currency }));
+});
+
 export type SeriesWithCounts = {
   id: string;
   code: string;
@@ -173,4 +191,145 @@ export async function listOptions(params: {
         .sort(),
     };
   });
+}
+
+/** A single series by code — for the "new product" page header and to
+ * validate a `[seriesCode]` route param without pulling its product list. */
+export async function getSeriesByCode(code: string): Promise<SeriesDetail | null> {
+  const series = await db.series.findUnique({ where: { code } });
+  if (!series) return null;
+  return {
+    id: series.id,
+    code: series.code,
+    name: series.name,
+    maxDiscountPct: series.maxDiscountPct?.toString() ?? null,
+  };
+}
+
+export type RegionPriceRow = {
+  regionId: string;
+  regionCode: string;
+  regionName: string;
+  currency: string;
+  amount: string | null;
+  needsReview: boolean;
+};
+
+function toRegionPriceRows(
+  regions: RegionSummary[],
+  prices: { regionId: string; amount: { toString(): string }; needsReview: boolean }[]
+): RegionPriceRow[] {
+  const priceByRegionId = new Map(prices.map((p) => [p.regionId, p]));
+  return regions.map((region) => {
+    const price = priceByRegionId.get(region.id);
+    return {
+      regionId: region.id,
+      regionCode: region.code,
+      regionName: region.name,
+      currency: region.currency,
+      amount: price ? price.amount.toString() : null,
+      // No price row at all is treated the same as needsReview for display
+      // purposes — both mean "price required" in the editor.
+      needsReview: price ? price.needsReview : true,
+    };
+  });
+}
+
+export type ProductDetail = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  sortOrder: number;
+  imageUrl: string | null;
+  series: SeriesDetail;
+  prices: RegionPriceRow[];
+};
+
+/**
+ * A single product (by series code + product code) with everything the
+ * editor needs: every active region's price row (present or not) for the
+ * per-region price section.
+ */
+export async function getProductDetail(
+  seriesCode: string,
+  productCode: string
+): Promise<ProductDetail | null> {
+  const [series, regions] = await Promise.all([
+    db.series.findUnique({ where: { code: seriesCode } }),
+    listActiveRegions(),
+  ]);
+  if (!series) return null;
+
+  const product = await db.product.findFirst({
+    where: { code: productCode, seriesId: series.id },
+    include: { prices: { include: { region: true } } },
+  });
+  if (!product) return null;
+
+  return {
+    id: product.id,
+    code: product.code,
+    name: product.name,
+    description: product.description,
+    active: product.active,
+    sortOrder: product.sortOrder,
+    imageUrl: product.imageUrl,
+    series: {
+      id: series.id,
+      code: series.code,
+      name: series.name,
+      maxDiscountPct: series.maxDiscountPct?.toString() ?? null,
+    },
+    prices: toRegionPriceRows(regions, product.prices),
+  };
+}
+
+export type OptionDetail = {
+  id: string;
+  code: string;
+  name: string;
+  shortDescription: string | null;
+  attributeSchema: unknown;
+  active: boolean;
+  sortOrder: number;
+  imageUrl: string | null;
+  prices: RegionPriceRow[];
+  /** Series this option is compatible with at the series level (phase-3
+   * scope excludes product-level compatibility). */
+  compatSeriesCodes: string[];
+};
+
+/** A single option (by code) with every active region's price row and its
+ * series-level compatibility, for the option editor. */
+export async function getOptionDetail(optionCode: string): Promise<OptionDetail | null> {
+  const [option, regions] = await Promise.all([
+    db.option.findUnique({
+      where: { code: optionCode },
+      include: {
+        prices: { include: { region: true } },
+        compat: { include: { series: true } },
+      },
+    }),
+    listActiveRegions(),
+  ]);
+  if (!option) return null;
+
+  return {
+    id: option.id,
+    code: option.code,
+    name: option.name,
+    shortDescription: option.shortDescription,
+    attributeSchema: option.attributeSchema,
+    active: option.active,
+    sortOrder: option.sortOrder,
+    imageUrl: option.imageUrl,
+    prices: toRegionPriceRows(regions, option.prices),
+    compatSeriesCodes: option.compat
+      .filter((c) => c.seriesId !== null && c.productId === null)
+      .map((c) => c.series?.code)
+      .filter((code): code is string => Boolean(code))
+      .sort(),
+  };
 }
