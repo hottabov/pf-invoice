@@ -1,0 +1,132 @@
+name: CI & Deploy
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    name: Lint, typecheck, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+  verify-db:
+    name: Verify DB migrate + seed
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pathquote
+          POSTGRES_PASSWORD: pathquote
+          POSTGRES_DB: pathquote
+        options: >-
+          --health-cmd "pg_isready -U pathquote"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://pathquote:pathquote@localhost:5432/pathquote
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - name: Migrate
+        run: npm run db:migrate
+
+      - name: Seed (first run)
+        run: npm run db:seed
+
+      - name: Seed (second run — idempotency check)
+        run: npm run db:seed
+
+      - name: Verify seeded row counts
+        run: |
+          cat > ./.ci-verify-seed.cjs <<'EOF'
+          const { PrismaClient } = require("@prisma/client");
+          const { PrismaPg } = require("@prisma/adapter-pg");
+
+          const db = new PrismaClient({
+            adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+          });
+
+          const expected = { regions: 3, series: 9, products: 37 };
+
+          async function main() {
+            const [regions, series, products] = await Promise.all([
+              db.region.count(),
+              db.series.count(),
+              db.product.count(),
+            ]);
+            const actual = { regions, series, products };
+            console.log(`counts: ${JSON.stringify(actual)}`);
+
+            const mismatches = Object.keys(expected).filter(
+              (k) => expected[k] !== actual[k]
+            );
+            if (mismatches.length) {
+              console.error(
+                `FAIL: mismatch on ${mismatches.join(", ")} (expected ${JSON.stringify(
+                  expected
+                )}, got ${JSON.stringify(actual)})`
+              );
+              process.exitCode = 1;
+              return;
+            }
+            console.log("OK: seed counts match expected values");
+          }
+
+          main()
+            .catch((e) => {
+              console.error(e);
+              process.exitCode = 1;
+            })
+            .finally(() => db.$disconnect());
+          EOF
+          node ./.ci-verify-seed.cjs
+
+  deploy:
+    name: Deploy to VPS
+    needs: [ci, verify-db]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/pathquote
+            git pull --ff-only
+            docker compose up -d --build
+            docker compose exec -T app npx prisma migrate deploy
+            curl -fsS http://127.0.0.1:3010/api/health
