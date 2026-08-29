@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rtk read *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('name'\\)\\); [print\\('-', p.get\\('name'\\)\\) for p in d.get\\('plugins',[]\\)]\")",
+      "Bash(python3 *)"
+    ]
+  }
+}

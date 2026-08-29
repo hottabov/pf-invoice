@@ -23,3 +23,5 @@ Out of scope v1: client emailing, payment tracking, FX conversion, client portal
 - Companies have many contacts; document → company + contact
 - Roles: admin / manager (manager sees own documents/clients only)
 - No self-signup; config in DB; only secrets in `.env`
+- Language: English everywhere in the project — code, comments, UI, docs, commits
+- Dev sandbox has no Docker/Postgres: migrations generated via `prisma migrate diff`; seed/migration verification runs in CI (postgres service) and on the VPS
