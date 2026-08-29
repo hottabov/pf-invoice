@@ -9,17 +9,21 @@ interface CatalogItem {
   needsReview: boolean;
 }
 
+interface GlobalOption extends CatalogItem {
+  compatibleSeries: string[];
+}
+
 interface Series {
   seriesCode: string;
   seriesName: string;
   maxDiscountPct: number | null;
   products: CatalogItem[];
-  options: CatalogItem[];
 }
 
 interface Catalog {
   extractedAt: string;
   series: Series[];
+  options: GlobalOption[];
 }
 
 const catalog = catalogData as Catalog;
@@ -37,12 +41,12 @@ describe('Catalog Extraction Validation', () => {
     lSeries = catalog.series.find((s) => s.seriesCode === 'L')!;
     pSeries = catalog.series.find((s) => s.seriesCode === 'P')!;
 
-    // Collect all items (products and options) from all series
+    // Collect all items (products from every series, plus the global options)
     allItems = [];
     catalog.series.forEach((series) => {
       allItems.push(...series.products);
-      allItems.push(...series.options);
     });
+    allItems.push(...catalog.options);
   });
 
   describe('Series Structure', () => {
@@ -108,12 +112,19 @@ describe('Catalog Extraction Validation', () => {
   });
 
   describe('Price Validation Rules', () => {
-    it('every item should have either positive price or (null price with needsReview=true)', () => {
+    // A price is either a usable positive number, or it's flagged for review
+    // (covers both a missing price, e.g. M3390, and a present-but-unusable
+    // one, e.g. TPL's genuine 0).
+    it('every item should have a positive price OR be flagged needsReview', () => {
+      allItems.forEach((item) => {
+        expect((item.price !== null && item.price > 0) || item.needsReview).toBe(true);
+      });
+    });
+
+    it('a null price should always be flagged needsReview', () => {
       allItems.forEach((item) => {
         if (item.price === null) {
           expect(item.needsReview).toBe(true);
-        } else {
-          expect(item.price).toBeGreaterThan(0);
         }
       });
     });
@@ -130,6 +141,74 @@ describe('Catalog Extraction Validation', () => {
       const lsConvert = allItems.find((item) => item.code === 'LS Convert');
       expect(lsConvert).toBeDefined();
       expect(lsConvert?.needsReview).toBe(true);
+    });
+
+    it('TPL should have price 0 and needsReview=true (genuine 0 in source, not a missing cell)', () => {
+      const tpl = catalog.options.find((o) => o.code === 'TPL');
+      expect(tpl).toBeDefined();
+      expect(tpl?.price).toBe(0);
+      expect(tpl?.needsReview).toBe(true);
+    });
+  });
+
+  describe('Global Options', () => {
+    it('every option should have a non-empty compatibleSeries list', () => {
+      catalog.options.forEach((option) => {
+        expect(Array.isArray(option.compatibleSeries)).toBe(true);
+        expect(option.compatibleSeries.length).toBeGreaterThan(0);
+      });
+    });
+
+    it('every option sourced from the M sheet should include "XC" in compatibleSeries', () => {
+      // PTW (merged M+L) and every M-only/split "-M" option should carry XC.
+      const mSourced = catalog.options.filter((o) => o.compatibleSeries.includes('M'));
+      expect(mSourced.length).toBeGreaterThan(0);
+      mSourced.forEach((option) => {
+        expect(option.compatibleSeries).toContain('XC');
+      });
+    });
+
+    it('options priced identically across sheets are merged into one option with the union of series', () => {
+      // PTW is priced 3500 in both M-series and L-Series -> single global option.
+      const ptw = catalog.options.filter((o) => o.code === 'PTW');
+      expect(ptw).toHaveLength(1);
+      expect(ptw[0].price).toBe(3500);
+      expect(ptw[0].compatibleSeries.sort()).toEqual(['L', 'M', 'XC'].sort());
+      // No unsuffixed leftovers for a merged code.
+      expect(catalog.options.some((o) => o.code === 'PTW-M' || o.code === 'PTW-L')).toBe(false);
+    });
+
+    it('options priced differently across sheets are split into series-suffixed codes', () => {
+      const splitBaseCodes = ['ABR', 'APM', 'BCR', 'HDC', 'HFV', 'OFD', 'OFP', 'PM', 'PRM'];
+      splitBaseCodes.forEach((code) => {
+        // The unsuffixed base code must not survive a split.
+        expect(catalog.options.some((o) => o.code === code)).toBe(false);
+
+        const mVariant = catalog.options.find((o) => o.code === `${code}-M`);
+        const lVariant = catalog.options.find((o) => o.code === `${code}-L`);
+        expect(mVariant).toBeDefined();
+        expect(lVariant).toBeDefined();
+        expect(mVariant!.price).not.toBe(lVariant!.price);
+        expect(mVariant!.compatibleSeries).toContain('XC');
+      });
+
+      // Crate splits three ways (M, P, FP), all at different prices.
+      const crateM = catalog.options.find((o) => o.code === 'Crate-M');
+      const crateP = catalog.options.find((o) => o.code === 'Crate-P');
+      const crateFP = catalog.options.find((o) => o.code === 'Crate-FP');
+      expect(crateM).toBeDefined();
+      expect(crateP).toBeDefined();
+      expect(crateFP).toBeDefined();
+      expect(new Set([crateM!.price, crateP!.price, crateFP!.price]).size).toBe(3);
+      expect(catalog.options.some((o) => o.code === 'Crate')).toBe(false);
+
+      // PRA splits two ways (L, SW), at different prices.
+      const praL = catalog.options.find((o) => o.code === 'PRA-L');
+      const praSW = catalog.options.find((o) => o.code === 'PRA-SW');
+      expect(praL).toBeDefined();
+      expect(praSW).toBeDefined();
+      expect(praL!.price).not.toBe(praSW!.price);
+      expect(catalog.options.some((o) => o.code === 'PRA')).toBe(false);
     });
   });
 
@@ -189,8 +268,12 @@ describe('Catalog Extraction Validation', () => {
         expect(series.seriesName.length).toBeGreaterThan(0);
 
         expect(Array.isArray(series.products)).toBe(true);
-        expect(Array.isArray(series.options)).toBe(true);
       });
+    });
+
+    it('options should be a top-level global array on the catalog, not nested per series', () => {
+      expect(Array.isArray(catalog.options)).toBe(true);
+      expect(catalog.options.length).toBeGreaterThan(0);
     });
   });
 });

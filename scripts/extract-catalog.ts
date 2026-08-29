@@ -40,14 +40,33 @@ type CatalogSeries = {
   seriesName: string;
   maxDiscountPct: number | null;
   products: CatalogItem[];
-  options: CatalogItem[];
 };
+
+/** A global, deduplicated option -- 1:1 with the DB's Option model. Series
+ *  affinity (formerly implicit in "which sheet's options[] it lived in") is
+ *  now explicit via compatibleSeries, matching OptionCompatibility. */
+type GlobalOption = {
+  code: string;
+  name: string;
+  description: string;
+  price: number | null;
+  needsReview: boolean;
+  compatibleSeries: string[];
+};
+
+/** A per-sheet option before cross-sheet merging, tagged with the series it
+ *  came from so the merge step can compare prices and build compatibleSeries. */
+type SeriesOptions = { seriesCode: string; options: CatalogItem[] };
 
 type LogEntry = { series: string; list: "product" | "option"; code: string; reason: string };
 type DisambigEntry = { series: string; list: "product" | "option"; original: string; final: string };
+type MergeEntry = { code: string; seriesCodes: string[]; price: number | null };
+type SplitEntry = { code: string; variants: { seriesCode: string; finalCode: string; price: number | null }[] };
 
 const dropped: LogEntry[] = [];
 const disambiguated: DisambigEntry[] = [];
+const merged: MergeEntry[] = [];
+const split: SplitEntry[] = [];
 
 // ---------------------------------------------------------------------------
 // Generic cell helpers
@@ -349,12 +368,16 @@ function extractFabricPro(wb: XLSX.WorkBook) {
   // Rows 7-10: code column C, description column D, price column J.
   // FP-180 / FP-220 are the spreader machines (product); TPL (price 0,
   // included as standard equipment) and Crate are accessories (option).
+  // TPL's price cell (J9) is a genuine 0 -- checked every other cell in the
+  // row (D-K) and none carries a real number instead. A price of exactly 0
+  // isn't a usable sale price even though it's not blank, so it's flagged
+  // needsReview rather than trusted at face value (per Task spec point D).
   for (const row of [7, 8, 9, 10]) {
     const code = cellText(ws, `C${row}`);
     if (!code) continue;
     const desc = cellText(ws, `D${row}`);
     const price = cellNumber(ws, `J${row}`);
-    const item: CatalogItem = { code, name: desc, description: desc, price, needsReview: price === null };
+    const item: CatalogItem = { code, name: desc, description: desc, price, needsReview: price === null || price === 0 };
     if (/^FP-\d/.test(code)) register(products, seenP, item, "FP", "product");
     else register(options, seenO, item, "FP", "option");
   }
@@ -363,10 +386,93 @@ function extractFabricPro(wb: XLSX.WorkBook) {
 }
 
 // ---------------------------------------------------------------------------
+// Cross-sheet option merging
+//
+// Options are global (1:1 with the DB's Option model); series affinity is
+// expressed via compatibleSeries (1:1 with OptionCompatibility) rather than
+// which sheet's options[] an item lived in. 12 option codes are duplicated
+// across sheets in the source file (same short code, different accessory
+// per machine line). For each duplicated code:
+//   - If every sheet prices it identically, it's genuinely one option sold
+//     across multiple lines -> merge into a single option, union the
+//     compatible series.
+//   - If sheets disagree on price, it's NOT the same option -- keep them
+//     separate, with the series code suffixed onto every variant's code
+//     (e.g. "ABR-M", "ABR-L") so the base code is never ambiguously reused.
+// Every option pulled from the M-series sheet is also compatible with
+// X-Calibre (XC clones M's machines and is expected to reuse M's options).
+// ---------------------------------------------------------------------------
+
+function compatibleSeriesFor(seriesCode: string): string[] {
+  return seriesCode === "M" ? ["M", "XC"] : [seriesCode];
+}
+
+function buildGlobalOptions(seriesOptionsList: SeriesOptions[]): GlobalOption[] {
+  const byCode = new Map<string, { seriesCode: string; item: CatalogItem }[]>();
+  for (const { seriesCode, options } of seriesOptionsList) {
+    for (const item of options) {
+      const entries = byCode.get(item.code) ?? [];
+      entries.push({ seriesCode, item });
+      byCode.set(item.code, entries);
+    }
+  }
+
+  const result: GlobalOption[] = [];
+  for (const [code, entries] of byCode) {
+    if (entries.length === 1) {
+      const { seriesCode, item } = entries[0];
+      result.push({
+        code: item.code,
+        name: item.name,
+        description: item.description,
+        price: item.price,
+        needsReview: item.needsReview,
+        compatibleSeries: compatibleSeriesFor(seriesCode),
+      });
+      continue;
+    }
+
+    const prices = entries.map((e) => e.item.price);
+    const allSamePrice = prices.every((p) => p === prices[0]);
+
+    if (allSamePrice) {
+      const first = entries[0]; // insertion order == series extraction order (M, L, P, SW, LNS, EL, EF, FP)
+      const compatibleSeries = Array.from(new Set(entries.flatMap((e) => compatibleSeriesFor(e.seriesCode))));
+      result.push({
+        code,
+        name: first.item.name,
+        description: first.item.description,
+        price: first.item.price,
+        needsReview: entries.some((e) => e.item.needsReview),
+        compatibleSeries,
+      });
+      merged.push({ code, seriesCodes: entries.map((e) => e.seriesCode), price: first.item.price });
+    } else {
+      const variants: SplitEntry["variants"] = [];
+      for (const { seriesCode, item } of entries) {
+        const finalCode = `${code}-${seriesCode}`;
+        result.push({
+          code: finalCode,
+          name: item.name,
+          description: item.description,
+          price: item.price,
+          needsReview: item.needsReview,
+          compatibleSeries: compatibleSeriesFor(seriesCode),
+        });
+        variants.push({ seriesCode, finalCode, price: item.price });
+      }
+      split.push({ code, variants });
+    }
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Assembly
 // ---------------------------------------------------------------------------
 
-function sortByCode(items: CatalogItem[]): CatalogItem[] {
+function sortByCode<T extends { code: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => a.code.localeCompare(b.code, "en"));
 }
 
@@ -388,24 +494,38 @@ function main(): void {
   const fp = extractFabricPro(wb);
 
   const series: CatalogSeries[] = [
-    { seriesCode: "M", seriesName: "M-Series", maxDiscountPct: null, products: sortByCode(m.products), options: sortByCode(m.options) },
-    { seriesCode: "L", seriesName: "L-Series", maxDiscountPct: 10, products: sortByCode(l.products), options: sortByCode(l.options) },
-    { seriesCode: "P", seriesName: "Punchline", maxDiscountPct: null, products: sortByCode(p.products), options: sortByCode(p.options) },
-    { seriesCode: "SW", seriesName: "Software", maxDiscountPct: null, products: sortByCode(sw.products), options: sortByCode(sw.options) },
-    { seriesCode: "LNS", seriesName: "Leather Nesting System", maxDiscountPct: null, products: sortByCode(lns.products), options: sortByCode(lns.options) },
-    { seriesCode: "EL", seriesName: "EasyLoader", maxDiscountPct: null, products: sortByCode(el.products), options: sortByCode(el.options) },
-    { seriesCode: "EF", seriesName: "EasyFeeder", maxDiscountPct: null, products: sortByCode(ef.products), options: sortByCode(ef.options) },
-    { seriesCode: "FP", seriesName: "FabricPro", maxDiscountPct: null, products: sortByCode(fp.products), options: sortByCode(fp.options) },
+    { seriesCode: "M", seriesName: "M-Series", maxDiscountPct: null, products: sortByCode(m.products) },
+    { seriesCode: "L", seriesName: "L-Series", maxDiscountPct: 10, products: sortByCode(l.products) },
+    { seriesCode: "P", seriesName: "Punchline", maxDiscountPct: null, products: sortByCode(p.products) },
+    { seriesCode: "SW", seriesName: "Software", maxDiscountPct: null, products: sortByCode(sw.products) },
+    { seriesCode: "LNS", seriesName: "Leather Nesting System", maxDiscountPct: null, products: sortByCode(lns.products) },
+    { seriesCode: "EL", seriesName: "EasyLoader", maxDiscountPct: null, products: sortByCode(el.products) },
+    { seriesCode: "EF", seriesName: "EasyFeeder", maxDiscountPct: null, products: sortByCode(ef.products) },
+    { seriesCode: "FP", seriesName: "FabricPro", maxDiscountPct: null, products: sortByCode(fp.products) },
   ];
+
+  // Cross-sheet option merge, in the same M/L/P/SW/LNS/EL/EF/FP order used
+  // above -- see buildGlobalOptions for the merge/split rule.
+  const options = sortByCode(
+    buildGlobalOptions([
+      { seriesCode: "M", options: m.options },
+      { seriesCode: "L", options: l.options },
+      { seriesCode: "P", options: p.options },
+      { seriesCode: "SW", options: sw.options },
+      { seriesCode: "LNS", options: lns.options },
+      { seriesCode: "EL", options: el.options },
+      { seriesCode: "EF", options: ef.options },
+      { seriesCode: "FP", options: fp.options },
+    ])
+  );
 
   // X-Calibre: a distinct sellable line built on M-Series' machine specs.
   // Cloned from the already-extracted M products; codes drop the leading
   // "M" and gain an "XC-" prefix (M3180 -> XC-3180). Prices are copied
   // as-is but flagged needsReview because X-Calibre-specific pricing is not
   // yet published in the source file -- these are provisional placeholders.
-  // Options are deliberately left empty: XC is expected to reuse M-Series'
-  // options via a compatibility mapping at seed time, not duplicate them
-  // here.
+  // XC is expected to reuse M-Series' options via compatibleSeries (every
+  // M-sheet option already lists "XC"), not via a duplicated options list.
   const mSeries = series.find((s) => s.seriesCode === "M")!;
   const xcSeries: CatalogSeries = {
     seriesCode: "XC",
@@ -418,47 +538,50 @@ function main(): void {
         needsReview: true,
       }))
     ),
-    options: [],
   };
   series.unshift(xcSeries); // "insert at position 1" => first entry in the array
 
   const catalog = {
     extractedAt: new Date().toISOString(),
     series,
+    options,
   };
 
   fs.mkdirSync(path.dirname(OUTPUT_JSON), { recursive: true });
   fs.writeFileSync(OUTPUT_JSON, JSON.stringify(catalog, null, 2) + "\n");
 
-  printSummary(series);
+  printSummary(series, options);
 }
 
-function printSummary(series: CatalogSeries[]): void {
+function printSummary(series: CatalogSeries[], options: GlobalOption[]): void {
   console.log("\nCatalog extraction summary");
   console.log("===========================");
 
   let totalProducts = 0;
-  let totalOptions = 0;
-  const rows: string[][] = [["Series", "Products", "Options"]];
+  const rows: string[][] = [["Series", "Products"]];
   for (const s of series) {
-    rows.push([`${s.seriesCode} (${s.seriesName})`, String(s.products.length), String(s.options.length)]);
+    rows.push([`${s.seriesCode} (${s.seriesName})`, String(s.products.length)]);
     totalProducts += s.products.length;
-    totalOptions += s.options.length;
   }
-  rows.push(["TOTAL", String(totalProducts), String(totalOptions)]);
-  const widths = [0, 1, 2].map((i) => Math.max(...rows.map((r) => r[i].length)));
+  rows.push(["TOTAL", String(totalProducts)]);
+  const widths = [0, 1].map((i) => Math.max(...rows.map((r) => r[i].length)));
   for (const r of rows) console.log(r.map((c, i) => c.padEnd(widths[i])).join("  |  "));
+  console.log(`\nGlobal options: ${options.length}`);
 
   console.log("\nneedsReview items:");
   let anyReview = false;
   for (const s of series) {
-    for (const list of ["products", "options"] as const) {
-      for (const item of s[list]) {
-        if (item.needsReview) {
-          anyReview = true;
-          console.log(`  [${s.seriesCode}/${list}] ${item.code}  price=${item.price ?? "null"}`);
-        }
+    for (const item of s.products) {
+      if (item.needsReview) {
+        anyReview = true;
+        console.log(`  [${s.seriesCode}/product] ${item.code}  price=${item.price ?? "null"}`);
       }
+    }
+  }
+  for (const item of options) {
+    if (item.needsReview) {
+      anyReview = true;
+      console.log(`  [option] ${item.code}  price=${item.price ?? "null"}`);
     }
   }
   if (!anyReview) console.log("  (none)");
@@ -471,6 +594,19 @@ function printSummary(series: CatalogSeries[]): void {
   if (dropped.length) {
     console.log("\nDropped (duplicate code, first occurrence kept):");
     for (const d of dropped) console.log(`  [${d.series}/${d.list}] ${d.code} -- ${d.reason}`);
+  }
+
+  if (merged.length) {
+    console.log("\nMerged options (same price across sheets -> single global option):");
+    for (const m of merged) console.log(`  ${m.code}  price=${m.price ?? "null"}  series=[${m.seriesCodes.join(", ")}]`);
+  }
+
+  if (split.length) {
+    console.log("\nSplit options (differing price across sheets -> series-suffixed codes):");
+    for (const s of split) {
+      const parts = s.variants.map((v) => `${v.finalCode}=${v.price ?? "null"}`).join(", ");
+      console.log(`  ${s.code} -> ${parts}`);
+    }
   }
 
   console.log(`\nWrote ${path.relative(ROOT, OUTPUT_JSON)}`);

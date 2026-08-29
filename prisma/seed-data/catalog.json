@@ -1,5 +1,5 @@
 {
-  "extractedAt": "2026-08-29T09:07:04.535Z",
+  "extractedAt": "2026-08-29T09:14:06.441Z",
   "series": [
     {
       "seriesCode": "XC",
@@ -90,8 +90,7 @@
           "price": 257000,
           "needsReview": true
         }
-      ],
-      "options": []
+      ]
     },
     {
       "seriesCode": "M",
@@ -182,253 +181,6 @@
           "price": 257000,
           "needsReview": false
         }
-      ],
-      "options": [
-        {
-          "code": "ABR",
-          "name": "Air Brush- air brush including ink/paint reservoir.",
-          "description": "Air Brush- air brush including ink/paint reservoir.",
-          "price": 1950,
-          "needsReview": false
-        },
-        {
-          "code": "AFP",
-          "name": "Automatic Foot Pressure- 2 pressure settings preset by pressure regulators. Accessible by preset parameters (not fully digitally controlled)",
-          "description": "Automatic Foot Pressure- 2 pressure settings preset by pressure regulators. Accessible by preset parameters (not fully digitally controlled)",
-          "price": 1560,
-          "needsReview": false
-        },
-        {
-          "code": "APM",
-          "name": "Adaptive Pattern Matching - various modes including bow & skew matching software, (HDC is required with this option)",
-          "description": "Adaptive Pattern Matching - various modes including bow & skew matching software, (HDC is required with this option)",
-          "price": 15000,
-          "needsReview": false
-        },
-        {
-          "code": "BCR",
-          "name": "Barcode scanner- input of marker name via barcode",
-          "description": "Barcode scanner- input of marker name via barcode",
-          "price": 2500,
-          "needsReview": false
-        },
-        {
-          "code": "BED",
-          "name": "Bed Projector",
-          "description": "Bed Projector",
-          "price": 10000,
-          "needsReview": false
-        },
-        {
-          "code": "Crate",
-          "name": "Wooden Crate (required when standard shipping container not used)",
-          "description": "Wooden Crate (required when standard shipping container not used)",
-          "price": 3000,
-          "needsReview": false
-        },
-        {
-          "code": "DMT",
-          "name": "Ductmaster- option designed for cutting semi-rigid board up to 30mm thickness. Ten (10) tool locations included. Four tools provided, ‘V’ profile, 45 deg through cut, straight cut and creasing. Confirmation of the tools provided will be discussed. (180mm reduction cutting width)",
-          "description": "Ductmaster- option designed for cutting semi-rigid board up to 30mm thickness. Ten (10) tool locations included. Four tools provided, ‘V’ profile, 45 deg through cut, straight cut and creasing. Confirmation of the tools provided will be discussed. (180mm reduction cutting width)",
-          "price": 18240,
-          "needsReview": false
-        },
-        {
-          "code": "DR2",
-          "name": "Secondary Drill Unit",
-          "description": "Secondary Drill Unit",
-          "price": 6200,
-          "needsReview": false
-        },
-        {
-          "code": "DRG-1",
-          "name": "Drag Knife- to suit standard Olfa 'snap-off' blade(#380010). Cutting angle 45deg. Maximum cutting depth 7mm",
-          "description": "Drag Knife- to suit standard Olfa 'snap-off' blade(#380010). Cutting angle 45deg. Maximum cutting depth 7mm",
-          "price": 2535,
-          "needsReview": false
-        },
-        {
-          "code": "DRG-2",
-          "name": "Drag Knife- to suit Excellite blade (#380011). Cutting angle 21deg. Maximum cutting depth 20mm.",
-          "description": "Drag Knife- to suit Excellite blade (#380011). Cutting angle 21deg. Maximum cutting depth 20mm.",
-          "price": 2496,
-          "needsReview": false
-        },
-        {
-          "code": "DRG-3",
-          "name": "Drag Knife- to suit carbide blade (#380012). Cutting angle 45deg. Maximum cutting depth 8mm.",
-          "description": "Drag Knife- to suit carbide blade (#380012). Cutting angle 45deg. Maximum cutting depth 8mm.",
-          "price": 2496,
-          "needsReview": false
-        },
-        {
-          "code": "Drills included",
-          "name": "2301071-7-6",
-          "description": "2301071-7-6",
-          "price": 350,
-          "needsReview": false
-        },
-        {
-          "code": "Drills included 2301071-7-10",
-          "name": "2301071-7-10",
-          "description": "2301071-7-10",
-          "price": 375,
-          "needsReview": false
-        },
-        {
-          "code": "EDS-500",
-          "name": "Edge sealer Static- clip on blanking panel 500mm width. This can be trimmed by customer if narrower required.",
-          "description": "Edge sealer Static- clip on blanking panel 500mm width. This can be trimmed by customer if narrower required.",
-          "price": 850,
-          "needsReview": false
-        },
-        {
-          "code": "EDS-800",
-          "name": "Edge sealer Static- clip on blanking panel 800mm width. This can be trimmed by customer if narrower required.",
-          "description": "Edge sealer Static- clip on blanking panel 800mm width. This can be trimmed by customer if narrower required.",
-          "price": 950,
-          "needsReview": false
-        },
-        {
-          "code": "EXH",
-          "name": "Exhaust option - diverts exhaust outlet verticaly",
-          "description": "Exhaust option - diverts exhaust outlet verticaly",
-          "price": 1000,
-          "needsReview": false
-        },
-        {
-          "code": "FM180",
-          "name": "Fabric Master- semi automatic fabric spreading machine for materials widths up to 1800mm.",
-          "description": "Fabric Master- semi automatic fabric spreading machine for materials widths up to 1800mm.",
-          "price": 16000,
-          "needsReview": false
-        },
-        {
-          "code": "HDC",
-          "name": "HeadCam:Camera in cutting head- Dynamic interaction with PathCut",
-          "description": "HeadCam:Camera in cutting head- Dynamic interaction with PathCut",
-          "price": 5000,
-          "needsReview": false
-        },
-        {
-          "code": "HFV",
-          "name": "High Flow Vacuum system 22KW",
-          "description": "High Flow Vacuum system 22KW",
-          "price": 4400,
-          "needsReview": false
-        },
-        {
-          "code": "IJP",
-          "name": "Ink Jet Printer: Integrated within the cutting head. Uses standard Black HP45 ink cartrige. 1/2inch(12mm) single line, 7/32'(5mm) two lines of print.",
-          "description": "Ink Jet Printer: Integrated within the cutting head. Uses standard Black HP45 ink cartrige. 1/2inch(12mm) single line, 7/32'(5mm) two lines of print.",
-          "price": 6552,
-          "needsReview": false
-        },
-        {
-          "code": "IKA",
-          "name": "IceKnife-Knife cooling by Air,controlled by Pathcut",
-          "description": "IceKnife-Knife cooling by Air,controlled by Pathcut",
-          "price": 3800,
-          "needsReview": false
-        },
-        {
-          "code": "IKP",
-          "name": "IceKnife-Knife cooling by Liquid,controlled by Pathcut. (not compatible with Alternating Sharpener)",
-          "description": "IceKnife-Knife cooling by Liquid,controlled by Pathcut. (not compatible with Alternating Sharpener)",
-          "price": 4940,
-          "needsReview": false
-        },
-        {
-          "code": "MRK",
-          "name": "Marking tool includes standard Bic biro pen holder (After sales: Head cover replacement is at extra cost)",
-          "description": "Marking tool includes standard Bic biro pen holder (After sales: Head cover replacement is at extra cost)",
-          "price": 1950,
-          "needsReview": false
-        },
-        {
-          "code": "MTS",
-          "name": "Machine Transfer System - Not available for Mx390. For more than 9 mtrs of travel see additional price.",
-          "description": "Machine Transfer System - Not available for Mx390. For more than 9 mtrs of travel see additional price.",
-          "price": 15000,
-          "needsReview": false
-        },
-        {
-          "code": "MTS- additional travel p/Metre",
-          "name": "Additional travel p/metre",
-          "description": "Additional travel p/metre",
-          "price": 585,
-          "needsReview": false
-        },
-        {
-          "code": "OFD",
-          "name": "Offload Display",
-          "description": "Offload Display",
-          "price": 3200,
-          "needsReview": false
-        },
-        {
-          "code": "OFJ",
-          "name": "Offload Projector (Available Mx180 & Mx220 )",
-          "description": "Offload Projector (Available Mx180 & Mx220 )",
-          "price": 7200,
-          "needsReview": false
-        },
-        {
-          "code": "OFP",
-          "name": "Offload Printer- synchronised with PathCut & OFD",
-          "description": "Offload Printer- synchronised with PathCut & OFD",
-          "price": 3900,
-          "needsReview": false
-        },
-        {
-          "code": "PM",
-          "name": "Pattern Match - spot light pattern match software",
-          "description": "Pattern Match - spot light pattern match software",
-          "price": 2786,
-          "needsReview": false
-        },
-        {
-          "code": "PRM",
-          "name": "Production Manager software",
-          "description": "Production Manager software",
-          "price": 5000,
-          "needsReview": false
-        },
-        {
-          "code": "PTW",
-          "name": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, digitising using the Pathfinder cutter controls, magnetic nesting, importing and exporting of standard DXF and G-code.",
-          "description": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, digitising using the Pathfinder cutter controls, magnetic nesting, importing and exporting of standard DXF and G-code.",
-          "price": 3500,
-          "needsReview": false
-        },
-        {
-          "code": "VRB-180",
-          "name": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
-          "description": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
-          "price": 4100,
-          "needsReview": false
-        },
-        {
-          "code": "VRB-200",
-          "name": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
-          "description": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
-          "price": 4200,
-          "needsReview": false
-        },
-        {
-          "code": "VRB-220",
-          "name": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
-          "description": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
-          "price": 4300,
-          "needsReview": false
-        },
-        {
-          "code": "Waste Bin-180",
-          "name": "Waste bin on castors for Mx180 only",
-          "description": "Waste bin on castors for Mx180 only",
-          "price": 963,
-          "needsReview": false
-        }
       ]
     },
     {
@@ -478,218 +230,6 @@
           "price": 165000,
           "needsReview": false
         }
-      ],
-      "options": [
-        {
-          "code": "1.0mm dia punch",
-          "name": "1.0mm dia punch",
-          "description": "1.0mm dia punch",
-          "price": 100,
-          "needsReview": false
-        },
-        {
-          "code": "180-E",
-          "name": "Extended length for L-180",
-          "description": "Extended length for L-180",
-          "price": 6000,
-          "needsReview": false
-        },
-        {
-          "code": "2.0mm dia punch",
-          "name": "2.0mm dia punch",
-          "description": "2.0mm dia punch",
-          "price": 100,
-          "needsReview": false
-        },
-        {
-          "code": "220-E",
-          "name": "Extended length for L-220",
-          "description": "Extended length for L-220",
-          "price": 8000,
-          "needsReview": false
-        },
-        {
-          "code": "28 Dia. Round Knife Tool- Patented Quick release mechanism (Not used on Felt bed) 2x10 sided blades included std",
-          "name": "28 Dia. Round Knife Tool- Patented Quick release mechanism (Not used on Felt bed) 2x10 sided blades included std",
-          "description": "28 Dia. Round Knife Tool- Patented Quick release mechanism (Not used on Felt bed) 2x10 sided blades included std",
-          "price": 580,
-          "needsReview": false
-        },
-        {
-          "code": "3.0mm dia punch",
-          "name": "3.0mm dia punch",
-          "description": "3.0mm dia punch",
-          "price": 100,
-          "needsReview": false
-        },
-        {
-          "code": "320-E",
-          "name": "Extended length for L-320",
-          "description": "Extended length for L-320",
-          "price": 12000,
-          "needsReview": false
-        },
-        {
-          "code": "4.0mm dia punch",
-          "name": "4.0mm dia punch",
-          "description": "4.0mm dia punch",
-          "price": 100,
-          "needsReview": false
-        },
-        {
-          "code": "40 Dia. Round Knife Tool- Quick release (Not available yet)",
-          "name": "40 Dia. Round Knife Tool- Quick release (Not available yet)",
-          "description": "40 Dia. Round Knife Tool- Quick release (Not available yet)",
-          "price": 630,
-          "needsReview": false
-        },
-        {
-          "code": "5.0mm dia punch",
-          "name": "5.0mm dia punch",
-          "description": "5.0mm dia punch",
-          "price": 100,
-          "needsReview": false
-        },
-        {
-          "code": "ABR",
-          "name": "Air Brush- air brush including ink/paint reservoir.",
-          "description": "Air Brush- air brush including ink/paint reservoir.",
-          "price": 2100,
-          "needsReview": false
-        },
-        {
-          "code": "APM",
-          "name": "Adaptive Pattern Matching (Bow & Skew- HDC option required)",
-          "description": "Adaptive Pattern Matching (Bow & Skew- HDC option required)",
-          "price": 8000,
-          "needsReview": false
-        },
-        {
-          "code": "BCR",
-          "name": "Barcode Scanner- input of marker name via barcode",
-          "description": "Barcode Scanner- input of marker name via barcode",
-          "price": 1050,
-          "needsReview": false
-        },
-        {
-          "code": "Crate-180",
-          "name": "Crate-180",
-          "description": "Crate-180",
-          "price": 1200,
-          "needsReview": false
-        },
-        {
-          "code": "Crate-220",
-          "name": "Crate-220",
-          "description": "Crate-220",
-          "price": 1500,
-          "needsReview": false
-        },
-        {
-          "code": "Crate-320",
-          "name": "Crate-320",
-          "description": "Crate-320",
-          "price": 1800,
-          "needsReview": false
-        },
-        {
-          "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
-          "name": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
-          "description": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
-          "price": 730,
-          "needsReview": false
-        },
-        {
-          "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
-          "name": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
-          "description": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
-          "price": 730,
-          "needsReview": false
-        },
-        {
-          "code": "Driven- Electrically driven. Suit 28mm Carbide Octagonal blade.",
-          "name": "Driven- Electrically driven. Suit 28mm Carbide Octagonal blade.",
-          "description": "Driven- Electrically driven. Suit 28mm Carbide Octagonal blade.",
-          "price": 6400,
-          "needsReview": false
-        },
-        {
-          "code": "HDC",
-          "name": "HeadCam:Camera in cutting head- Dynamic interaction with PathCut",
-          "description": "HeadCam:Camera in cutting head- Dynamic interaction with PathCut",
-          "price": 2000,
-          "needsReview": false
-        },
-        {
-          "code": "HFV",
-          "name": "High Flow Vacuum system- THIS REQUIRES 3PHASE POWER- Recommended for ALL Extended and standard 220 & 320 models. Specific application to be discussed with Pathfinder.(Replacement for standard Vac unit)",
-          "description": "High Flow Vacuum system- THIS REQUIRES 3PHASE POWER- Recommended for ALL Extended and standard 220 & 320 models. Specific application to be discussed with Pathfinder.(Replacement for standard Vac unit)",
-          "price": 16000,
-          "needsReview": false
-        },
-        {
-          "code": "JetPen",
-          "name": "Jetpen Marking Tool (this replaces the standard marking tool)",
-          "description": "Jetpen Marking Tool (this replaces the standard marking tool)",
-          "price": 7500,
-          "needsReview": false
-        },
-        {
-          "code": "Notch Tool- Quick Release (to suit carbide knife 1.0mm x 7mm)",
-          "name": "Notch Tool- Quick Release (to suit carbide knife 1.0mm x 7mm)",
-          "description": "Notch Tool- Quick Release (to suit carbide knife 1.0mm x 7mm)",
-          "price": 950,
-          "needsReview": false
-        },
-        {
-          "code": "OFD",
-          "name": "Offload Display",
-          "description": "Offload Display",
-          "price": 1400,
-          "needsReview": false
-        },
-        {
-          "code": "OFP",
-          "name": "Offload Printer- synchronised with PathCut & OFD",
-          "description": "Offload Printer- synchronised with PathCut & OFD",
-          "price": 2250,
-          "needsReview": false
-        },
-        {
-          "code": "PM",
-          "name": "Pattern Match - spot light pattern match software",
-          "description": "Pattern Match - spot light pattern match software",
-          "price": 1500,
-          "needsReview": false
-        },
-        {
-          "code": "PRA",
-          "name": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
-          "description": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
-          "price": 2200,
-          "needsReview": false
-        },
-        {
-          "code": "PRM",
-          "name": "Production Manager software",
-          "description": "Production Manager software",
-          "price": 2620,
-          "needsReview": false
-        },
-        {
-          "code": "PTW",
-          "name": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, digitising using the Pathfinder cutter controls, magnetic nesting, importing and exporting of standard DXF and G-code.",
-          "description": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, digitising using the Pathfinder cutter controls, magnetic nesting, importing and exporting of standard DXF and G-code.",
-          "price": 3500,
-          "needsReview": false
-        },
-        {
-          "code": "Punch Tool- Quick Release (to suit Hollow dia 1mm/2mm/3mm/4mm/5mm purchased seperately)",
-          "name": "Punch Tool- Quick Release (to suit Hollow dia 1mm/2mm/3mm/4mm/5mm purchased seperately)",
-          "description": "Punch Tool- Quick Release (to suit Hollow dia 1mm/2mm/3mm/4mm/5mm purchased seperately)",
-          "price": 450,
-          "needsReview": false
-        }
       ]
     },
     {
@@ -711,94 +251,13 @@
           "price": 11310,
           "needsReview": false
         }
-      ],
-      "options": [
-        {
-          "code": "Crate",
-          "name": "Crate- Wooden box for transport",
-          "description": "Crate- Wooden box for transport",
-          "price": 600,
-          "needsReview": false
-        }
       ]
     },
     {
       "seriesCode": "SW",
       "seriesName": "Software",
       "maxDiscountPct": null,
-      "products": [],
-      "options": [
-        {
-          "code": "ANT-V5",
-          "name": "Automatic Nester V5",
-          "description": "Automatic Nester V5",
-          "price": 8320,
-          "needsReview": false
-        },
-        {
-          "code": "ANT-V6",
-          "name": "Automatic Nester V6 (Faster results, higher level nesting algorithm) Includes edge buffer function (container)",
-          "description": "Automatic Nester V6 (Faster results, higher level nesting algorithm) Includes edge buffer function (container)",
-          "price": 11720,
-          "needsReview": false
-        },
-        {
-          "code": "EDG",
-          "name": "External Digitizer- enabling software functionality to connect an external digitizer.",
-          "description": "External Digitizer- enabling software functionality to connect an external digitizer.",
-          "price": 1114,
-          "needsReview": false
-        },
-        {
-          "code": "LS Convert",
-          "name": "LS Convert software module (dongle protected)",
-          "description": "LS Convert software module (dongle protected)",
-          "price": null,
-          "needsReview": true
-        },
-        {
-          "code": "PDG",
-          "name": "PhotoDigitiser-Digitizing of photo patterns using tools available within PathWorks",
-          "description": "PhotoDigitiser-Digitizing of photo patterns using tools available within PathWorks",
-          "price": 1800,
-          "needsReview": false
-        },
-        {
-          "code": "PRA",
-          "name": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
-          "description": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
-          "price": 3500,
-          "needsReview": false
-        },
-        {
-          "code": "PTN",
-          "name": "Photo Nesting (Note: option only, does NOT include hardware or ANT)",
-          "description": "Photo Nesting (Note: option only, does NOT include hardware or ANT)",
-          "price": 20577,
-          "needsReview": false
-        },
-        {
-          "code": "PTW(S)",
-          "name": "PathWorks Standalone software module. Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
-          "description": "PathWorks Standalone software module. Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
-          "price": 4000,
-          "needsReview": false
-        },
-        {
-          "code": "WPL",
-          "name": "PoolLiner Wizard- automatic creation of flat shapes (unfolding) based on 3D point measurments.",
-          "description": "PoolLiner Wizard- automatic creation of flat shapes (unfolding) based on 3D point measurments.",
-          "price": 5850,
-          "needsReview": false
-        },
-        {
-          "code": "WPN",
-          "name": "Panel Wizard-Automatic creation of panels based with automatic tool path optimisation.",
-          "description": "Panel Wizard-Automatic creation of panels based with automatic tool path optimisation.",
-          "price": 500,
-          "needsReview": false
-        }
-      ]
+      "products": []
     },
     {
       "seriesCode": "LNS",
@@ -826,157 +285,19 @@
           "price": 40474.98,
           "needsReview": false
         }
-      ],
-      "options": []
+      ]
     },
     {
       "seriesCode": "EL",
       "seriesName": "EasyLoader",
       "maxDiscountPct": null,
-      "products": [],
-      "options": [
-        {
-          "code": "EL-2020 #ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
-          "name": "#ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
-          "description": "#ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
-          "price": 1040,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2020 Additional 1.2M lengths",
-          "name": "Additional 1.2M lengths",
-          "description": "Additional 1.2M lengths",
-          "price": 1200,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2020 Drive Module (first 1.2M)",
-          "name": "Drive Module (first 1.2M)",
-          "description": "Drive Module (first 1.2M)",
-          "price": 4050,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2020 Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
-          "name": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
-          "description": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
-          "price": 120,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2020 Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
-          "name": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
-          "description": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
-          "price": 735,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2020 Static table 1.2M lengths",
-          "name": "Static table 1.2M lengths",
-          "description": "Static table 1.2M lengths",
-          "price": 743,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2020 Syncronisation Feature (same speed sync with cutter)",
-          "name": "Syncronisation Feature (same speed sync with cutter)",
-          "description": "Syncronisation Feature (same speed sync with cutter)",
-          "price": 1500,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2020 Travel Platform support rail. Per 1.2m",
-          "name": "Travel Platform support rail. Per 1.2m",
-          "description": "Travel Platform support rail. Per 1.2m",
-          "price": 45,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2420 Additional 1.2M lengths",
-          "name": "Additional 1.2M lengths",
-          "description": "Additional 1.2M lengths",
-          "price": 1320,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2420 Drive Module (first 1.2M)",
-          "name": "Drive Module (first 1.2M)",
-          "description": "Drive Module (first 1.2M)",
-          "price": 4455,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2420 Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
-          "name": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
-          "description": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
-          "price": 120,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2420 Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
-          "name": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
-          "description": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
-          "price": 780,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2420 ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
-          "name": "ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
-          "description": "ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
-          "price": 1080,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2420 Static table 1.2M lengths",
-          "name": "Static table 1.2M lengths",
-          "description": "Static table 1.2M lengths",
-          "price": 780,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2420 Syncronisation Feature (same speed sync with cutter)",
-          "name": "Syncronisation Feature (same speed sync with cutter)",
-          "description": "Syncronisation Feature (same speed sync with cutter)",
-          "price": 1500,
-          "needsReview": false
-        },
-        {
-          "code": "EL-2420 Travel Platform support rail. Per 1.2m",
-          "name": "Travel Platform support rail. Per 1.2m",
-          "description": "Travel Platform support rail. Per 1.2m",
-          "price": 45,
-          "needsReview": false
-        }
-      ]
+      "products": []
     },
     {
       "seriesCode": "EF",
       "seriesName": "EasyFeeder",
       "maxDiscountPct": null,
-      "products": [],
-      "options": [
-        {
-          "code": "EasyFeeder- 2020",
-          "name": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
-          "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
-          "price": 10400,
-          "needsReview": false
-        },
-        {
-          "code": "EasyFeeder- 2420",
-          "name": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
-          "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
-          "price": 10860,
-          "needsReview": false
-        },
-        {
-          "code": "EasyFeeder- 4030",
-          "name": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
-          "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
-          "price": 17540,
-          "needsReview": false
-        }
-      ]
+      "products": []
     },
     {
       "seriesCode": "FP",
@@ -997,22 +318,1004 @@
           "price": 67000,
           "needsReview": false
         }
-      ],
-      "options": [
-        {
-          "code": "Crate",
-          "name": "Crate- Wooden Crate for transport",
-          "description": "Crate- Wooden Crate for transport",
-          "price": 1200,
-          "needsReview": false
-        },
-        {
-          "code": "TPL",
-          "name": "Travelling operator Platform (Standard Equipment)",
-          "description": "Travelling operator Platform (Standard Equipment)",
-          "price": 0,
-          "needsReview": false
-        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "code": "1.0mm dia punch",
+      "name": "1.0mm dia punch",
+      "description": "1.0mm dia punch",
+      "price": 100,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "180-E",
+      "name": "Extended length for L-180",
+      "description": "Extended length for L-180",
+      "price": 6000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "2.0mm dia punch",
+      "name": "2.0mm dia punch",
+      "description": "2.0mm dia punch",
+      "price": 100,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "220-E",
+      "name": "Extended length for L-220",
+      "description": "Extended length for L-220",
+      "price": 8000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "28 Dia. Round Knife Tool- Patented Quick release mechanism (Not used on Felt bed) 2x10 sided blades included std",
+      "name": "28 Dia. Round Knife Tool- Patented Quick release mechanism (Not used on Felt bed) 2x10 sided blades included std",
+      "description": "28 Dia. Round Knife Tool- Patented Quick release mechanism (Not used on Felt bed) 2x10 sided blades included std",
+      "price": 580,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "3.0mm dia punch",
+      "name": "3.0mm dia punch",
+      "description": "3.0mm dia punch",
+      "price": 100,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "320-E",
+      "name": "Extended length for L-320",
+      "description": "Extended length for L-320",
+      "price": 12000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "4.0mm dia punch",
+      "name": "4.0mm dia punch",
+      "description": "4.0mm dia punch",
+      "price": 100,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "40 Dia. Round Knife Tool- Quick release (Not available yet)",
+      "name": "40 Dia. Round Knife Tool- Quick release (Not available yet)",
+      "description": "40 Dia. Round Knife Tool- Quick release (Not available yet)",
+      "price": 630,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "5.0mm dia punch",
+      "name": "5.0mm dia punch",
+      "description": "5.0mm dia punch",
+      "price": 100,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "ABR-L",
+      "name": "Air Brush- air brush including ink/paint reservoir.",
+      "description": "Air Brush- air brush including ink/paint reservoir.",
+      "price": 2100,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "ABR-M",
+      "name": "Air Brush- air brush including ink/paint reservoir.",
+      "description": "Air Brush- air brush including ink/paint reservoir.",
+      "price": 1950,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "AFP",
+      "name": "Automatic Foot Pressure- 2 pressure settings preset by pressure regulators. Accessible by preset parameters (not fully digitally controlled)",
+      "description": "Automatic Foot Pressure- 2 pressure settings preset by pressure regulators. Accessible by preset parameters (not fully digitally controlled)",
+      "price": 1560,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "ANT-V5",
+      "name": "Automatic Nester V5",
+      "description": "Automatic Nester V5",
+      "price": 8320,
+      "needsReview": false,
+      "compatibleSeries": [
+        "SW"
+      ]
+    },
+    {
+      "code": "ANT-V6",
+      "name": "Automatic Nester V6 (Faster results, higher level nesting algorithm) Includes edge buffer function (container)",
+      "description": "Automatic Nester V6 (Faster results, higher level nesting algorithm) Includes edge buffer function (container)",
+      "price": 11720,
+      "needsReview": false,
+      "compatibleSeries": [
+        "SW"
+      ]
+    },
+    {
+      "code": "APM-L",
+      "name": "Adaptive Pattern Matching (Bow & Skew- HDC option required)",
+      "description": "Adaptive Pattern Matching (Bow & Skew- HDC option required)",
+      "price": 8000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "APM-M",
+      "name": "Adaptive Pattern Matching - various modes including bow & skew matching software, (HDC is required with this option)",
+      "description": "Adaptive Pattern Matching - various modes including bow & skew matching software, (HDC is required with this option)",
+      "price": 15000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "BCR-L",
+      "name": "Barcode Scanner- input of marker name via barcode",
+      "description": "Barcode Scanner- input of marker name via barcode",
+      "price": 1050,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "BCR-M",
+      "name": "Barcode scanner- input of marker name via barcode",
+      "description": "Barcode scanner- input of marker name via barcode",
+      "price": 2500,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "BED",
+      "name": "Bed Projector",
+      "description": "Bed Projector",
+      "price": 10000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "Crate-180",
+      "name": "Crate-180",
+      "description": "Crate-180",
+      "price": 1200,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "Crate-220",
+      "name": "Crate-220",
+      "description": "Crate-220",
+      "price": 1500,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "Crate-320",
+      "name": "Crate-320",
+      "description": "Crate-320",
+      "price": 1800,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "Crate-FP",
+      "name": "Crate- Wooden Crate for transport",
+      "description": "Crate- Wooden Crate for transport",
+      "price": 1200,
+      "needsReview": false,
+      "compatibleSeries": [
+        "FP"
+      ]
+    },
+    {
+      "code": "Crate-M",
+      "name": "Wooden Crate (required when standard shipping container not used)",
+      "description": "Wooden Crate (required when standard shipping container not used)",
+      "price": 3000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "Crate-P",
+      "name": "Crate- Wooden box for transport",
+      "description": "Crate- Wooden box for transport",
+      "price": 600,
+      "needsReview": false,
+      "compatibleSeries": [
+        "P"
+      ]
+    },
+    {
+      "code": "DMT",
+      "name": "Ductmaster- option designed for cutting semi-rigid board up to 30mm thickness. Ten (10) tool locations included. Four tools provided, ‘V’ profile, 45 deg through cut, straight cut and creasing. Confirmation of the tools provided will be discussed. (180mm reduction cutting width)",
+      "description": "Ductmaster- option designed for cutting semi-rigid board up to 30mm thickness. Ten (10) tool locations included. Four tools provided, ‘V’ profile, 45 deg through cut, straight cut and creasing. Confirmation of the tools provided will be discussed. (180mm reduction cutting width)",
+      "price": 18240,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "DR2",
+      "name": "Secondary Drill Unit",
+      "description": "Secondary Drill Unit",
+      "price": 6200,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
+      "name": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
+      "description": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
+      "price": 730,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
+      "name": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
+      "description": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
+      "price": 730,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "DRG-1",
+      "name": "Drag Knife- to suit standard Olfa 'snap-off' blade(#380010). Cutting angle 45deg. Maximum cutting depth 7mm",
+      "description": "Drag Knife- to suit standard Olfa 'snap-off' blade(#380010). Cutting angle 45deg. Maximum cutting depth 7mm",
+      "price": 2535,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "DRG-2",
+      "name": "Drag Knife- to suit Excellite blade (#380011). Cutting angle 21deg. Maximum cutting depth 20mm.",
+      "description": "Drag Knife- to suit Excellite blade (#380011). Cutting angle 21deg. Maximum cutting depth 20mm.",
+      "price": 2496,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "DRG-3",
+      "name": "Drag Knife- to suit carbide blade (#380012). Cutting angle 45deg. Maximum cutting depth 8mm.",
+      "description": "Drag Knife- to suit carbide blade (#380012). Cutting angle 45deg. Maximum cutting depth 8mm.",
+      "price": 2496,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "Drills included",
+      "name": "2301071-7-6",
+      "description": "2301071-7-6",
+      "price": 350,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "Drills included 2301071-7-10",
+      "name": "2301071-7-10",
+      "description": "2301071-7-10",
+      "price": 375,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "Driven- Electrically driven. Suit 28mm Carbide Octagonal blade.",
+      "name": "Driven- Electrically driven. Suit 28mm Carbide Octagonal blade.",
+      "description": "Driven- Electrically driven. Suit 28mm Carbide Octagonal blade.",
+      "price": 6400,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "EasyFeeder- 2020",
+      "name": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+      "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+      "price": 10400,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EF"
+      ]
+    },
+    {
+      "code": "EasyFeeder- 2420",
+      "name": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+      "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+      "price": 10860,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EF"
+      ]
+    },
+    {
+      "code": "EasyFeeder- 4030",
+      "name": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+      "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+      "price": 17540,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EF"
+      ]
+    },
+    {
+      "code": "EDG",
+      "name": "External Digitizer- enabling software functionality to connect an external digitizer.",
+      "description": "External Digitizer- enabling software functionality to connect an external digitizer.",
+      "price": 1114,
+      "needsReview": false,
+      "compatibleSeries": [
+        "SW"
+      ]
+    },
+    {
+      "code": "EDS-500",
+      "name": "Edge sealer Static- clip on blanking panel 500mm width. This can be trimmed by customer if narrower required.",
+      "description": "Edge sealer Static- clip on blanking panel 500mm width. This can be trimmed by customer if narrower required.",
+      "price": 850,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "EDS-800",
+      "name": "Edge sealer Static- clip on blanking panel 800mm width. This can be trimmed by customer if narrower required.",
+      "description": "Edge sealer Static- clip on blanking panel 800mm width. This can be trimmed by customer if narrower required.",
+      "price": 950,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "EL-2020 #ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+      "name": "#ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+      "description": "#ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+      "price": 1040,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2020 Additional 1.2M lengths",
+      "name": "Additional 1.2M lengths",
+      "description": "Additional 1.2M lengths",
+      "price": 1200,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2020 Drive Module (first 1.2M)",
+      "name": "Drive Module (first 1.2M)",
+      "description": "Drive Module (first 1.2M)",
+      "price": 4050,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2020 Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+      "name": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+      "description": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+      "price": 120,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2020 Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+      "name": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+      "description": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+      "price": 735,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2020 Static table 1.2M lengths",
+      "name": "Static table 1.2M lengths",
+      "description": "Static table 1.2M lengths",
+      "price": 743,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2020 Syncronisation Feature (same speed sync with cutter)",
+      "name": "Syncronisation Feature (same speed sync with cutter)",
+      "description": "Syncronisation Feature (same speed sync with cutter)",
+      "price": 1500,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2020 Travel Platform support rail. Per 1.2m",
+      "name": "Travel Platform support rail. Per 1.2m",
+      "description": "Travel Platform support rail. Per 1.2m",
+      "price": 45,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2420 Additional 1.2M lengths",
+      "name": "Additional 1.2M lengths",
+      "description": "Additional 1.2M lengths",
+      "price": 1320,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2420 Drive Module (first 1.2M)",
+      "name": "Drive Module (first 1.2M)",
+      "description": "Drive Module (first 1.2M)",
+      "price": 4455,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2420 Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+      "name": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+      "description": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+      "price": 120,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2420 Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+      "name": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+      "description": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+      "price": 780,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2420 ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+      "name": "ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+      "description": "ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+      "price": 1080,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2420 Static table 1.2M lengths",
+      "name": "Static table 1.2M lengths",
+      "description": "Static table 1.2M lengths",
+      "price": 780,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2420 Syncronisation Feature (same speed sync with cutter)",
+      "name": "Syncronisation Feature (same speed sync with cutter)",
+      "description": "Syncronisation Feature (same speed sync with cutter)",
+      "price": 1500,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EL-2420 Travel Platform support rail. Per 1.2m",
+      "name": "Travel Platform support rail. Per 1.2m",
+      "description": "Travel Platform support rail. Per 1.2m",
+      "price": 45,
+      "needsReview": false,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
+      "code": "EXH",
+      "name": "Exhaust option - diverts exhaust outlet verticaly",
+      "description": "Exhaust option - diverts exhaust outlet verticaly",
+      "price": 1000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "FM180",
+      "name": "Fabric Master- semi automatic fabric spreading machine for materials widths up to 1800mm.",
+      "description": "Fabric Master- semi automatic fabric spreading machine for materials widths up to 1800mm.",
+      "price": 16000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "HDC-L",
+      "name": "HeadCam:Camera in cutting head- Dynamic interaction with PathCut",
+      "description": "HeadCam:Camera in cutting head- Dynamic interaction with PathCut",
+      "price": 2000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "HDC-M",
+      "name": "HeadCam:Camera in cutting head- Dynamic interaction with PathCut",
+      "description": "HeadCam:Camera in cutting head- Dynamic interaction with PathCut",
+      "price": 5000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "HFV-L",
+      "name": "High Flow Vacuum system- THIS REQUIRES 3PHASE POWER- Recommended for ALL Extended and standard 220 & 320 models. Specific application to be discussed with Pathfinder.(Replacement for standard Vac unit)",
+      "description": "High Flow Vacuum system- THIS REQUIRES 3PHASE POWER- Recommended for ALL Extended and standard 220 & 320 models. Specific application to be discussed with Pathfinder.(Replacement for standard Vac unit)",
+      "price": 16000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "HFV-M",
+      "name": "High Flow Vacuum system 22KW",
+      "description": "High Flow Vacuum system 22KW",
+      "price": 4400,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "IJP",
+      "name": "Ink Jet Printer: Integrated within the cutting head. Uses standard Black HP45 ink cartrige. 1/2inch(12mm) single line, 7/32'(5mm) two lines of print.",
+      "description": "Ink Jet Printer: Integrated within the cutting head. Uses standard Black HP45 ink cartrige. 1/2inch(12mm) single line, 7/32'(5mm) two lines of print.",
+      "price": 6552,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "IKA",
+      "name": "IceKnife-Knife cooling by Air,controlled by Pathcut",
+      "description": "IceKnife-Knife cooling by Air,controlled by Pathcut",
+      "price": 3800,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "IKP",
+      "name": "IceKnife-Knife cooling by Liquid,controlled by Pathcut. (not compatible with Alternating Sharpener)",
+      "description": "IceKnife-Knife cooling by Liquid,controlled by Pathcut. (not compatible with Alternating Sharpener)",
+      "price": 4940,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "JetPen",
+      "name": "Jetpen Marking Tool (this replaces the standard marking tool)",
+      "description": "Jetpen Marking Tool (this replaces the standard marking tool)",
+      "price": 7500,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "LS Convert",
+      "name": "LS Convert software module (dongle protected)",
+      "description": "LS Convert software module (dongle protected)",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [
+        "SW"
+      ]
+    },
+    {
+      "code": "MRK",
+      "name": "Marking tool includes standard Bic biro pen holder (After sales: Head cover replacement is at extra cost)",
+      "description": "Marking tool includes standard Bic biro pen holder (After sales: Head cover replacement is at extra cost)",
+      "price": 1950,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "MTS",
+      "name": "Machine Transfer System - Not available for Mx390. For more than 9 mtrs of travel see additional price.",
+      "description": "Machine Transfer System - Not available for Mx390. For more than 9 mtrs of travel see additional price.",
+      "price": 15000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "MTS- additional travel p/Metre",
+      "name": "Additional travel p/metre",
+      "description": "Additional travel p/metre",
+      "price": 585,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "Notch Tool- Quick Release (to suit carbide knife 1.0mm x 7mm)",
+      "name": "Notch Tool- Quick Release (to suit carbide knife 1.0mm x 7mm)",
+      "description": "Notch Tool- Quick Release (to suit carbide knife 1.0mm x 7mm)",
+      "price": 950,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "OFD-L",
+      "name": "Offload Display",
+      "description": "Offload Display",
+      "price": 1400,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "OFD-M",
+      "name": "Offload Display",
+      "description": "Offload Display",
+      "price": 3200,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "OFJ",
+      "name": "Offload Projector (Available Mx180 & Mx220 )",
+      "description": "Offload Projector (Available Mx180 & Mx220 )",
+      "price": 7200,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "OFP-L",
+      "name": "Offload Printer- synchronised with PathCut & OFD",
+      "description": "Offload Printer- synchronised with PathCut & OFD",
+      "price": 2250,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "OFP-M",
+      "name": "Offload Printer- synchronised with PathCut & OFD",
+      "description": "Offload Printer- synchronised with PathCut & OFD",
+      "price": 3900,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "PDG",
+      "name": "PhotoDigitiser-Digitizing of photo patterns using tools available within PathWorks",
+      "description": "PhotoDigitiser-Digitizing of photo patterns using tools available within PathWorks",
+      "price": 1800,
+      "needsReview": false,
+      "compatibleSeries": [
+        "SW"
+      ]
+    },
+    {
+      "code": "PM-L",
+      "name": "Pattern Match - spot light pattern match software",
+      "description": "Pattern Match - spot light pattern match software",
+      "price": 1500,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "PM-M",
+      "name": "Pattern Match - spot light pattern match software",
+      "description": "Pattern Match - spot light pattern match software",
+      "price": 2786,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "PRA-L",
+      "name": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
+      "description": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
+      "price": 2200,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "PRA-SW",
+      "name": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
+      "description": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
+      "price": 3500,
+      "needsReview": false,
+      "compatibleSeries": [
+        "SW"
+      ]
+    },
+    {
+      "code": "PRM-L",
+      "name": "Production Manager software",
+      "description": "Production Manager software",
+      "price": 2620,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "PRM-M",
+      "name": "Production Manager software",
+      "description": "Production Manager software",
+      "price": 5000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "PTN",
+      "name": "Photo Nesting (Note: option only, does NOT include hardware or ANT)",
+      "description": "Photo Nesting (Note: option only, does NOT include hardware or ANT)",
+      "price": 20577,
+      "needsReview": false,
+      "compatibleSeries": [
+        "SW"
+      ]
+    },
+    {
+      "code": "PTW",
+      "name": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, digitising using the Pathfinder cutter controls, magnetic nesting, importing and exporting of standard DXF and G-code.",
+      "description": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, digitising using the Pathfinder cutter controls, magnetic nesting, importing and exporting of standard DXF and G-code.",
+      "price": 3500,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC",
+        "L"
+      ]
+    },
+    {
+      "code": "PTW(S)",
+      "name": "PathWorks Standalone software module. Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
+      "description": "PathWorks Standalone software module. Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
+      "price": 4000,
+      "needsReview": false,
+      "compatibleSeries": [
+        "SW"
+      ]
+    },
+    {
+      "code": "Punch Tool- Quick Release (to suit Hollow dia 1mm/2mm/3mm/4mm/5mm purchased seperately)",
+      "name": "Punch Tool- Quick Release (to suit Hollow dia 1mm/2mm/3mm/4mm/5mm purchased seperately)",
+      "description": "Punch Tool- Quick Release (to suit Hollow dia 1mm/2mm/3mm/4mm/5mm purchased seperately)",
+      "price": 450,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "TPL",
+      "name": "Travelling operator Platform (Standard Equipment)",
+      "description": "Travelling operator Platform (Standard Equipment)",
+      "price": 0,
+      "needsReview": true,
+      "compatibleSeries": [
+        "FP"
+      ]
+    },
+    {
+      "code": "VRB-180",
+      "name": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
+      "description": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
+      "price": 4100,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "VRB-200",
+      "name": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
+      "description": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
+      "price": 4200,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "VRB-220",
+      "name": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
+      "description": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
+      "price": 4300,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "Waste Bin-180",
+      "name": "Waste bin on castors for Mx180 only",
+      "description": "Waste bin on castors for Mx180 only",
+      "price": 963,
+      "needsReview": false,
+      "compatibleSeries": [
+        "M",
+        "XC"
+      ]
+    },
+    {
+      "code": "WPL",
+      "name": "PoolLiner Wizard- automatic creation of flat shapes (unfolding) based on 3D point measurments.",
+      "description": "PoolLiner Wizard- automatic creation of flat shapes (unfolding) based on 3D point measurments.",
+      "price": 5850,
+      "needsReview": false,
+      "compatibleSeries": [
+        "SW"
+      ]
+    },
+    {
+      "code": "WPN",
+      "name": "Panel Wizard-Automatic creation of panels based with automatic tool path optimisation.",
+      "description": "Panel Wizard-Automatic creation of panels based with automatic tool path optimisation.",
+      "price": 500,
+      "needsReview": false,
+      "compatibleSeries": [
+        "SW"
       ]
     }
   ]
