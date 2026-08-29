@@ -12,124 +12,111 @@ import {
 
 const catalog = catalogData as Catalog;
 
-describe("seed-lib: pure mapping (catalog.json -> upsert payloads)", () => {
-  describe("REGIONS", () => {
-    it("has exactly 3 regions", () => {
-      expect(REGIONS).toHaveLength(3);
-    });
+/**
+ * Small, handcrafted catalog used to assert literal expected outputs of the
+ * mapping functions, independent of whatever the real catalog.json happens
+ * to contain -- so these assertions don't just re-derive their own expected
+ * value from the same source (tautological) and don't silently drift if the
+ * real catalog is regenerated.
+ *
+ * 2 series ("A", "B"), 3 products (A has 2, including one with a null price
+ * to exercise the amount-0/needsReview-true path; B has 1), 2 options with
+ * distinct compatibleSeries (one spanning both series, one series-exclusive)
+ * so mapCompatibility's fan-out can be checked against known pairs.
+ */
+const FIXTURE: Catalog = {
+  extractedAt: "2026-01-01T00:00:00.000Z",
+  series: [
+    {
+      seriesCode: "A",
+      seriesName: "Series A",
+      maxDiscountPct: 10,
+      products: [
+        { code: "A-100", name: "Widget", description: "A widget", price: 500, needsReview: false },
+        { code: "A-200", name: "Gadget", description: "A gadget", price: null, needsReview: true },
+      ],
+    },
+    {
+      seriesCode: "B",
+      seriesName: "Series B",
+      maxDiscountPct: null,
+      products: [
+        { code: "B-100", name: "Doohickey", description: "A doohickey", price: 1000, needsReview: false },
+      ],
+    },
+  ],
+  options: [
+    {
+      code: "OPT-1",
+      name: "Option One",
+      description: "First option",
+      price: 50,
+      needsReview: false,
+      compatibleSeries: ["A", "B"],
+    },
+    {
+      code: "OPT-2",
+      name: "Option Two",
+      description: "Second option",
+      price: 0,
+      needsReview: true,
+      compatibleSeries: ["B"],
+    },
+  ],
+};
 
-    it("has codes AU, US, UK", () => {
-      expect(REGIONS.map((r) => r.code).sort()).toEqual(["AU", "UK", "US"]);
-    });
+describe("seed-lib: pure mapping (FIXTURE -> literal expected outputs)", () => {
+  it("mapSeries produces the exact series payload", () => {
+    expect(mapSeries(FIXTURE)).toEqual([
+      { code: "A", name: "Series A", maxDiscountPct: 10, sortOrder: 0 },
+      { code: "B", name: "Series B", maxDiscountPct: null, sortOrder: 1 },
+    ]);
   });
 
-  describe("mapSeries", () => {
-    const payload = mapSeries(catalog);
-
-    it("has exactly 9 series", () => {
-      expect(payload).toHaveLength(9);
-    });
-
-    it("includes the XC series", () => {
-      expect(payload.some((s) => s.code === "XC")).toBe(true);
-    });
-
-    it("assigns sortOrder by array index", () => {
-      payload.forEach((s, i) => expect(s.sortOrder).toBe(i));
-    });
+  it("mapProducts produces the exact product payload with per-series sortOrder", () => {
+    expect(mapProducts(FIXTURE)).toEqual([
+      { code: "A-100", name: "Widget", description: "A widget", seriesCode: "A", sortOrder: 0 },
+      { code: "A-200", name: "Gadget", description: "A gadget", seriesCode: "A", sortOrder: 1 },
+      { code: "B-100", name: "Doohickey", description: "A doohickey", seriesCode: "B", sortOrder: 0 },
+    ]);
   });
 
-  describe("mapProducts", () => {
-    const payload = mapProducts(catalog);
-
-    it("has exactly 37 total products", () => {
-      expect(payload).toHaveLength(37);
-    });
-
-    it("assigns sortOrder by index within each series", () => {
-      const bySeries = new Map<string, typeof payload>();
-      for (const p of payload) {
-        const list = bySeries.get(p.seriesCode) ?? [];
-        list.push(p);
-        bySeries.set(p.seriesCode, list);
-      }
-      for (const list of bySeries.values()) {
-        list.forEach((p, i) => expect(p.sortOrder).toBe(i));
-      }
-    });
-
-    it("carries description from the catalog", () => {
-      const xc = catalog.series.find((s) => s.seriesCode === "XC")!;
-      const firstProduct = xc.products[0];
-      const mapped = payload.find((p) => p.code === firstProduct.code);
-      expect(mapped?.description).toBe(firstProduct.description);
-    });
+  it("mapOptions produces the exact option payload", () => {
+    expect(mapOptions(FIXTURE)).toEqual([
+      { code: "OPT-1", name: "Option One", shortDescription: "First option", sortOrder: 0 },
+      { code: "OPT-2", name: "Option Two", shortDescription: "Second option", sortOrder: 1 },
+    ]);
   });
 
-  describe("mapOptions", () => {
-    const payload = mapOptions(catalog);
-
-    it("matches the catalog's option count", () => {
-      expect(payload).toHaveLength(catalog.options.length);
-    });
-
-    it("assigns sortOrder by array index", () => {
-      payload.forEach((o, i) => expect(o.sortOrder).toBe(i));
-    });
-
-    it("puts description into shortDescription", () => {
-      const first = catalog.options[0];
-      const mapped = payload.find((o) => o.code === first.code);
-      expect(mapped?.shortDescription).toBe(first.description);
-    });
+  it("mapPrices produces the exact price payload, incl. null-price -> amount 0 + needsReview true", () => {
+    expect(mapPrices(FIXTURE, "AU")).toEqual([
+      { kind: "product", code: "A-100", regionCode: "AU", amount: 500, needsReview: false },
+      { kind: "product", code: "A-200", regionCode: "AU", amount: 0, needsReview: true },
+      { kind: "product", code: "B-100", regionCode: "AU", amount: 1000, needsReview: false },
+      { kind: "option", code: "OPT-1", regionCode: "AU", amount: 50, needsReview: false },
+      { kind: "option", code: "OPT-2", regionCode: "AU", amount: 0, needsReview: true },
+    ]);
   });
 
-  describe("mapPrices", () => {
-    const payload = mapPrices(catalog, "AU");
-    const totalProducts = catalog.series.reduce((sum, s) => sum + s.products.length, 0);
-    const totalItems = totalProducts + catalog.options.length;
+  it("mapCompatibility produces the exact (option, series) pairs", () => {
+    expect(mapCompatibility(FIXTURE)).toEqual([
+      { optionCode: "OPT-1", seriesCode: "A" },
+      { optionCode: "OPT-1", seriesCode: "B" },
+      { optionCode: "OPT-2", seriesCode: "B" },
+    ]);
+  });
+});
 
-    it("has one row per product plus one row per option (AU)", () => {
-      expect(payload).toHaveLength(totalItems);
-      expect(payload.every((p) => p.regionCode === "AU")).toBe(true);
-    });
-
-    it("maps a null-priced product to amount 0 + needsReview true", () => {
-      const nullPriced = catalog.series
-        .flatMap((s) => s.products)
-        .find((p) => p.price === null);
-      expect(nullPriced).toBeDefined();
-      const mapped = payload.find((p) => p.kind === "product" && p.code === nullPriced!.code);
-      expect(mapped).toMatchObject({ amount: 0, needsReview: true });
-    });
-
-    it("maps a null-priced option to amount 0 + needsReview true", () => {
-      const nullPriced = catalog.options.find((o) => o.price === null);
-      expect(nullPriced).toBeDefined();
-      const mapped = payload.find((p) => p.kind === "option" && p.code === nullPriced!.code);
-      expect(mapped).toMatchObject({ amount: 0, needsReview: true });
-    });
-
-    it("preserves catalog price + needsReview for a priced item", () => {
-      const priced = catalog.series.flatMap((s) => s.products).find((p) => p.price !== null)!;
-      const mapped = payload.find((p) => p.kind === "product" && p.code === priced.code);
-      expect(mapped).toMatchObject({ amount: priced.price, needsReview: priced.needsReview });
-    });
+describe("seed-lib: smoke assertions against the real catalog.json (counts only)", () => {
+  it("has exactly 3 regions", () => {
+    expect(REGIONS).toHaveLength(3);
   });
 
-  describe("mapCompatibility", () => {
-    const payload = mapCompatibility(catalog);
+  it("has exactly 9 series", () => {
+    expect(mapSeries(catalog)).toHaveLength(9);
+  });
 
-    it("has one row per (option, compatibleSeries) pair", () => {
-      const expectedCount = catalog.options.reduce((sum, o) => sum + o.compatibleSeries.length, 0);
-      expect(payload).toHaveLength(expectedCount);
-    });
-
-    it("every row's seriesCode is one the option actually declared", () => {
-      const byOption = new Map(catalog.options.map((o) => [o.code, o.compatibleSeries]));
-      for (const row of payload) {
-        expect(byOption.get(row.optionCode)).toContain(row.seriesCode);
-      }
-    });
+  it("has exactly 37 total products", () => {
+    expect(mapProducts(catalog)).toHaveLength(37);
   });
 });

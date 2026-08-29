@@ -78,6 +78,15 @@ function normalize(value: unknown): string {
   return String(value).replace(/\s+/g, " ").trim();
 }
 
+/** Looks up a sheet by name and fails loudly (rather than deferencing
+ *  `undefined` deep inside cellText/cellNumber) if the workbook doesn't have
+ *  it -- e.g. the source file was resaved with a renamed/reordered tab. */
+function getSheet(wb: XLSX.WorkBook, name: string): XLSX.WorkSheet {
+  const ws = wb.Sheets[name];
+  if (!ws) throw new Error("sheet not found: " + name);
+  return ws;
+}
+
 function cellText(ws: XLSX.WorkSheet, ref: string): string {
   const c = ws[ref] as XLSX.CellObject | undefined;
   if (!c || c.v === undefined || c.v === null) return "";
@@ -170,7 +179,7 @@ function register(
 // ---------------------------------------------------------------------------
 
 function extractMSeries(wb: XLSX.WorkBook) {
-  const ws = wb.Sheets["M-series"];
+  const ws = getSheet(wb, "M-series");
   const products: CatalogItem[] = [];
   const options: CatalogItem[] = [];
   const seenP = new Set<string>();
@@ -201,7 +210,7 @@ function extractMSeries(wb: XLSX.WorkBook) {
 }
 
 function extractLSeries(wb: XLSX.WorkBook) {
-  const ws = wb.Sheets["L-Series"];
+  const ws = getSheet(wb, "L-Series");
   const products: CatalogItem[] = [];
   const options: CatalogItem[] = [];
   const seenP = new Set<string>();
@@ -245,7 +254,7 @@ function extractLSeries(wb: XLSX.WorkBook) {
 }
 
 function extractPunchline(wb: XLSX.WorkBook) {
-  const ws = wb.Sheets["Punchline"];
+  const ws = getSheet(wb, "Punchline");
   const products: CatalogItem[] = [];
   const options: CatalogItem[] = [];
   const seenP = new Set<string>();
@@ -267,7 +276,7 @@ function extractPunchline(wb: XLSX.WorkBook) {
 }
 
 function extractSoftware(wb: XLSX.WorkBook) {
-  const ws = wb.Sheets["Software"];
+  const ws = getSheet(wb, "Software");
   const options: CatalogItem[] = [];
   const seen = new Set<string>();
 
@@ -287,6 +296,11 @@ function extractSoftware(wb: XLSX.WorkBook) {
   // treats the price as unset, and per the spec's known-gaps list ("LS
   // Convert" is expected to need review), this is extracted as a missing
   // price rather than trusting the stray E17 value.
+  // NOTE: this reads code from row 16 and description from row 17 -- a
+  // deliberate two-row straddle specific to LS Convert's current layout in
+  // this sheet. If the sheet is ever re-laid-out (rows inserted/removed
+  // above/within this block), these two row numbers will need re-verifying
+  // by hand; they are not derived from any structural marker.
   const lsCode = cellText(ws, "A16") || "LS Convert";
   const lsDesc = cellText(ws, "C17");
   register(options, seen, { code: lsCode, name: lsDesc, description: lsDesc, price: null, needsReview: true }, "SW", "option");
@@ -295,7 +309,7 @@ function extractSoftware(wb: XLSX.WorkBook) {
 }
 
 function extractLNS(wb: XLSX.WorkBook) {
-  const ws = wb.Sheets["Leather Nesting System"];
+  const ws = getSheet(wb, "Leather Nesting System");
   const products: CatalogItem[] = [];
   const seen = new Set<string>();
 
@@ -314,7 +328,7 @@ function extractLNS(wb: XLSX.WorkBook) {
 }
 
 function extractEasyLoader(wb: XLSX.WorkBook) {
-  const ws = wb.Sheets["EasyLoader"];
+  const ws = getSheet(wb, "EasyLoader");
   const options: CatalogItem[] = [];
   const seen = new Set<string>();
 
@@ -343,7 +357,7 @@ function extractEasyLoader(wb: XLSX.WorkBook) {
 }
 
 function extractEasyFeeder(wb: XLSX.WorkBook) {
-  const ws = wb.Sheets["EasyFeeder"];
+  const ws = getSheet(wb, "EasyFeeder");
   const options: CatalogItem[] = [];
   const seen = new Set<string>();
 
@@ -359,7 +373,7 @@ function extractEasyFeeder(wb: XLSX.WorkBook) {
 }
 
 function extractFabricPro(wb: XLSX.WorkBook) {
-  const ws = wb.Sheets["FabricPro"];
+  const ws = getSheet(wb, "FabricPro");
   const products: CatalogItem[] = [];
   const options: CatalogItem[] = [];
   const seenP = new Set<string>();

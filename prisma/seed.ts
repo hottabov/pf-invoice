@@ -12,6 +12,7 @@
  * is the IO shell that turns those payloads into Prisma calls.
  */
 import "dotenv/config";
+import { Prisma } from "@prisma/client";
 import catalogData from "./seed-data/catalog.json";
 import {
   type Catalog,
@@ -135,7 +136,19 @@ async function main() {
       where: { optionId, seriesId, productId: null },
     });
     if (!existing) {
-      await db.optionCompatibility.create({ data: { optionId, seriesId, productId: null } });
+      try {
+        await db.optionCompatibility.create({ data: { optionId, seriesId, productId: null } });
+      } catch (e) {
+        // Two concurrent/duplicate seed runs can both pass the findFirst
+        // check above and then race on the create -- the loser hits the
+        // partial unique index (optionId, seriesId) WHERE productId IS NULL
+        // as a P2002 unique-constraint violation. That's the same "already
+        // compatible" outcome the findFirst branch above no-ops on, so treat
+        // it the same way instead of failing the whole seed run. Any other
+        // error is a genuine problem and must still propagate.
+        const isDuplicate = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+        if (!isDuplicate) throw e;
+      }
     }
     compatCount++;
   }
