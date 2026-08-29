@@ -1,0 +1,1019 @@
+{
+  "extractedAt": "2026-08-29T09:07:04.535Z",
+  "series": [
+    {
+      "seriesCode": "XC",
+      "seriesName": "X-Calibre",
+      "maxDiscountPct": null,
+      "products": [
+        {
+          "code": "XC-10180",
+          "name": "Computer controlled cutting machine - 10cm compressed lay height, 180cm cutting width",
+          "description": "Computer controlled cutting machine - 10cm compressed lay height, 180cm cutting width",
+          "price": 212500,
+          "needsReview": true
+        },
+        {
+          "code": "XC-10220",
+          "name": "Computer controlled cutting machine - 10cm compressed lay height, 227cm cutting width",
+          "description": "Computer controlled cutting machine - 10cm compressed lay height, 227cm cutting width",
+          "price": 225500,
+          "needsReview": true
+        },
+        {
+          "code": "XC-10390",
+          "name": "Computer controlled cutting machine - 10cm compressed lay height, 390cm cutting width",
+          "description": "Computer controlled cutting machine - 10cm compressed lay height, 390cm cutting width",
+          "price": 262000,
+          "needsReview": true
+        },
+        {
+          "code": "XC-3180",
+          "name": "Computer controlled cutting machine - 3cm compressed lay height, 180cm cutting width",
+          "description": "Computer controlled cutting machine - 3cm compressed lay height, 180cm cutting width",
+          "price": 175000,
+          "needsReview": true
+        },
+        {
+          "code": "XC-3220",
+          "name": "Computer controlled cutting machine - 3cm compressed lay height, 227cm cutting width",
+          "description": "Computer controlled cutting machine - 3cm compressed lay height, 227cm cutting width",
+          "price": 188000,
+          "needsReview": true
+        },
+        {
+          "code": "XC-3390",
+          "name": "Computer controlled cutting machine - 3cm compressed lay height, 390cm cutting width",
+          "description": "Computer controlled cutting machine - 3cm compressed lay height, 390cm cutting width",
+          "price": null,
+          "needsReview": true
+        },
+        {
+          "code": "XC-5180",
+          "name": "Computer controlled cutting machine - 5cm compressed lay height, 180cm cutting width",
+          "description": "Computer controlled cutting machine - 5cm compressed lay height, 180cm cutting width",
+          "price": 195000,
+          "needsReview": true
+        },
+        {
+          "code": "XC-5220",
+          "name": "Computer controlled cutting machine - 5cm compressed lay height, 227cm cutting width",
+          "description": "Computer controlled cutting machine - 5cm compressed lay height, 227cm cutting width",
+          "price": 208000,
+          "needsReview": true
+        },
+        {
+          "code": "XC-5390",
+          "name": "Computer controlled cutting machine - 5cm compressed lay height, 390cm cutting width",
+          "description": "Computer controlled cutting machine - 5cm compressed lay height, 390cm cutting width",
+          "price": 245000,
+          "needsReview": true
+        },
+        {
+          "code": "XC-7180",
+          "name": "Computer controlled cutting machine - 7cm compressed lay height, 180cm cutting width",
+          "description": "Computer controlled cutting machine - 7cm compressed lay height, 180cm cutting width",
+          "price": 207500,
+          "needsReview": true
+        },
+        {
+          "code": "XC-7220",
+          "name": "Computer controlled cutting machine - 7cm compressed lay height, 227cm cutting width",
+          "description": "Computer controlled cutting machine - 7cm compressed lay height, 227cm cutting width",
+          "price": 220500,
+          "needsReview": true
+        },
+        {
+          "code": "XC-7390",
+          "name": "Computer controlled cutting machine - 7cm compressed lay height, 390cm cutting width",
+          "description": "Computer controlled cutting machine - 7cm compressed lay height, 390cm cutting width",
+          "price": 257000,
+          "needsReview": true
+        }
+      ],
+      "options": []
+    },
+    {
+      "seriesCode": "M",
+      "seriesName": "M-Series",
+      "maxDiscountPct": null,
+      "products": [
+        {
+          "code": "M10180",
+          "name": "Computer controlled cutting machine - 10cm compressed lay height, 180cm cutting width",
+          "description": "Computer controlled cutting machine - 10cm compressed lay height, 180cm cutting width",
+          "price": 212500,
+          "needsReview": false
+        },
+        {
+          "code": "M10220",
+          "name": "Computer controlled cutting machine - 10cm compressed lay height, 227cm cutting width",
+          "description": "Computer controlled cutting machine - 10cm compressed lay height, 227cm cutting width",
+          "price": 225500,
+          "needsReview": false
+        },
+        {
+          "code": "M10390",
+          "name": "Computer controlled cutting machine - 10cm compressed lay height, 390cm cutting width",
+          "description": "Computer controlled cutting machine - 10cm compressed lay height, 390cm cutting width",
+          "price": 262000,
+          "needsReview": false
+        },
+        {
+          "code": "M3180",
+          "name": "Computer controlled cutting machine - 3cm compressed lay height, 180cm cutting width",
+          "description": "Computer controlled cutting machine - 3cm compressed lay height, 180cm cutting width",
+          "price": 175000,
+          "needsReview": false
+        },
+        {
+          "code": "M3220",
+          "name": "Computer controlled cutting machine - 3cm compressed lay height, 227cm cutting width",
+          "description": "Computer controlled cutting machine - 3cm compressed lay height, 227cm cutting width",
+          "price": 188000,
+          "needsReview": false
+        },
+        {
+          "code": "M3390",
+          "name": "Computer controlled cutting machine - 3cm compressed lay height, 390cm cutting width",
+          "description": "Computer controlled cutting machine - 3cm compressed lay height, 390cm cutting width",
+          "price": null,
+          "needsReview": true
+        },
+        {
+          "code": "M5180",
+          "name": "Computer controlled cutting machine - 5cm compressed lay height, 180cm cutting width",
+          "description": "Computer controlled cutting machine - 5cm compressed lay height, 180cm cutting width",
+          "price": 195000,
+          "needsReview": false
+        },
+        {
+          "code": "M5220",
+          "name": "Computer controlled cutting machine - 5cm compressed lay height, 227cm cutting width",
+          "description": "Computer controlled cutting machine - 5cm compressed lay height, 227cm cutting width",
+          "price": 208000,
+          "needsReview": false
+        },
+        {
+          "code": "M5390",
+          "name": "Computer controlled cutting machine - 5cm compressed lay height, 390cm cutting width",
+          "description": "Computer controlled cutting machine - 5cm compressed lay height, 390cm cutting width",
+          "price": 245000,
+          "needsReview": false
+        },
+        {
+          "code": "M7180",
+          "name": "Computer controlled cutting machine - 7cm compressed lay height, 180cm cutting width",
+          "description": "Computer controlled cutting machine - 7cm compressed lay height, 180cm cutting width",
+          "price": 207500,
+          "needsReview": false
+        },
+        {
+          "code": "M7220",
+          "name": "Computer controlled cutting machine - 7cm compressed lay height, 227cm cutting width",
+          "description": "Computer controlled cutting machine - 7cm compressed lay height, 227cm cutting width",
+          "price": 220500,
+          "needsReview": false
+        },
+        {
+          "code": "M7390",
+          "name": "Computer controlled cutting machine - 7cm compressed lay height, 390cm cutting width",
+          "description": "Computer controlled cutting machine - 7cm compressed lay height, 390cm cutting width",
+          "price": 257000,
+          "needsReview": false
+        }
+      ],
+      "options": [
+        {
+          "code": "ABR",
+          "name": "Air Brush- air brush including ink/paint reservoir.",
+          "description": "Air Brush- air brush including ink/paint reservoir.",
+          "price": 1950,
+          "needsReview": false
+        },
+        {
+          "code": "AFP",
+          "name": "Automatic Foot Pressure- 2 pressure settings preset by pressure regulators. Accessible by preset parameters (not fully digitally controlled)",
+          "description": "Automatic Foot Pressure- 2 pressure settings preset by pressure regulators. Accessible by preset parameters (not fully digitally controlled)",
+          "price": 1560,
+          "needsReview": false
+        },
+        {
+          "code": "APM",
+          "name": "Adaptive Pattern Matching - various modes including bow & skew matching software, (HDC is required with this option)",
+          "description": "Adaptive Pattern Matching - various modes including bow & skew matching software, (HDC is required with this option)",
+          "price": 15000,
+          "needsReview": false
+        },
+        {
+          "code": "BCR",
+          "name": "Barcode scanner- input of marker name via barcode",
+          "description": "Barcode scanner- input of marker name via barcode",
+          "price": 2500,
+          "needsReview": false
+        },
+        {
+          "code": "BED",
+          "name": "Bed Projector",
+          "description": "Bed Projector",
+          "price": 10000,
+          "needsReview": false
+        },
+        {
+          "code": "Crate",
+          "name": "Wooden Crate (required when standard shipping container not used)",
+          "description": "Wooden Crate (required when standard shipping container not used)",
+          "price": 3000,
+          "needsReview": false
+        },
+        {
+          "code": "DMT",
+          "name": "Ductmaster- option designed for cutting semi-rigid board up to 30mm thickness. Ten (10) tool locations included. Four tools provided, ‘V’ profile, 45 deg through cut, straight cut and creasing. Confirmation of the tools provided will be discussed. (180mm reduction cutting width)",
+          "description": "Ductmaster- option designed for cutting semi-rigid board up to 30mm thickness. Ten (10) tool locations included. Four tools provided, ‘V’ profile, 45 deg through cut, straight cut and creasing. Confirmation of the tools provided will be discussed. (180mm reduction cutting width)",
+          "price": 18240,
+          "needsReview": false
+        },
+        {
+          "code": "DR2",
+          "name": "Secondary Drill Unit",
+          "description": "Secondary Drill Unit",
+          "price": 6200,
+          "needsReview": false
+        },
+        {
+          "code": "DRG-1",
+          "name": "Drag Knife- to suit standard Olfa 'snap-off' blade(#380010). Cutting angle 45deg. Maximum cutting depth 7mm",
+          "description": "Drag Knife- to suit standard Olfa 'snap-off' blade(#380010). Cutting angle 45deg. Maximum cutting depth 7mm",
+          "price": 2535,
+          "needsReview": false
+        },
+        {
+          "code": "DRG-2",
+          "name": "Drag Knife- to suit Excellite blade (#380011). Cutting angle 21deg. Maximum cutting depth 20mm.",
+          "description": "Drag Knife- to suit Excellite blade (#380011). Cutting angle 21deg. Maximum cutting depth 20mm.",
+          "price": 2496,
+          "needsReview": false
+        },
+        {
+          "code": "DRG-3",
+          "name": "Drag Knife- to suit carbide blade (#380012). Cutting angle 45deg. Maximum cutting depth 8mm.",
+          "description": "Drag Knife- to suit carbide blade (#380012). Cutting angle 45deg. Maximum cutting depth 8mm.",
+          "price": 2496,
+          "needsReview": false
+        },
+        {
+          "code": "Drills included",
+          "name": "2301071-7-6",
+          "description": "2301071-7-6",
+          "price": 350,
+          "needsReview": false
+        },
+        {
+          "code": "Drills included 2301071-7-10",
+          "name": "2301071-7-10",
+          "description": "2301071-7-10",
+          "price": 375,
+          "needsReview": false
+        },
+        {
+          "code": "EDS-500",
+          "name": "Edge sealer Static- clip on blanking panel 500mm width. This can be trimmed by customer if narrower required.",
+          "description": "Edge sealer Static- clip on blanking panel 500mm width. This can be trimmed by customer if narrower required.",
+          "price": 850,
+          "needsReview": false
+        },
+        {
+          "code": "EDS-800",
+          "name": "Edge sealer Static- clip on blanking panel 800mm width. This can be trimmed by customer if narrower required.",
+          "description": "Edge sealer Static- clip on blanking panel 800mm width. This can be trimmed by customer if narrower required.",
+          "price": 950,
+          "needsReview": false
+        },
+        {
+          "code": "EXH",
+          "name": "Exhaust option - diverts exhaust outlet verticaly",
+          "description": "Exhaust option - diverts exhaust outlet verticaly",
+          "price": 1000,
+          "needsReview": false
+        },
+        {
+          "code": "FM180",
+          "name": "Fabric Master- semi automatic fabric spreading machine for materials widths up to 1800mm.",
+          "description": "Fabric Master- semi automatic fabric spreading machine for materials widths up to 1800mm.",
+          "price": 16000,
+          "needsReview": false
+        },
+        {
+          "code": "HDC",
+          "name": "HeadCam:Camera in cutting head- Dynamic interaction with PathCut",
+          "description": "HeadCam:Camera in cutting head- Dynamic interaction with PathCut",
+          "price": 5000,
+          "needsReview": false
+        },
+        {
+          "code": "HFV",
+          "name": "High Flow Vacuum system 22KW",
+          "description": "High Flow Vacuum system 22KW",
+          "price": 4400,
+          "needsReview": false
+        },
+        {
+          "code": "IJP",
+          "name": "Ink Jet Printer: Integrated within the cutting head. Uses standard Black HP45 ink cartrige. 1/2inch(12mm) single line, 7/32'(5mm) two lines of print.",
+          "description": "Ink Jet Printer: Integrated within the cutting head. Uses standard Black HP45 ink cartrige. 1/2inch(12mm) single line, 7/32'(5mm) two lines of print.",
+          "price": 6552,
+          "needsReview": false
+        },
+        {
+          "code": "IKA",
+          "name": "IceKnife-Knife cooling by Air,controlled by Pathcut",
+          "description": "IceKnife-Knife cooling by Air,controlled by Pathcut",
+          "price": 3800,
+          "needsReview": false
+        },
+        {
+          "code": "IKP",
+          "name": "IceKnife-Knife cooling by Liquid,controlled by Pathcut. (not compatible with Alternating Sharpener)",
+          "description": "IceKnife-Knife cooling by Liquid,controlled by Pathcut. (not compatible with Alternating Sharpener)",
+          "price": 4940,
+          "needsReview": false
+        },
+        {
+          "code": "MRK",
+          "name": "Marking tool includes standard Bic biro pen holder (After sales: Head cover replacement is at extra cost)",
+          "description": "Marking tool includes standard Bic biro pen holder (After sales: Head cover replacement is at extra cost)",
+          "price": 1950,
+          "needsReview": false
+        },
+        {
+          "code": "MTS",
+          "name": "Machine Transfer System - Not available for Mx390. For more than 9 mtrs of travel see additional price.",
+          "description": "Machine Transfer System - Not available for Mx390. For more than 9 mtrs of travel see additional price.",
+          "price": 15000,
+          "needsReview": false
+        },
+        {
+          "code": "MTS- additional travel p/Metre",
+          "name": "Additional travel p/metre",
+          "description": "Additional travel p/metre",
+          "price": 585,
+          "needsReview": false
+        },
+        {
+          "code": "OFD",
+          "name": "Offload Display",
+          "description": "Offload Display",
+          "price": 3200,
+          "needsReview": false
+        },
+        {
+          "code": "OFJ",
+          "name": "Offload Projector (Available Mx180 & Mx220 )",
+          "description": "Offload Projector (Available Mx180 & Mx220 )",
+          "price": 7200,
+          "needsReview": false
+        },
+        {
+          "code": "OFP",
+          "name": "Offload Printer- synchronised with PathCut & OFD",
+          "description": "Offload Printer- synchronised with PathCut & OFD",
+          "price": 3900,
+          "needsReview": false
+        },
+        {
+          "code": "PM",
+          "name": "Pattern Match - spot light pattern match software",
+          "description": "Pattern Match - spot light pattern match software",
+          "price": 2786,
+          "needsReview": false
+        },
+        {
+          "code": "PRM",
+          "name": "Production Manager software",
+          "description": "Production Manager software",
+          "price": 5000,
+          "needsReview": false
+        },
+        {
+          "code": "PTW",
+          "name": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, digitising using the Pathfinder cutter controls, magnetic nesting, importing and exporting of standard DXF and G-code.",
+          "description": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, digitising using the Pathfinder cutter controls, magnetic nesting, importing and exporting of standard DXF and G-code.",
+          "price": 3500,
+          "needsReview": false
+        },
+        {
+          "code": "VRB-180",
+          "name": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
+          "description": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
+          "price": 4100,
+          "needsReview": false
+        },
+        {
+          "code": "VRB-200",
+          "name": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
+          "description": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
+          "price": 4200,
+          "needsReview": false
+        },
+        {
+          "code": "VRB-220",
+          "name": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
+          "description": "Vacuum Resealing Blind - maintains max vacuum when cutting numerous small pieces",
+          "price": 4300,
+          "needsReview": false
+        },
+        {
+          "code": "Waste Bin-180",
+          "name": "Waste bin on castors for Mx180 only",
+          "description": "Waste bin on castors for Mx180 only",
+          "price": 963,
+          "needsReview": false
+        }
+      ]
+    },
+    {
+      "seriesCode": "L",
+      "seriesName": "L-Series",
+      "maxDiscountPct": 10,
+      "products": [
+        {
+          "code": "L-180",
+          "name": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 180cm. Cutting belt perforated flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "description": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 180cm. Cutting belt perforated flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "price": 135000,
+          "needsReview": false
+        },
+        {
+          "code": "L-180F",
+          "name": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 180cm. Cutting belt Porous felt flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "description": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 180cm. Cutting belt Porous felt flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "price": 130000,
+          "needsReview": false
+        },
+        {
+          "code": "L-220",
+          "name": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 226cm. Cutting belt perforated flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "description": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 226cm. Cutting belt perforated flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "price": 150000,
+          "needsReview": false
+        },
+        {
+          "code": "L-220F",
+          "name": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 226cm. Cutting belt Porous felt flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "description": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 226cm. Cutting belt Porous felt flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "price": 145000,
+          "needsReview": false
+        },
+        {
+          "code": "L-320",
+          "name": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 226cm. Cutting belt perforated flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "description": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 226cm. Cutting belt perforated flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "price": 170000,
+          "needsReview": false
+        },
+        {
+          "code": "L-320F",
+          "name": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 320cm. Cutting belt Porous felt flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "description": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 320cm. Cutting belt Porous felt flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "price": 165000,
+          "needsReview": false
+        }
+      ],
+      "options": [
+        {
+          "code": "1.0mm dia punch",
+          "name": "1.0mm dia punch",
+          "description": "1.0mm dia punch",
+          "price": 100,
+          "needsReview": false
+        },
+        {
+          "code": "180-E",
+          "name": "Extended length for L-180",
+          "description": "Extended length for L-180",
+          "price": 6000,
+          "needsReview": false
+        },
+        {
+          "code": "2.0mm dia punch",
+          "name": "2.0mm dia punch",
+          "description": "2.0mm dia punch",
+          "price": 100,
+          "needsReview": false
+        },
+        {
+          "code": "220-E",
+          "name": "Extended length for L-220",
+          "description": "Extended length for L-220",
+          "price": 8000,
+          "needsReview": false
+        },
+        {
+          "code": "28 Dia. Round Knife Tool- Patented Quick release mechanism (Not used on Felt bed) 2x10 sided blades included std",
+          "name": "28 Dia. Round Knife Tool- Patented Quick release mechanism (Not used on Felt bed) 2x10 sided blades included std",
+          "description": "28 Dia. Round Knife Tool- Patented Quick release mechanism (Not used on Felt bed) 2x10 sided blades included std",
+          "price": 580,
+          "needsReview": false
+        },
+        {
+          "code": "3.0mm dia punch",
+          "name": "3.0mm dia punch",
+          "description": "3.0mm dia punch",
+          "price": 100,
+          "needsReview": false
+        },
+        {
+          "code": "320-E",
+          "name": "Extended length for L-320",
+          "description": "Extended length for L-320",
+          "price": 12000,
+          "needsReview": false
+        },
+        {
+          "code": "4.0mm dia punch",
+          "name": "4.0mm dia punch",
+          "description": "4.0mm dia punch",
+          "price": 100,
+          "needsReview": false
+        },
+        {
+          "code": "40 Dia. Round Knife Tool- Quick release (Not available yet)",
+          "name": "40 Dia. Round Knife Tool- Quick release (Not available yet)",
+          "description": "40 Dia. Round Knife Tool- Quick release (Not available yet)",
+          "price": 630,
+          "needsReview": false
+        },
+        {
+          "code": "5.0mm dia punch",
+          "name": "5.0mm dia punch",
+          "description": "5.0mm dia punch",
+          "price": 100,
+          "needsReview": false
+        },
+        {
+          "code": "ABR",
+          "name": "Air Brush- air brush including ink/paint reservoir.",
+          "description": "Air Brush- air brush including ink/paint reservoir.",
+          "price": 2100,
+          "needsReview": false
+        },
+        {
+          "code": "APM",
+          "name": "Adaptive Pattern Matching (Bow & Skew- HDC option required)",
+          "description": "Adaptive Pattern Matching (Bow & Skew- HDC option required)",
+          "price": 8000,
+          "needsReview": false
+        },
+        {
+          "code": "BCR",
+          "name": "Barcode Scanner- input of marker name via barcode",
+          "description": "Barcode Scanner- input of marker name via barcode",
+          "price": 1050,
+          "needsReview": false
+        },
+        {
+          "code": "Crate-180",
+          "name": "Crate-180",
+          "description": "Crate-180",
+          "price": 1200,
+          "needsReview": false
+        },
+        {
+          "code": "Crate-220",
+          "name": "Crate-220",
+          "description": "Crate-220",
+          "price": 1500,
+          "needsReview": false
+        },
+        {
+          "code": "Crate-320",
+          "name": "Crate-320",
+          "description": "Crate-320",
+          "price": 1800,
+          "needsReview": false
+        },
+        {
+          "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
+          "name": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
+          "description": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
+          "price": 730,
+          "needsReview": false
+        },
+        {
+          "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
+          "name": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
+          "description": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
+          "price": 730,
+          "needsReview": false
+        },
+        {
+          "code": "Driven- Electrically driven. Suit 28mm Carbide Octagonal blade.",
+          "name": "Driven- Electrically driven. Suit 28mm Carbide Octagonal blade.",
+          "description": "Driven- Electrically driven. Suit 28mm Carbide Octagonal blade.",
+          "price": 6400,
+          "needsReview": false
+        },
+        {
+          "code": "HDC",
+          "name": "HeadCam:Camera in cutting head- Dynamic interaction with PathCut",
+          "description": "HeadCam:Camera in cutting head- Dynamic interaction with PathCut",
+          "price": 2000,
+          "needsReview": false
+        },
+        {
+          "code": "HFV",
+          "name": "High Flow Vacuum system- THIS REQUIRES 3PHASE POWER- Recommended for ALL Extended and standard 220 & 320 models. Specific application to be discussed with Pathfinder.(Replacement for standard Vac unit)",
+          "description": "High Flow Vacuum system- THIS REQUIRES 3PHASE POWER- Recommended for ALL Extended and standard 220 & 320 models. Specific application to be discussed with Pathfinder.(Replacement for standard Vac unit)",
+          "price": 16000,
+          "needsReview": false
+        },
+        {
+          "code": "JetPen",
+          "name": "Jetpen Marking Tool (this replaces the standard marking tool)",
+          "description": "Jetpen Marking Tool (this replaces the standard marking tool)",
+          "price": 7500,
+          "needsReview": false
+        },
+        {
+          "code": "Notch Tool- Quick Release (to suit carbide knife 1.0mm x 7mm)",
+          "name": "Notch Tool- Quick Release (to suit carbide knife 1.0mm x 7mm)",
+          "description": "Notch Tool- Quick Release (to suit carbide knife 1.0mm x 7mm)",
+          "price": 950,
+          "needsReview": false
+        },
+        {
+          "code": "OFD",
+          "name": "Offload Display",
+          "description": "Offload Display",
+          "price": 1400,
+          "needsReview": false
+        },
+        {
+          "code": "OFP",
+          "name": "Offload Printer- synchronised with PathCut & OFD",
+          "description": "Offload Printer- synchronised with PathCut & OFD",
+          "price": 2250,
+          "needsReview": false
+        },
+        {
+          "code": "PM",
+          "name": "Pattern Match - spot light pattern match software",
+          "description": "Pattern Match - spot light pattern match software",
+          "price": 1500,
+          "needsReview": false
+        },
+        {
+          "code": "PRA",
+          "name": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
+          "description": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
+          "price": 2200,
+          "needsReview": false
+        },
+        {
+          "code": "PRM",
+          "name": "Production Manager software",
+          "description": "Production Manager software",
+          "price": 2620,
+          "needsReview": false
+        },
+        {
+          "code": "PTW",
+          "name": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, digitising using the Pathfinder cutter controls, magnetic nesting, importing and exporting of standard DXF and G-code.",
+          "description": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, digitising using the Pathfinder cutter controls, magnetic nesting, importing and exporting of standard DXF and G-code.",
+          "price": 3500,
+          "needsReview": false
+        },
+        {
+          "code": "Punch Tool- Quick Release (to suit Hollow dia 1mm/2mm/3mm/4mm/5mm purchased seperately)",
+          "name": "Punch Tool- Quick Release (to suit Hollow dia 1mm/2mm/3mm/4mm/5mm purchased seperately)",
+          "description": "Punch Tool- Quick Release (to suit Hollow dia 1mm/2mm/3mm/4mm/5mm purchased seperately)",
+          "price": 450,
+          "needsReview": false
+        }
+      ]
+    },
+    {
+      "seriesCode": "P",
+      "seriesName": "Punchline",
+      "maxDiscountPct": null,
+      "products": [
+        {
+          "code": "P-180",
+          "name": "Automatic paper perforating machine- paper width up to 1880mm",
+          "description": "Automatic paper perforating machine- paper width up to 1880mm",
+          "price": 10660,
+          "needsReview": false
+        },
+        {
+          "code": "P-220",
+          "name": "Punchline: Automatic paper perforating machine- paper width up to 2420mm",
+          "description": "Punchline: Automatic paper perforating machine- paper width up to 2420mm",
+          "price": 11310,
+          "needsReview": false
+        }
+      ],
+      "options": [
+        {
+          "code": "Crate",
+          "name": "Crate- Wooden box for transport",
+          "description": "Crate- Wooden box for transport",
+          "price": 600,
+          "needsReview": false
+        }
+      ]
+    },
+    {
+      "seriesCode": "SW",
+      "seriesName": "Software",
+      "maxDiscountPct": null,
+      "products": [],
+      "options": [
+        {
+          "code": "ANT-V5",
+          "name": "Automatic Nester V5",
+          "description": "Automatic Nester V5",
+          "price": 8320,
+          "needsReview": false
+        },
+        {
+          "code": "ANT-V6",
+          "name": "Automatic Nester V6 (Faster results, higher level nesting algorithm) Includes edge buffer function (container)",
+          "description": "Automatic Nester V6 (Faster results, higher level nesting algorithm) Includes edge buffer function (container)",
+          "price": 11720,
+          "needsReview": false
+        },
+        {
+          "code": "EDG",
+          "name": "External Digitizer- enabling software functionality to connect an external digitizer.",
+          "description": "External Digitizer- enabling software functionality to connect an external digitizer.",
+          "price": 1114,
+          "needsReview": false
+        },
+        {
+          "code": "LS Convert",
+          "name": "LS Convert software module (dongle protected)",
+          "description": "LS Convert software module (dongle protected)",
+          "price": null,
+          "needsReview": true
+        },
+        {
+          "code": "PDG",
+          "name": "PhotoDigitiser-Digitizing of photo patterns using tools available within PathWorks",
+          "description": "PhotoDigitiser-Digitizing of photo patterns using tools available within PathWorks",
+          "price": 1800,
+          "needsReview": false
+        },
+        {
+          "code": "PRA",
+          "name": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
+          "description": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
+          "price": 3500,
+          "needsReview": false
+        },
+        {
+          "code": "PTN",
+          "name": "Photo Nesting (Note: option only, does NOT include hardware or ANT)",
+          "description": "Photo Nesting (Note: option only, does NOT include hardware or ANT)",
+          "price": 20577,
+          "needsReview": false
+        },
+        {
+          "code": "PTW(S)",
+          "name": "PathWorks Standalone software module. Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
+          "description": "PathWorks Standalone software module. Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
+          "price": 4000,
+          "needsReview": false
+        },
+        {
+          "code": "WPL",
+          "name": "PoolLiner Wizard- automatic creation of flat shapes (unfolding) based on 3D point measurments.",
+          "description": "PoolLiner Wizard- automatic creation of flat shapes (unfolding) based on 3D point measurments.",
+          "price": 5850,
+          "needsReview": false
+        },
+        {
+          "code": "WPN",
+          "name": "Panel Wizard-Automatic creation of panels based with automatic tool path optimisation.",
+          "description": "Panel Wizard-Automatic creation of panels based with automatic tool path optimisation.",
+          "price": 500,
+          "needsReview": false
+        }
+      ]
+    },
+    {
+      "seriesCode": "LNS",
+      "seriesName": "Leather Nesting System",
+      "maxDiscountPct": null,
+      "products": [
+        {
+          "code": "LNS-2020",
+          "name": "Camera Nesting System Comprises: a) Operator console with utility drawer (With Mounting bracket onto Pathfinder EasyLoader side frame) b) Windows computer, keyboard, mouse & Microsoft surface dial. c) Digital SLR camera & stand. d) PathWorks (standalone) software. e) ANT- automatic nesting licence optioned within PathWorks f) WHD Leather Hide Wizard",
+          "description": "Camera Nesting System Comprises: a) Operator console with utility drawer (With Mounting bracket onto Pathfinder EasyLoader side frame) b) Windows computer, keyboard, mouse & Microsoft surface dial. c) Digital SLR camera & stand. d) PathWorks (standalone) software. e) ANT- automatic nesting licence optioned within PathWorks f) WHD Leather Hide Wizard",
+          "price": 36712,
+          "needsReview": false
+        },
+        {
+          "code": "LNS-2420",
+          "name": "Camera Nesting System Comprises: a) Operator console with utility drawer (With Mounting bracket onto Pathfinder EasyLoader side frame) b) Windows computer, keyboard, mouse & Microsoft surface dial. c) Digital SLR camera & stand. d) PathWorks (standalone) software. e) ANT- automatic nesting licence optioned within PathWorks f) WHD Leather Hide Wizard",
+          "description": "Camera Nesting System Comprises: a) Operator console with utility drawer (With Mounting bracket onto Pathfinder EasyLoader side frame) b) Windows computer, keyboard, mouse & Microsoft surface dial. c) Digital SLR camera & stand. d) PathWorks (standalone) software. e) ANT- automatic nesting licence optioned within PathWorks f) WHD Leather Hide Wizard",
+          "price": 38547.6,
+          "needsReview": false
+        },
+        {
+          "code": "LNS-3220",
+          "name": "Camera Nesting System Comprises: a) Operator console with utility drawer (With Mounting bracket onto Pathfinder EasyLoader side frame) b) Windows computer, keyboard, mouse & Microsoft surface dial. c) Digital SLR camera & stand. d) PathWorks (standalone) software. e) ANT- automatic nesting licence optioned within PathWorks f) WHD Leather Hide Wizard",
+          "description": "Camera Nesting System Comprises: a) Operator console with utility drawer (With Mounting bracket onto Pathfinder EasyLoader side frame) b) Windows computer, keyboard, mouse & Microsoft surface dial. c) Digital SLR camera & stand. d) PathWorks (standalone) software. e) ANT- automatic nesting licence optioned within PathWorks f) WHD Leather Hide Wizard",
+          "price": 40474.98,
+          "needsReview": false
+        }
+      ],
+      "options": []
+    },
+    {
+      "seriesCode": "EL",
+      "seriesName": "EasyLoader",
+      "maxDiscountPct": null,
+      "products": [],
+      "options": [
+        {
+          "code": "EL-2020 #ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+          "name": "#ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+          "description": "#ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+          "price": 1040,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2020 Additional 1.2M lengths",
+          "name": "Additional 1.2M lengths",
+          "description": "Additional 1.2M lengths",
+          "price": 1200,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2020 Drive Module (first 1.2M)",
+          "name": "Drive Module (first 1.2M)",
+          "description": "Drive Module (first 1.2M)",
+          "price": 4050,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2020 Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+          "name": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+          "description": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+          "price": 120,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2020 Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+          "name": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+          "description": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+          "price": 735,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2020 Static table 1.2M lengths",
+          "name": "Static table 1.2M lengths",
+          "description": "Static table 1.2M lengths",
+          "price": 743,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2020 Syncronisation Feature (same speed sync with cutter)",
+          "name": "Syncronisation Feature (same speed sync with cutter)",
+          "description": "Syncronisation Feature (same speed sync with cutter)",
+          "price": 1500,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2020 Travel Platform support rail. Per 1.2m",
+          "name": "Travel Platform support rail. Per 1.2m",
+          "description": "Travel Platform support rail. Per 1.2m",
+          "price": 45,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2420 Additional 1.2M lengths",
+          "name": "Additional 1.2M lengths",
+          "description": "Additional 1.2M lengths",
+          "price": 1320,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2420 Drive Module (first 1.2M)",
+          "name": "Drive Module (first 1.2M)",
+          "description": "Drive Module (first 1.2M)",
+          "price": 4455,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2420 Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+          "name": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+          "description": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+          "price": 120,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2420 Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+          "name": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+          "description": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+          "price": 780,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2420 ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+          "name": "ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+          "description": "ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+          "price": 1080,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2420 Static table 1.2M lengths",
+          "name": "Static table 1.2M lengths",
+          "description": "Static table 1.2M lengths",
+          "price": 780,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2420 Syncronisation Feature (same speed sync with cutter)",
+          "name": "Syncronisation Feature (same speed sync with cutter)",
+          "description": "Syncronisation Feature (same speed sync with cutter)",
+          "price": 1500,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2420 Travel Platform support rail. Per 1.2m",
+          "name": "Travel Platform support rail. Per 1.2m",
+          "description": "Travel Platform support rail. Per 1.2m",
+          "price": 45,
+          "needsReview": false
+        }
+      ]
+    },
+    {
+      "seriesCode": "EF",
+      "seriesName": "EasyFeeder",
+      "maxDiscountPct": null,
+      "products": [],
+      "options": [
+        {
+          "code": "EasyFeeder- 2020",
+          "name": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+          "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+          "price": 10400,
+          "needsReview": false
+        },
+        {
+          "code": "EasyFeeder- 2420",
+          "name": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+          "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+          "price": 10860,
+          "needsReview": false
+        },
+        {
+          "code": "EasyFeeder- 4030",
+          "name": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+          "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+          "price": 17540,
+          "needsReview": false
+        }
+      ]
+    },
+    {
+      "seriesCode": "FP",
+      "seriesName": "FabricPro",
+      "maxDiscountPct": null,
+      "products": [
+        {
+          "code": "FP-180",
+          "name": "FabricPro Automatic Spreading Machine (maximum fabric width=180 cm)",
+          "description": "FabricPro Automatic Spreading Machine (maximum fabric width=180 cm)",
+          "price": 64000,
+          "needsReview": false
+        },
+        {
+          "code": "FP-220",
+          "name": "FabricPro Automatic Spreading Machine (maximum fabric width=220 cm)",
+          "description": "FabricPro Automatic Spreading Machine (maximum fabric width=220 cm)",
+          "price": 67000,
+          "needsReview": false
+        }
+      ],
+      "options": [
+        {
+          "code": "Crate",
+          "name": "Crate- Wooden Crate for transport",
+          "description": "Crate- Wooden Crate for transport",
+          "price": 1200,
+          "needsReview": false
+        },
+        {
+          "code": "TPL",
+          "name": "Travelling operator Platform (Standard Equipment)",
+          "description": "Travelling operator Platform (Standard Equipment)",
+          "price": 0,
+          "needsReview": false
+        }
+      ]
+    }
+  ]
+}
