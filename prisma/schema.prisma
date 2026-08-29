@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+}
+
+enum DocumentType {
+  QUOTE
+  INVOICE
+}
+
+enum DocumentStatus {
+  DRAFT
+  FINAL
+}
+
+enum LineKind {
+  OPTION
+  PRODUCT
+  CUSTOM
+}
+
+model Region {
+  id            String         @id @default(cuid())
+  code          String         @unique // AU, US, UK
+  name          String
+  currency      String // AUD, USD, GBP
+  taxName       String // GST, Sales Tax, VAT
+  taxRate       Decimal        @db.Decimal(5, 2) // 10.00
+  entityName    String // Pathfinder Australia Pty Ltd
+  entityLegalId String? // ABN 64 072 458 667
+  entityAddress String?
+  bankDetails   Json?
+  logoUrl       String?
+  footerText    String?
+  active        Boolean        @default(true)
+  users         User[]
+  companies     Company[]
+  prices        Price[]
+  documents     Document[]
+  contentBlocks ContentBlock[]
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  passwordHash  String?
+  role          Role       @default(MANAGER)
+  regionId      String?
+  region        Region?    @relation(fields: [regionId], references: [id])
+  active        Boolean    @default(true)
+  documents     Document[]
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Series {
+  id             String                @id @default(cuid())
+  code           String                @unique // M, XC, L, P, SW, LNS, EL, EF, FP
+  name           String // M-Series, X-Calibre...
+  maxDiscountPct Decimal?              @db.Decimal(5, 2) // L-Series: 10
+  sortOrder      Int                   @default(0)
+  products       Product[]
+  compat         OptionCompatibility[]
+}
+
+model Product {
+  id          String                @id @default(cuid())
+  code        String                @unique // M5180
+  seriesId    String
+  series      Series                @relation(fields: [seriesId], references: [id])
+  name        String
+  description String?
+  specs       Json? // { cutHeightCm, widthCm, ... }
+  imageUrl    String?
+  active      Boolean               @default(true)
+  sortOrder   Int                   @default(0)
+  prices      Price[]
+  compat      OptionCompatibility[]
+  docItems    DocumentItem[]
+}
+
+model Option {
+  id               String                @id @default(cuid())
+  code             String                @unique // MTS, HFV, VRB-180...
+  name             String
+  shortDescription String?
+  attributeSchema  Json? // e.g. [{key:"metres",label:"Travel (m)",type:"number"}]
+  imageUrl         String?
+  active           Boolean               @default(true)
+  sortOrder        Int                   @default(0)
+  prices           Price[]
+  compat           OptionCompatibility[]
+}
+
+model OptionCompatibility {
+  id        String   @id @default(cuid())
+  optionId  String
+  option    Option   @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  seriesId  String? // compatible with whole series
+  series    Series?  @relation(fields: [seriesId], references: [id])
+  productId String? // or a specific product
+  product   Product? @relation(fields: [productId], references: [id])
+
+  @@unique([optionId, seriesId, productId])
+}
+
+model Price {
+  id          String   @id @default(cuid())
+  regionId    String
+  region      Region   @relation(fields: [regionId], references: [id])
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  optionId    String?
+  option      Option?  @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  amount      Decimal  @db.Decimal(12, 2)
+  needsReview Boolean  @default(false) // imported gaps: M3390 TBD etc.
+
+  @@unique([productId, regionId])
+  @@unique([optionId, regionId])
+}
+
+model Company {
+  id        String     @id @default(cuid())
+  name      String
+  street    String?
+  city      String?
+  state     String?
+  postcode  String?
+  country   String?
+  taxId     String?
+  notes     String?
+  regionId  String
+  region    Region     @relation(fields: [regionId], references: [id])
+  contacts  Contact[]
+  documents Document[]
+  createdAt DateTime   @default(now())
+}
+
+model Contact {
+  id        String     @id @default(cuid())
+  companyId String
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName  String?
+  email     String?
+  phone     String?
+  position  String?
+  isPrimary Boolean    @default(false)
+  documents Document[]
+}
+
+model Document {
+  id             String         @id @default(cuid())
+  type           DocumentType
+  status         DocumentStatus @default(DRAFT)
+  number         String?        @unique // Q-AU-2026-001, assigned on finalize
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id])
+  contactId      String?
+  contact        Contact?       @relation(fields: [contactId], references: [id])
+  authorId       String
+  author         User           @relation(fields: [authorId], references: [id])
+  regionId       String
+  region         Region         @relation(fields: [regionId], references: [id])
+  issueDate      DateTime       @default(now())
+  validityDays   Int?
+  currency       String
+  taxName        String
+  taxRate        Decimal        @db.Decimal(5, 2)
+  entitySnapshot Json? // frozen on finalize
+  discountPct    Decimal?       @db.Decimal(5, 2)
+  subtotal       Decimal        @default(0) @db.Decimal(12, 2)
+  taxAmount      Decimal        @default(0) @db.Decimal(12, 2)
+  total          Decimal        @default(0) @db.Decimal(12, 2)
+  notes          String?
+  items          DocumentItem[]
+  lines          DocumentLine[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model DocumentItem {
+  id           String         @id @default(cuid())
+  documentId   String
+  document     Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  productId    String?
+  product      Product?       @relation(fields: [productId], references: [id])
+  sortOrder    Int            @default(0)
+  code         String // snapshot
+  name         String // snapshot
+  description  String? // snapshot
+  unitPrice    Decimal        @db.Decimal(12, 2) // snapshot
+  discountPct  Decimal?       @db.Decimal(5, 2)
+  serialNumber String?
+  showImage    Boolean        @default(false)
+  imageUrl     String?
+  lines        DocumentLine[]
+}
+
+model DocumentLine {
+  id          String        @id @default(cuid())
+  documentId  String
+  document    Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  itemId      String? // null = document-level line
+  item        DocumentItem? @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  kind        LineKind
+  refId       String? // optionId or productId
+  code        String?
+  name        String
+  description String?
+  qty         Int           @default(1)
+  unitPrice   Decimal       @db.Decimal(12, 2)
+  attributes  Json? // { metres: 4, tables: 2 }
+  showImage   Boolean       @default(false)
+  sortOrder   Int           @default(0)
+}
+
+model ContentBlock {
+  id        String  @id @default(cuid())
+  key       String // terms.delivery, rsp.agreement, option.MTS
+  regionId  String?
+  region    Region? @relation(fields: [regionId], references: [id])
+  title     String?
+  body      String // markdown
+  sortOrder Int     @default(0)
+
+  @@unique([key, regionId])
+}
+
+model NumberSequence {
+  id         String       @id @default(cuid())
+  regionCode String
+  docType    DocumentType
+  year       Int
+  counter    Int          @default(0)
+
+  @@unique([regionCode, docType, year])
+}
+
+model Setting {
+  key   String @id
+  value Json
+}

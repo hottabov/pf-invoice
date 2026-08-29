@@ -5,7 +5,11 @@ services:
     ports:
       - "127.0.0.1:3010:3000"
     env_file: .env
-    depends_on: [postgres, gotenberg]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      gotenberg:
+        condition: service_started
     volumes:
       - uploads:/data/uploads
   postgres:
@@ -15,6 +19,11 @@ services:
       POSTGRES_DB: pathquote
       POSTGRES_USER: pathquote
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pathquote"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     volumes:
       - pgdata:/var/lib/postgresql/data
   gotenberg:
