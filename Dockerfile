@@ -18,6 +18,10 @@ ENV DATABASE_URL="postgresql://build:build@localhost:5432/build" \
     AUTH_SECRET="build-time-placeholder-not-used-at-runtime"
 RUN npx prisma generate && npm run build
 
+FROM build AS tools
+ENV NODE_ENV=production
+CMD ["node", "-e", "console.log('tools image: run prisma/seed/user commands via docker compose run tools ...')"]
+
 FROM node:22-alpine AS run
 WORKDIR /app
 ENV NODE_ENV=production

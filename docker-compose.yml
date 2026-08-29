@@ -1,6 +1,8 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      target: run
     restart: unless-stopped
     ports:
       - "127.0.0.1:3010:3000"
@@ -12,6 +14,15 @@ services:
         condition: service_started
     volumes:
       - uploads:/data/uploads
+  tools:
+    build:
+      context: .
+      target: tools
+    profiles: ["tools"]
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped

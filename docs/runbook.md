@@ -34,7 +34,8 @@ installed.
    - `DATABASE_URL` — `postgresql://pathquote:<POSTGRES_PASSWORD>@postgres:5432/pathquote`
      (the `postgres` host is the Compose service name, not `localhost`).
    - `AUTH_URL` — `https://q.pathfindercut.com`.
-   - `SMTP_*` / `EMAIL_FROM` — for magic-link email.
+   - `SMTP_*` / `EMAIL_FROM` — for magic-link email. Leaving `SMTP_*` blank
+     disables magic-link login; password login is unaffected.
    - `GOTENBERG_URL` — `http://gotenberg:3000` (leave as-is; matches the
      Compose service name).
    - `UPLOADS_DIR` — `/data/uploads` (matches the `uploads` volume mount).
@@ -50,13 +51,13 @@ installed.
 4. Apply migrations:
 
    ```bash
-   docker compose exec app npx prisma migrate deploy
+   docker compose run --rm tools npx prisma migrate deploy
    ```
 
 5. Seed the catalog (idempotent — safe to re-run):
 
    ```bash
-   docker compose exec app npm run db:seed
+   docker compose run --rm tools npm run db:seed
    ```
 
 6. Create the first admin user. Prefer piping the password in rather than
@@ -70,7 +71,7 @@ installed.
 
      ```bash
      read -rs ADMIN_PW && echo
-     docker compose exec -e ADMIN_PW app sh -c \
+     docker compose run --rm -e ADMIN_PW tools sh -c \
        'npm run user:create -- you@example.com "$ADMIN_PW" ADMIN AU'
      unset ADMIN_PW
      ```
@@ -79,7 +80,7 @@ installed.
      prompt so it never appears in either host or container shell history:
 
      ```bash
-     docker compose exec app sh
+     docker compose run --rm tools sh
      # inside the container:
      npm run user:create -- you@example.com "$(read -rsp 'password: ' p && echo "$p")" ADMIN AU
      exit
@@ -203,7 +204,7 @@ editing the crontab directly via `crontab -e` the same escaping applies.)
 
    ```bash
    docker compose up -d app
-   docker compose exec app npx prisma migrate deploy
+   docker compose run --rm tools npx prisma migrate deploy
    curl -fsS http://127.0.0.1:3010/api/health
    ```
 
@@ -228,13 +229,13 @@ credentials.
 **Migrations out of sync**
 
 ```bash
-docker compose exec app npx prisma migrate status
+docker compose run --rm tools npx prisma migrate status
 ```
 
 Shows pending/failed migrations. To re-apply cleanly:
 
 ```bash
-docker compose exec app npx prisma migrate deploy
+docker compose run --rm tools npx prisma migrate deploy
 ```
 
 If a migration is reported as failed partway through, resolve it manually
@@ -248,12 +249,13 @@ do not re-run `migrate deploy` blindly against a half-applied migration.
 - Confirm `/opt/pathquote` has no local commits/changes blocking
   `git pull --ff-only` (`git status` on the VPS).
 
-**Deploy workflow fails at `docker compose exec -T app npx prisma migrate
+**Deploy workflow fails at `docker compose run --rm tools npx prisma migrate
 deploy` or the final `curl` health check**
 
-- SSH in and repeat the same commands manually (`docker compose exec app npx
-  prisma migrate deploy`, then `curl -fsS http://127.0.0.1:3010/api/health`)
-  to see the actual error before deciding whether to roll back.
+- SSH in and repeat the same commands manually (`docker compose run --rm
+  tools npx prisma migrate deploy`, then `curl -fsS
+  http://127.0.0.1:3010/api/health`) to see the actual error before deciding
+  whether to roll back.
 - `docker compose logs app` for the stack trace.
 
 **Rolling back a bad deploy**
@@ -263,7 +265,7 @@ cd /opt/pathquote
 git log --oneline -5      # find the last good commit
 git checkout <good-sha>
 docker compose up -d --build
-docker compose exec -T app npx prisma migrate deploy
+docker compose run --rm tools npx prisma migrate deploy
 curl -fsS http://127.0.0.1:3010/api/health
 ```
 
