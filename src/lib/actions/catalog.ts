@@ -81,8 +81,8 @@ export async function createProduct(seriesCode: string, formData: FormData): Pro
   }
 
   revalidatePath("/catalog");
-  revalidatePath(`/catalog/${series.code}`);
-  redirect(`/catalog/${series.code}/${created.code}`);
+  revalidatePath(`/catalog/${encodeURIComponent(series.code)}`);
+  redirect(`/catalog/${encodeURIComponent(series.code)}/${encodeURIComponent(created.code)}`);
 }
 
 export async function updateProduct(productId: string, formData: FormData): Promise<ActionResult> {
@@ -116,12 +116,16 @@ export async function updateProduct(productId: string, formData: FormData): Prom
   }
 
   revalidatePath("/catalog");
-  revalidatePath(`/catalog/${existing.series.code}`);
-  revalidatePath(`/catalog/${existing.series.code}/${existing.code}`);
+  revalidatePath(`/catalog/${encodeURIComponent(existing.series.code)}`);
+  revalidatePath(`/catalog/${encodeURIComponent(existing.series.code)}/${encodeURIComponent(existing.code)}`);
   if (parsed.data.code !== existing.code) {
-    revalidatePath(`/catalog/${existing.series.code}/${parsed.data.code}`);
+    revalidatePath(
+      `/catalog/${encodeURIComponent(existing.series.code)}/${encodeURIComponent(parsed.data.code)}`
+    );
   }
-  redirect(`/catalog/${existing.series.code}/${parsed.data.code}`);
+  redirect(
+    `/catalog/${encodeURIComponent(existing.series.code)}/${encodeURIComponent(parsed.data.code)}`
+  );
 }
 
 export async function deleteProduct(productId: string): Promise<ActionResult> {
@@ -133,8 +137,11 @@ export async function deleteProduct(productId: string): Promise<ActionResult> {
   });
   if (!existing) return { error: "Product not found" };
 
-  const referencedCount = await db.documentItem.count({ where: { productId } });
-  if (referencedCount > 0) {
+  const [referencedCount, referencedLineCount] = await Promise.all([
+    db.documentItem.count({ where: { productId } }),
+    db.documentLine.count({ where: { refId: productId, kind: "PRODUCT" } }),
+  ]);
+  if (referencedCount > 0 || referencedLineCount > 0) {
     return { error: "This product is used on one or more documents and can't be deleted." };
   }
 
@@ -142,8 +149,8 @@ export async function deleteProduct(productId: string): Promise<ActionResult> {
   await db.product.delete({ where: { id: productId } });
 
   revalidatePath("/catalog");
-  revalidatePath(`/catalog/${existing.series.code}`);
-  redirect(`/catalog/${existing.series.code}`);
+  revalidatePath(`/catalog/${encodeURIComponent(existing.series.code)}`);
+  redirect(`/catalog/${encodeURIComponent(existing.series.code)}`);
 }
 
 // --- options -------------------------------------------------------------
@@ -180,7 +187,7 @@ export async function createOption(formData: FormData): Promise<ActionResult> {
   }
 
   revalidatePath("/catalog/options");
-  redirect(`/catalog/options/${created.code}`);
+  redirect(`/catalog/options/${encodeURIComponent(created.code)}`);
 }
 
 export async function updateOption(optionId: string, formData: FormData): Promise<ActionResult> {
@@ -217,11 +224,11 @@ export async function updateOption(optionId: string, formData: FormData): Promis
   }
 
   revalidatePath("/catalog/options");
-  revalidatePath(`/catalog/options/${existing.code}`);
+  revalidatePath(`/catalog/options/${encodeURIComponent(existing.code)}`);
   if (parsed.data.code !== existing.code) {
-    revalidatePath(`/catalog/options/${parsed.data.code}`);
+    revalidatePath(`/catalog/options/${encodeURIComponent(parsed.data.code)}`);
   }
-  redirect(`/catalog/options/${parsed.data.code}`);
+  redirect(`/catalog/options/${encodeURIComponent(parsed.data.code)}`);
 }
 
 export async function deleteOption(optionId: string): Promise<ActionResult> {
@@ -269,8 +276,8 @@ export async function updateProductImage(productId: string, url: string | null):
 
   await db.product.update({ where: { id: productId }, data: { imageUrl: parsed.value } });
 
-  revalidatePath(`/catalog/${existing.series.code}/${existing.code}`);
-  revalidatePath(`/catalog/${existing.series.code}`);
+  revalidatePath(`/catalog/${encodeURIComponent(existing.series.code)}/${encodeURIComponent(existing.code)}`);
+  revalidatePath(`/catalog/${encodeURIComponent(existing.series.code)}`);
   return {};
 }
 
@@ -285,7 +292,7 @@ export async function updateOptionImage(optionId: string, url: string | null): P
 
   await db.option.update({ where: { id: optionId }, data: { imageUrl: parsed.value } });
 
-  revalidatePath(`/catalog/options/${existing.code}`);
+  revalidatePath(`/catalog/options/${encodeURIComponent(existing.code)}`);
   revalidatePath("/catalog/options");
   return {};
 }
@@ -347,13 +354,13 @@ export async function upsertPrice(target: PriceTarget, formData: FormData): Prom
       include: { series: true },
     });
     if (product) {
-      revalidatePath(`/catalog/${product.series.code}/${product.code}`);
-      revalidatePath(`/catalog/${product.series.code}`);
+      revalidatePath(`/catalog/${encodeURIComponent(product.series.code)}/${encodeURIComponent(product.code)}`);
+      revalidatePath(`/catalog/${encodeURIComponent(product.series.code)}`);
     }
   } else {
     const option = await db.option.findUnique({ where: { id: target.optionId } });
     if (option) {
-      revalidatePath(`/catalog/options/${option.code}`);
+      revalidatePath(`/catalog/options/${encodeURIComponent(option.code)}`);
       revalidatePath("/catalog/options");
     }
   }
@@ -409,7 +416,7 @@ export async function setOptionCompatibility(
     ),
   ]);
 
-  revalidatePath(`/catalog/options/${option.code}`);
+  revalidatePath(`/catalog/options/${encodeURIComponent(option.code)}`);
   revalidatePath("/catalog/options");
   return {};
 }

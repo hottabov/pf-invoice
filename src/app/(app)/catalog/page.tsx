@@ -20,7 +20,7 @@ export default async function CatalogPage() {
         {series.map((s) => (
           <Link
             key={s.id}
-            href={`/catalog/${s.code}`}
+            href={`/catalog/${encodeURIComponent(s.code)}`}
             className="flex flex-col gap-1 rounded-xl border border-border bg-white p-4 transition-colors hover:border-brand-accent hover:bg-muted active:bg-muted"
           >
             <div className="flex items-center justify-between gap-2">

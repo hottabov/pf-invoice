@@ -80,7 +80,7 @@ export default async function OptionsPage({
           {options.map((o, i) => (
             <Link
               key={o.id}
-              href={`/catalog/options/${o.code}`}
+              href={`/catalog/options/${encodeURIComponent(o.code)}`}
               className={cn(
                 "flex flex-col gap-2 rounded-xl border border-border bg-white p-4 transition-colors hover:border-brand-accent hover:bg-muted active:bg-muted",
                 "md:flex-row md:items-center md:justify-between md:gap-4 md:rounded-none md:border-x-0 md:border-t-0 md:border-b md:last:border-b-0",

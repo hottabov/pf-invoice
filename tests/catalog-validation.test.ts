@@ -10,43 +10,74 @@ describe("productSchema", () => {
     sortOrder: "3",
   };
 
-  it("accepts a valid product and uppercases/trims the code", () => {
-    const result = productSchema.safeParse({ ...base, code: "  m5180  " });
+  it("accepts a valid code and stores it exactly as entered (no case normalization)", () => {
+    const result = productSchema.safeParse({ ...base, code: "m5180" });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.code).toBe("M5180");
+      expect(result.data.code).toBe("m5180");
       expect(result.data.active).toBe(true);
       expect(result.data.sortOrder).toBe(3);
     }
   });
 
-  it("accepts codes with spaces, dots, hyphens, and slashes (permissive but bounded)", () => {
-    for (const code of ["Drills included", "MTS- additional gantry", "M5.180", "A/B"]) {
+  it("accepts real seeded codes: long, mixed case, with parens/slashes/commas/apostrophes", () => {
+    for (const code of [
+      "Drills included",
+      "MTS- additional gantry",
+      "M5.180",
+      "A/B",
+      "Waste Bin-180",
+      "Drill Guard (heavy duty), incl. mounting bracket's hardware",
+      "A".repeat(120),
+    ]) {
+      const result = productSchema.safeParse({ ...base, code });
+      expect(result.success, `expected "${code}" to be valid`).toBe(true);
+      if (result.success) expect(result.data.code).toBe(code);
+    }
+  });
+
+  it("accepts a single-character code", () => {
+    const result = productSchema.safeParse({ ...base, code: "A" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty code", () => {
+    const result = productSchema.safeParse({ ...base, code: "" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a code over 120 characters", () => {
+    const result = productSchema.safeParse({ ...base, code: "A".repeat(121) });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a code at exactly the 120 character bound", () => {
+    const result = productSchema.safeParse({ ...base, code: "A".repeat(120) });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a code with leading whitespace", () => {
+    const result = productSchema.safeParse({ ...base, code: " M5180" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a code with trailing whitespace", () => {
+    const result = productSchema.safeParse({ ...base, code: "M5180 " });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a code containing a control character (tab, newline, null)", () => {
+    for (const code of ["M5180\t", "M5180\n", "M51\x0080"]) {
+      const result = productSchema.safeParse({ ...base, code });
+      expect(result.success, `expected ${JSON.stringify(code)} to be invalid`).toBe(false);
+    }
+  });
+
+  it("accepts codes containing internal spaces and hyphens", () => {
+    for (const code of ["M51 80", "80-code"]) {
       const result = productSchema.safeParse({ ...base, code });
       expect(result.success, `expected "${code}" to be valid`).toBe(true);
     }
-  });
-
-  it("rejects a code that is too short", () => {
-    const result = productSchema.safeParse({ ...base, code: "A" });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a code over 30 characters", () => {
-    const result = productSchema.safeParse({ ...base, code: "A".repeat(31) });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a code containing disallowed characters", () => {
-    for (const code of ["M5180*", "M5180_X", "M5180#1", "$M5180"]) {
-      const result = productSchema.safeParse({ ...base, code });
-      expect(result.success, `expected "${code}" to be invalid`).toBe(false);
-    }
-  });
-
-  it("rejects a code that starts with a non-alphanumeric character", () => {
-    const result = productSchema.safeParse({ ...base, code: " -M5180" });
-    expect(result.success).toBe(false);
   });
 
   it("rejects a name shorter than 2 characters", () => {
@@ -144,7 +175,8 @@ describe("optionSchema", () => {
   });
 
   it("still enforces the base product code/name rules", () => {
-    expect(optionSchema.safeParse({ ...base, code: "!" }).success).toBe(false);
+    expect(optionSchema.safeParse({ ...base, code: " leading space" }).success).toBe(false);
+    expect(optionSchema.safeParse({ ...base, code: "" }).success).toBe(false);
     expect(optionSchema.safeParse({ ...base, name: "A" }).success).toBe(false);
   });
 

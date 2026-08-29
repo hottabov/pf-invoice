@@ -44,7 +44,10 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
           </p>
         </div>
         {isAdmin && (
-          <Link href={`/catalog/${series.code}/new`} className={cn(buttonVariants(), "shrink-0")}>
+          <Link
+            href={`/catalog/${encodeURIComponent(series.code)}/new`}
+            className={cn(buttonVariants(), "shrink-0")}
+          >
             <Plus className="size-4" data-icon="inline-start" />
             Add product
           </Link>
@@ -58,7 +61,7 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
           {products.map((p, i) => (
             <Link
               key={p.id}
-              href={`/catalog/${series.code}/${p.code}`}
+              href={`/catalog/${encodeURIComponent(series.code)}/${encodeURIComponent(p.code)}`}
               className={cn(
                 "flex flex-col gap-1 rounded-xl border border-border bg-white p-4 transition-colors hover:border-brand-accent hover:bg-muted active:bg-muted",
                 "md:flex-row md:items-center md:justify-between md:rounded-none md:border-x-0 md:border-t-0 md:border-b md:last:border-b-0",

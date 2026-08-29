@@ -6,20 +6,30 @@ import { z } from "zod";
 
 // --- shared field pieces -----------------------------------------------
 
-// The extracted catalog has codes that aren't strictly alnum-dash: things
-// like "Drills included" and "MTS- additional gantry..." showed up as
-// codes during the Excel extraction (see Phase 2). Kept permissive but
-// bounded: 2-30 characters, must start alnum, remaining chars may include
-// spaces, dots, hyphens, and slashes.
-const CODE_REGEX = /^[A-Z0-9][A-Z0-9 .\-/]{1,29}$/;
+// The extracted catalog has codes that are far messier than alnum-dash:
+// real seeded codes run up to ~90 characters and contain parentheses,
+// slashes, commas, and apostrophes (e.g. "Drills included",
+// "Waste Bin-180"), and are mixed case rather than a normalized uppercase
+// form. Validation is intentionally permissive here — codes are stored
+// as-is and uniqueness is enforced by the database, not by this regex.
+// Only printable ASCII (no control characters) is required, bounded to a
+// generous 120 characters.
+const CODE_REGEX = /^[\x20-\x7E]{1,120}$/;
 
-/** Trims, uppercases, and bounds a catalog code (product/option). */
+/** Bounds a catalog code (product/option) to 1-120 printable ASCII
+ * characters (no tabs/newlines/other control chars) and rejects — rather
+ * than silently trims — leading/trailing whitespace, since a code that
+ * differs only by invisible padding would be confusing to store and hard
+ * to spot in the admin UI. Codes are stored exactly as entered: no case
+ * normalization, since real seeded codes are mixed case ("Drills
+ * included", "Waste Bin-180") and uniqueness is enforced by the database. */
 const codeSchema = z
   .string()
-  .trim()
-  .transform((value) => value.toUpperCase())
-  .refine((value) => CODE_REGEX.test(value), {
-    message: "Code must be 2-30 characters: letters, numbers, spaces, dots, hyphens, or slashes",
+  .regex(CODE_REGEX, {
+    message: "Code must be 1-120 printable characters with no control characters",
+  })
+  .refine((value) => value.trim() === value && value.length > 0, {
+    message: "Code must not have leading or trailing whitespace",
   });
 
 const nameSchema = z

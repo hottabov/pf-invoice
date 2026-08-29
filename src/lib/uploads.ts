@@ -22,6 +22,44 @@ export class UploadValidationError extends Error {
   }
 }
 
+/**
+ * Sniffs the first few bytes of a buffer against the known magic numbers for
+ * the three formats we accept, returning the matching `ALLOWED` extension
+ * (`"jpg"` / `"png"` / `"webp"`) or `null` if none match. This is a defense
+ * against a caller sending a file whose declared `Content-Type` doesn't
+ * match its actual bytes (e.g. an HTML/SVG/script payload relabeled as
+ * `image/png` to get past the MIME check and later be served back with a
+ * browser-guessed content type) — `saveUpload` calls this after the
+ * declared-type check and rejects on mismatch. Pure and dependency-free so
+ * it's trivially unit-testable with small constructed buffers.
+ */
+export function sniffImageType(buf: Buffer): "jpg" | "png" | "webp" | null {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return "jpg";
+  }
+  if (
+    buf.length >= 8 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47 &&
+    buf[4] === 0x0d &&
+    buf[5] === 0x0a &&
+    buf[6] === 0x1a &&
+    buf[7] === 0x0a
+  ) {
+    return "png";
+  }
+  if (
+    buf.length >= 12 &&
+    buf.toString("ascii", 0, 4) === "RIFF" &&
+    buf.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return "webp";
+  }
+  return null;
+}
+
 /** Filenames we write and serve look like `<uuid>.<ext>` — this is also
  * the shape `resolveUploadPath` requires before touching the filesystem, so
  * a path-traversal attempt (`../x`, `a/b.jpg`) or an unexpected extension
@@ -54,11 +92,23 @@ export async function saveUpload(file: File): Promise<string> {
     throw new UploadValidationError("File is too large. Maximum size is 5MB.");
   }
 
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  // The declared Content-Type is client-supplied and trivially spoofable —
+  // confirm the bytes actually are what they claim to be before writing
+  // anything to disk or letting the extension (and therefore the
+  // Content-Type this file is later served back with) be decided by it.
+  const sniffed = sniffImageType(buffer);
+  if (sniffed !== ext) {
+    throw new UploadValidationError(
+      "File content doesn't match its declared type. Upload a genuine JPEG, PNG, or WebP image."
+    );
+  }
+
   const dir = uploadsDir();
   await mkdir(dir, { recursive: true });
 
   const filename = `${randomUUID()}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
   // `dir` comes from UPLOADS_DIR (an external volume, e.g. /data/uploads on
   // the VPS) rather than a path under the project — tell Turbopack not to
   // trace it, or the whole project (including public/) gets bundled into
