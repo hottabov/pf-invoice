@@ -29,6 +29,8 @@ declare module "next-auth/jwt" {
     uid: string;
     role: Role;
     regionId: string | null;
+    /** Epoch ms of the last DB revalidation of this token (see src/auth.ts jwt callback). */
+    revalidatedAt: number;
   }
 }
 
@@ -52,5 +54,7 @@ declare module "@auth/core/jwt" {
     uid: string;
     role: Role;
     regionId: string | null;
+    /** Epoch ms of the last DB revalidation of this token (see src/auth.ts jwt callback). */
+    revalidatedAt: number;
   }
 }

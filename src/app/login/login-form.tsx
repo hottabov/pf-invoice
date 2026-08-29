@@ -8,7 +8,12 @@ type ActionResult = { error?: string; success?: string };
 
 const initialState: ActionResult = {};
 
-export function LoginForm() {
+type LoginFormProps = {
+  /** Same-origin relative path to send the user to after a successful password login. */
+  callbackUrl?: string;
+};
+
+export function LoginForm({ callbackUrl = "/" }: LoginFormProps) {
   const [mode, setMode] = useState<"password" | "magic-link">("password");
   const [passwordState, passwordAction, passwordPending] = useActionState(
     (_prevState: ActionResult, formData: FormData) => loginWithPassword(formData),
@@ -22,6 +27,7 @@ export function LoginForm() {
   return (
     <div className="flex flex-col gap-6">
       <form action={passwordAction} className="flex flex-col gap-4">
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
         <div className="flex flex-col gap-1.5">
           <label htmlFor="email" className="text-sm font-medium text-brand-dark">
             Email
