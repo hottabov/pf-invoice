@@ -7,6 +7,15 @@ FROM node:22-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# `next build` statically imports route/proxy modules (including src/auth.ts
+# -> src/lib/db.ts) to collect page data. That requires DATABASE_URL to be
+# set to *something* syntactically valid (the Prisma driver adapter is lazy
+# and doesn't connect at construction time) and AUTH_SECRET to be non-empty.
+# These build-time placeholders are never used at runtime — the `run` stage
+# only ships the standalone server output, and real values come from the
+# container's env_file (see docker-compose.yml).
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build" \
+    AUTH_SECRET="build-time-placeholder-not-used-at-runtime"
 RUN npx prisma generate && npm run build
 
 FROM node:22-alpine AS run
