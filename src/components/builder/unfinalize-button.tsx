@@ -16,7 +16,9 @@ const CONFIRM_MESSAGE =
  * "ADMIN"` — this component doesn't re-check that itself, matching every
  * other admin-only control in this codebase (the server action is the real
  * enforcement boundary via `requireAdmin`; a manager who somehow triggered
- * this would just get its `{error: "Forbidden..."}` back).
+ * this would get `requireAdmin`'s thrown "Forbidden: admin only" rejected
+ * back at the call below, which is why that call is wrapped in try/catch
+ * rather than assumed to only ever resolve to an `UnfinalizeResult`).
  */
 export function UnfinalizeButton({
   documentId,
@@ -33,12 +35,16 @@ export function UnfinalizeButton({
     if (!window.confirm(CONFIRM_MESSAGE)) return;
     setError(null);
     startTransition(async () => {
-      const result = await unfinalizeAction(documentId);
-      if ("error" in result) {
-        setError(result.error);
-        return;
+      try {
+        const result = await unfinalizeAction(documentId);
+        if ("error" in result) {
+          setError(result.error);
+          return;
+        }
+        router.refresh();
+      } catch {
+        setError("Forbidden");
       }
-      router.refresh();
     });
   }
 

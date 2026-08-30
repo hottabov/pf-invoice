@@ -103,37 +103,57 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
 
   // Number allocation and the FINAL update happen inside one interactive
   // transaction: if the update ever fails (e.g. an extremely unlikely
-  // `number` unique-constraint collision), the whole transaction — counter
-  // increment included — rolls back rather than leaving an allocated
-  // counter value that was never actually assigned to a document.
-  const number = await db.$transaction(async (tx) => {
-    // Re-finalizing a document that was unfinalized keeps its original
-    // number (unfinalizeDocument never clears it) instead of burning a new
-    // counter value.
-    let resolvedNumber = document.number;
-    if (!resolvedNumber) {
-      // Year is derived from the server's current date (Australia/Melbourne
-      // TZ isn't threaded through explicitly — `new Date().getFullYear()` is
-      // accepted per plan; revisit if this ever runs in a non-AU-local
-      // deployment near a year boundary).
-      const year = new Date().getFullYear();
-      const counter = await allocateNumber(tx, document.region.code, document.type, year);
-      resolvedNumber = formatDocNumber(document.type, document.region.code, year, counter);
-    }
+  // `number` unique-constraint collision, or the concurrent-finalize guard
+  // below tripping), the whole transaction — counter increment included —
+  // rolls back rather than leaving an allocated counter value that was
+  // never actually assigned to a document. The allocation must stay ordered
+  // *before* the guarded update (both still inside this same interactive
+  // txn): if the update's status guard fails and throws, the txn rolls back
+  // and undoes the counter increment along with it, so a lost race never
+  // burns a number.
+  let number: string;
+  try {
+    number = await db.$transaction(async (tx) => {
+      // Re-finalizing a document that was unfinalized keeps its original
+      // number (unfinalizeDocument never clears it) instead of burning a new
+      // counter value.
+      let resolvedNumber = document.number;
+      if (!resolvedNumber) {
+        // Year is derived from the server's current date (Australia/Melbourne
+        // TZ isn't threaded through explicitly — `new Date().getFullYear()` is
+        // accepted per plan; revisit if this ever runs in a non-AU-local
+        // deployment near a year boundary).
+        const year = new Date().getFullYear();
+        const counter = await allocateNumber(tx, document.region.code, document.type, year);
+        resolvedNumber = formatDocNumber(document.type, document.region.code, year, counter);
+      }
 
-    await tx.document.update({
-      where: { id: document.id },
-      data: {
-        status: "FINAL",
-        number: resolvedNumber,
-        issueDate: new Date(),
-        validityDays,
-        entitySnapshot: entitySnapshot as Prisma.InputJsonValue,
-      },
+      // Guard against a concurrent finalize (e.g. a double-click, or two
+      // requests racing) with a status-scoped `updateMany` instead of an
+      // unconditional `update`: if another request already flipped this
+      // document to FINAL between our `findFirst` above and here, `count`
+      // comes back 0 and we throw to roll back the whole transaction —
+      // including the number allocation above.
+      const res = await tx.document.updateMany({
+        where: { id: document.id, status: "DRAFT" },
+        data: {
+          status: "FINAL",
+          number: resolvedNumber,
+          issueDate: new Date(),
+          validityDays,
+          entitySnapshot: entitySnapshot as Prisma.InputJsonValue,
+        },
+      });
+      if (res.count !== 1) throw new Error("ALREADY_FINALIZED");
+
+      return resolvedNumber;
     });
-
-    return resolvedNumber;
-  });
+  } catch (err) {
+    if (err instanceof Error && err.message === "ALREADY_FINALIZED") {
+      return { error: "Document was already finalized" };
+    }
+    throw err;
+  }
 
   revalidatePath("/documents");
   revalidatePath(`/documents/${document.id}`);

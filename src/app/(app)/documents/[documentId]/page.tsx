@@ -126,15 +126,16 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
             Preview
           </Link>
 
-          {!isDraft && (
-            <a
-              href={`/api/documents/${document.id}/pdf`}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-sm font-medium text-foreground hover:bg-muted"
-            >
-              <Download className="size-4" />
-              Download PDF
-            </a>
-          )}
+          {/* Available for DRAFT too — /api/documents/[id]/pdf renders a
+              watermarked PDF for drafts (see that route), it's not
+              FINAL-only. */}
+          <a
+            href={`/api/documents/${document.id}/pdf`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-sm font-medium text-foreground hover:bg-muted"
+          >
+            <Download className="size-4" />
+            Download PDF
+          </a>
 
           {isDraft ? (
             <FinalizeButton documentId={document.id} finalizeAction={finalizeDocument} />
