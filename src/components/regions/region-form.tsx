@@ -178,13 +178,13 @@ export function RegionForm({
         </label>
       </div>
 
-      <FieldRow
-        label="Bank details"
-        htmlFor="region-bank-details-first-label"
-        hint="Shown on invoices for this region — bank name, account number, SWIFT/BSB, etc."
-      >
+      <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
+        <legend className="p-0 text-sm font-medium text-brand-dark">Bank details</legend>
         <BankDetailsEditor name="bankDetails" defaultValue={defaultValues.bankDetails} />
-      </FieldRow>
+        <p className="text-sm text-slate-500">
+          Shown on invoices for this region — bank name, account number, SWIFT/BSB, etc.
+        </p>
+      </fieldset>
 
       {state.error ? (
         <p role="alert" className="text-sm text-destructive">
