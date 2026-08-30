@@ -42,7 +42,7 @@ export function PageHeader({
       ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-[22px] leading-tight font-semibold text-balance text-brand-dark">
+          <h1 className="line-clamp-2 text-[22px] leading-tight font-semibold text-balance break-words text-brand-dark">
             {title}
           </h1>
           {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}

@@ -286,12 +286,29 @@ function lineTotal(qty: number, unitPrice: string): string {
   return fromCents(qty * toCents(unitPrice)).toFixed(2);
 }
 
+/**
+ * Returns `description` unless it's redundant with `name` — i.e. `name`
+ * and `description` are the same string, or one fully contains the other
+ * — in which case the sheet would otherwise render the same text twice
+ * (catalog items/options are often named with the full sentence-length
+ * description). `null`/empty descriptions pass straight through as `null`
+ * so the sheet's `description ? <p>…</p> : null` check stays a clean
+ * on/off switch.
+ */
+export function dedupeDescription(name: string, description: string | null): string | null {
+  if (!description) return null;
+  if (name === description || name.includes(description) || description.includes(name)) {
+    return null;
+  }
+  return description;
+}
+
 function toDocSheetLine(line: ToSheetLineInput): DocSheetLine {
   return {
     id: line.id,
     code: line.code,
     name: line.name,
-    description: line.description,
+    description: dedupeDescription(line.name, line.description),
     qty: line.qty,
     unitPrice: line.unitPrice,
     lineTotal: lineTotal(line.qty, line.unitPrice),
@@ -352,7 +369,7 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     id: item.id,
     code: item.code,
     name: item.name,
-    description: item.description,
+    description: dedupeDescription(item.name, item.description),
     unitPrice: item.unitPrice,
     discountPct: item.discountPct,
     total: item.total,

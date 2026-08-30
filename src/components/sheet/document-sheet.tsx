@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { formatMoney } from "@/lib/format";
 import type { DocSheetData, DocSheetLine } from "@/lib/sheet-data";
 
@@ -91,6 +90,11 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
         ) : null}
 
         <table className="pq-items">
+          <colgroup>
+            <col className="pq-col-item" />
+            <col className="pq-col-qty" />
+            <col className="pq-col-amount" />
+          </colgroup>
           <thead>
             <tr>
               <th className="pq-col-item">Item</th>
@@ -98,53 +102,59 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
               <th className="pq-col-amount">Total</th>
             </tr>
           </thead>
-          <tbody>
-            {data.items.map((item) => (
-              <Fragment key={item.id}>
-                <tr className="pq-item-row">
-                  <td className="pq-col-item">
-                    <div className="pq-item-head">
-                      {item.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={item.image} alt={item.name} className="pq-thumb" />
-                      ) : null}
-                      <div>
-                        <div className="pq-item-name">
-                          {item.name} <span className="pq-item-code">{item.code}</span>
-                        </div>
-                        {item.description ? <div className="pq-item-desc">{item.description}</div> : null}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="pq-col-qty" />
-                  <td className="pq-col-amount pq-amount">{formatMoney(item.total, totals.currency)}</td>
-                </tr>
-                {item.lines.map((line) => (
-                  <OptionRow key={line.id} line={line} currency={totals.currency} />
-                ))}
-                {item.discountPct !== null ? (
-                  <tr className="pq-discount-row">
-                    <td className="pq-col-item pq-option-indent">Item discount</td>
-                    <td className="pq-col-qty" />
-                    <td className="pq-col-amount pq-amount">-{item.discountPct}%</td>
-                  </tr>
-                ) : null}
-              </Fragment>
-            ))}
-
-            {data.extraLines.map((line) => (
-              <tr className="pq-item-row" key={line.id}>
+          {data.items.map((item) => (
+            // Each item's own <tbody> (its header row + option lines +
+            // discount row) is the page-break-avoidance unit — see
+            // .pq-item-group's `break-inside: avoid` below — so a single
+            // item never gets split across a page boundary.
+            <tbody className="pq-item-group" key={item.id}>
+              <tr className="pq-item-row">
                 <td className="pq-col-item">
-                  <div className="pq-item-name">{line.name}</div>
-                  {line.description ? <div className="pq-item-desc">{line.description}</div> : null}
+                  <div className="pq-item-head">
+                    {item.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={item.image} alt={item.name} className="pq-thumb" />
+                    ) : null}
+                    <div>
+                      <div className="pq-item-name">
+                        {item.name} <span className="pq-item-code">{item.code}</span>
+                      </div>
+                      {item.description ? <div className="pq-item-desc">{item.description}</div> : null}
+                    </div>
+                  </div>
                 </td>
-                <td className="pq-col-qty">
-                  {line.qty} × {formatMoney(line.unitPrice, totals.currency)}
-                </td>
-                <td className="pq-col-amount pq-amount">{formatMoney(line.lineTotal, totals.currency)}</td>
+                <td className="pq-col-qty" />
+                <td className="pq-col-amount pq-amount">{formatMoney(item.total, totals.currency)}</td>
               </tr>
-            ))}
-          </tbody>
+              {item.lines.map((line) => (
+                <OptionRow key={line.id} line={line} currency={totals.currency} />
+              ))}
+              {item.discountPct !== null ? (
+                <tr className="pq-discount-row">
+                  <td className="pq-col-item pq-option-indent">Item discount</td>
+                  <td className="pq-col-qty" />
+                  <td className="pq-col-amount pq-amount">-{item.discountPct}%</td>
+                </tr>
+              ) : null}
+            </tbody>
+          ))}
+
+          {data.extraLines.length > 0 ? (
+            <tbody className="pq-item-group">
+              {data.extraLines.map((line) => (
+                <tr className="pq-item-row" key={line.id}>
+                  <td className="pq-col-item">
+                    <div className="pq-item-name">{line.name}</div>
+                    {line.description ? <div className="pq-item-desc">{line.description}</div> : null}
+                  </td>
+                  <td className="pq-col-qty">
+                    {line.qty} × {formatMoney(line.unitPrice, totals.currency)}
+                  </td>
+                  <td className="pq-col-amount pq-amount">{formatMoney(line.lineTotal, totals.currency)}</td>
+                </tr>
+              ))}
+            </tbody>
+          ) : null}
         </table>
 
         <div className="pq-totals">
@@ -331,6 +341,7 @@ const SHEET_CSS = `
   }
   .pq-items {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     margin-top: 20px;
   }
@@ -344,12 +355,22 @@ const SHEET_CSS = `
     border-bottom: 2px solid #243478;
     padding: 6px 4px;
   }
+  /* Higher specificity than ".pq-items thead th" above, so the header cells
+     line up with the same right/left alignment as their <td> counterparts
+     instead of every header defaulting to left-aligned text. */
+  .pq-items thead th.pq-col-qty,
+  .pq-items thead th.pq-col-amount {
+    text-align: right;
+  }
+  .pq-col-item {
+    width: 60%;
+  }
   .pq-col-qty {
-    width: 26%;
+    width: 22%;
     text-align: right;
   }
   .pq-col-amount {
-    width: 20%;
+    width: 18%;
     text-align: right;
   }
   .pq-items td {
@@ -359,6 +380,13 @@ const SHEET_CSS = `
   }
   .pq-item-row td {
     padding-top: 10px;
+  }
+  /* Keeps each item's full row group (name + option lines + discount row)
+     together across a page boundary in the printed/PDF output, instead of
+     letting Chromium split it mid-item. */
+  .pq-item-group {
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
   .pq-item-head {
     display: flex;
@@ -418,6 +446,8 @@ const SHEET_CSS = `
     width: 60%;
     margin-left: auto;
     margin-top: 12px;
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
   .pq-totals-row {
     display: flex;
@@ -444,6 +474,10 @@ const SHEET_CSS = `
     font-size: 10px;
     color: #555555;
   }
+  .pq-bank {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
   .pq-bank-title {
     font-weight: 700;
     color: #2b304f;
@@ -461,6 +495,8 @@ const SHEET_CSS = `
     margin-top: 40px;
     display: flex;
     gap: 60px;
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
   .pq-sig-block {
     flex: 1;

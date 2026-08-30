@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirm, useToast } from "@/components/ui-kit";
-import type { FinalizeResult } from "@/lib/actions/finalize";
+import { finalizeDocument } from "@/lib/actions/finalize";
 
 /**
  * Turns a DRAFT into a numbered FINAL document. Finalizing is a one-way
@@ -18,13 +18,7 @@ import type { FinalizeResult } from "@/lib/actions/finalize";
  * into its read-only FINAL view (every section below switches `readOnly`),
  * not just have one row's data change underneath it.
  */
-export function FinalizeButton({
-  documentId,
-  finalizeAction,
-}: {
-  documentId: string;
-  finalizeAction: (documentId: string) => Promise<FinalizeResult>;
-}) {
+export function FinalizeButton({ documentId }: { documentId: string }) {
   const router = useRouter();
   const confirm = useConfirm();
   const toast = useToast();
@@ -41,7 +35,7 @@ export function FinalizeButton({
 
     setError(null);
     startTransition(async () => {
-      const result = await finalizeAction(documentId);
+      const result = await finalizeDocument(documentId);
       if ("error" in result) {
         setError(result.error);
         return;

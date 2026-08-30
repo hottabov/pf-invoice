@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toSheetData, type ToSheetDataDoc, type ToSheetItemInput } from "../src/lib/sheet-data";
+import { dedupeDescription, toSheetData, type ToSheetDataDoc, type ToSheetItemInput } from "../src/lib/sheet-data";
 
 // Pure mapper — this file imports nothing from src/lib/queries/documents.ts
 // or @/lib/db (see sheet-data.ts's header comment for why), so it never
@@ -235,6 +235,57 @@ describe("toSheetData — items and lines", () => {
     const doc = baseDoc({ items: [baseItem({ showImage: true, imageUrl: "/api/files/missing.jpg" })] });
     const sheet = toSheetData(doc, () => undefined);
     expect(sheet.items[0].image).toBeNull();
+  });
+});
+
+describe("dedupeDescription", () => {
+  it("passes null straight through", () => {
+    expect(dedupeDescription("EasyLoader 2020", null)).toBeNull();
+  });
+
+  it("drops a description that exactly equals the name", () => {
+    expect(dedupeDescription("EasyLoader 2020", "EasyLoader 2020")).toBeNull();
+  });
+
+  it("drops a description that is a substring of the name", () => {
+    expect(dedupeDescription("EasyLoader 2020 Heavy Duty Winch", "EasyLoader 2020")).toBeNull();
+  });
+
+  it("drops a name that is a substring of the description", () => {
+    expect(dedupeDescription("EasyLoader 2020", "EasyLoader 2020 Heavy Duty Winch")).toBeNull();
+  });
+
+  it("keeps a description that is genuinely distinct from the name", () => {
+    expect(dedupeDescription("EasyLoader 2020", "Ships with mounting bracket")).toBe(
+      "Ships with mounting bracket"
+    );
+  });
+});
+
+describe("toSheetData — item/line description dedupe", () => {
+  it("omits the item description when it duplicates the item name", () => {
+    const doc = baseDoc({ items: [baseItem({ name: "EasyLoader 2020", description: "EasyLoader 2020" })] });
+    expect(toSheetData(doc).items[0].description).toBeNull();
+  });
+
+  it("keeps a genuinely distinct item description", () => {
+    const doc = baseDoc({
+      items: [baseItem({ name: "EasyLoader 2020", description: "Ships with mounting bracket" })],
+    });
+    expect(toSheetData(doc).items[0].description).toBe("Ships with mounting bracket");
+  });
+
+  it("omits an option line description when it duplicates the line name", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({
+          lines: [
+            { id: "line-1", code: "OPT-1", name: "Extra shelf", description: "Extra shelf", qty: 1, unitPrice: "25" },
+          ],
+        }),
+      ],
+    });
+    expect(toSheetData(doc).items[0].lines[0].description).toBeNull();
   });
 });
 

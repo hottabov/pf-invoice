@@ -71,9 +71,9 @@ function selectionsFromLines(lines: CurrentLine[]): Map<string, SelectionState> 
  * "Select all" adds every currently-*filtered* and priced option to the
  * selection; "Clear" resets the whole selection (not just the filtered
  * subset) — a full reset is one click away regardless of search state.
- * Selected options are pinned to the top of the (filtered) list so they
- * stay visible while browsing a long catalog. The panel itself is one
- * scrolling column capped at 70dvh with the Save/Cancel bar pinned
+ * Options are always rendered in their original catalog order (filtered by
+ * search only) — selecting/deselecting never reorders the list. The panel
+ * itself is one scrolling column capped at 70dvh with the Save/Cancel bar pinned
  * (`sticky bottom-0`) to its own bottom, so it stays reachable even when a
  * series has many options — including on a phone, the primary device this
  * builder targets.
@@ -121,12 +121,10 @@ export function ItemOptionsEditor({
       )
     : compatibleOptions;
 
-  // Selected options float to the top of the (filtered) list; `Array.sort`
-  // is stable, so relative order within each group (selected / unselected)
-  // is otherwise unchanged from `compatibleOptions`'s own order.
-  const displayOptions = [...filteredOptions].sort(
-    (a, b) => Number(!selected.has(a.code)) - Number(!selected.has(b.code))
-  );
+  // Always rendered in the original catalog order — no selected-first
+  // sorting, so the list never reshuffles as the user checks/unchecks
+  // options.
+  const displayOptions = filteredOptions;
 
   function selectAllFiltered() {
     setSelected((prev) => {

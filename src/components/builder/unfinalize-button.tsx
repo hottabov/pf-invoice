@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirm, useToast } from "@/components/ui-kit";
-import type { UnfinalizeResult } from "@/lib/actions/finalize";
+import { unfinalizeDocument } from "@/lib/actions/finalize";
 
 /**
  * ADMIN-only escape hatch for a FINAL document issued in error (see
@@ -18,13 +18,7 @@ import type { UnfinalizeResult } from "@/lib/actions/finalize";
  * back at the call below, which is why that call is wrapped in try/catch
  * rather than assumed to only ever resolve to an `UnfinalizeResult`).
  */
-export function UnfinalizeButton({
-  documentId,
-  unfinalizeAction,
-}: {
-  documentId: string;
-  unfinalizeAction: (documentId: string) => Promise<UnfinalizeResult>;
-}) {
+export function UnfinalizeButton({ documentId }: { documentId: string }) {
   const router = useRouter();
   const confirm = useConfirm();
   const toast = useToast();
@@ -44,7 +38,7 @@ export function UnfinalizeButton({
     setError(null);
     startTransition(async () => {
       try {
-        const result = await unfinalizeAction(documentId);
+        const result = await unfinalizeDocument(documentId);
         if ("error" in result) {
           setError(result.error);
           return;

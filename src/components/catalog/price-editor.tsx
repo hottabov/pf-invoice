@@ -35,14 +35,14 @@ function PriceRow({
   return (
     <form
       action={formAction}
-      className="flex flex-col gap-2 border-b border-slate-100 py-3 last:border-b-0 sm:flex-row sm:items-center sm:gap-3"
+      className="flex w-full min-w-0 flex-col gap-1.5 border-b border-slate-100 py-3 last:border-b-0"
     >
       <input type="hidden" name="regionCode" value={row.regionCode} />
-      <div className="flex min-w-0 flex-1 items-baseline gap-1.5 sm:flex-none sm:w-32">
-        <span className="text-sm font-medium text-brand-dark">{row.regionCode}</span>
-        <span className="text-xs text-slate-500">{row.currency}</span>
-      </div>
-      <div className="flex flex-1 items-center gap-2">
+      <div className="flex w-full min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span className="truncate text-sm font-medium text-brand-dark">{row.regionCode}</span>
+          <span className="shrink-0 text-xs text-slate-500">{row.currency}</span>
+        </div>
         <input
           name="amount"
           type="text"
@@ -51,7 +51,7 @@ function PriceRow({
           placeholder="e.g. 175000"
           defaultValue={row.amount ?? ""}
           disabled={readOnly}
-          className={cn(fieldInputClass, "text-right tabular-nums")}
+          className={cn(fieldInputClass, "max-w-40 flex-1 text-right tabular-nums")}
         />
         {!readOnly && (
           <Button
@@ -65,12 +65,12 @@ function PriceRow({
         )}
       </div>
       {row.needsReview ? (
-        <StatusBadge tone="amber" className="w-fit shrink-0 sm:ml-1">
+        <StatusBadge tone="amber" className="w-fit shrink-0 self-start whitespace-nowrap">
           Price required
         </StatusBadge>
       ) : null}
       {state.error ? (
-        <p role="alert" className="text-sm text-destructive sm:basis-full">
+        <p role="alert" className="text-sm text-destructive">
           {state.error}
         </p>
       ) : null}

@@ -22,7 +22,6 @@ import {
   setItemDiscount,
   setItemOptions,
 } from "@/lib/actions/documents";
-import { finalizeDocument, unfinalizeDocument } from "@/lib/actions/finalize";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { ClientSection } from "@/components/builder/client-section";
 import { ItemsSection } from "@/components/builder/items-section";
@@ -235,9 +234,9 @@ function DocumentActions({
   return (
     <div className="flex flex-col gap-2">
       {isDraft ? (
-        <FinalizeButton documentId={document.id} finalizeAction={finalizeDocument} />
+        <FinalizeButton documentId={document.id} />
       ) : isAdmin ? (
-        <UnfinalizeButton documentId={document.id} unfinalizeAction={unfinalizeDocument} />
+        <UnfinalizeButton documentId={document.id} />
       ) : null}
 
       <Link href={`/documents/${document.id}/preview`} className={actionLinkClass}>
