@@ -27,11 +27,14 @@ export const SERIES_IMAGES: Record<string, string> = {
 
 /**
  * Individual product code -> filename, for products that aren't covered by
- * SERIES_IMAGES (all currently SW-series software modules). Verified
- * against prisma/seed-data/catalog.json's SW series: every key below is an
- * exact `code` present there ("PTW(S)", "ANT-V5", "ANT-V6" etc. match
- * catalog.json byte-for-byte). "LS Convert" is the SW series' one other
- * product and is deliberately left unmapped (see UNMAPPED_IMAGE_FILES).
+ * SERIES_IMAGES. Verified against prisma/seed-data/catalog.json: every key
+ * below is an exact `code` present there. Most are SW-series software
+ * modules sharing PathWorks' screenshot or Production Analyst's own image
+ * ("PTW(S)", "ANT-V5", "ANT-V6" etc. match catalog.json byte-for-byte);
+ * FP-TROLLEY and HDRF are the two hand-authored manual products (see
+ * MANUAL_PRODUCTS in scripts/extract-catalog.ts), each with its own
+ * standalone photo. "LS Convert" is the SW series' one other product and
+ * is deliberately left unmapped (see UNMAPPED_IMAGE_FILES).
  */
 export const PRODUCT_IMAGES: Record<string, string> = {
   PRA: "production-analyst.png",
@@ -43,6 +46,8 @@ export const PRODUCT_IMAGES: Record<string, string> = {
   "ANT-V6": "pathworks.png",
   PTN: "pathworks.png",
   EDG: "pathworks.png",
+  "FP-TROLLEY": "fp-trolley.png",
+  HDRF: "hdrf.png",
 };
 
 /**
@@ -50,12 +55,11 @@ export const PRODUCT_IMAGES: Record<string, string> = {
  * intentionally referenced by neither SERIES_IMAGES nor PRODUCT_IMAGES --
  * documentation only (surfaced in the import script's summary), not used
  * in any lookup:
- *  - fp-trolley.png / hdrf.png: no matching catalog series or product code.
  *  - Punchline (P series) and EasyLoader (EL series) have no source image
  *    at all.
  *  - "LS Convert" (SW series) has no source image at all.
  */
-export const UNMAPPED_IMAGE_FILES = ["fp-trolley.png", "hdrf.png"];
+export const UNMAPPED_IMAGE_FILES: string[] = [];
 
 /**
  * Every distinct image filename actually referenced by SERIES_IMAGES or

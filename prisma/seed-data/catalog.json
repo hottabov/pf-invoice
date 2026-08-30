@@ -1,5 +1,5 @@
 {
-  "extractedAt": "2026-08-30T10:56:15.268Z",
+  "extractedAt": "2026-08-30T23:26:00.885Z",
   "series": [
     {
       "seriesCode": "XC",
@@ -404,6 +404,13 @@
           "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
           "price": 17540,
           "needsReview": false
+        },
+        {
+          "code": "HDRF",
+          "name": "Heavy Duty Roll Feeder",
+          "description": "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 2240mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
+          "price": null,
+          "needsReview": true
         }
       ]
     },
@@ -425,6 +432,13 @@
           "description": "FabricPro Automatic Spreading Machine (maximum fabric width=220 cm)",
           "price": 67000,
           "needsReview": false
+        },
+        {
+          "code": "FP-TROLLEY",
+          "name": "Fabric Roll Trolley",
+          "description": "Ergonomic fabric roll trolley designed for seamless use with the FabricPro spreading system. Direct roll transfer from storage to FabricPro with no intermediate handling or bulky roll-lifting devices. Carries up to 2 fabric rolls; 2 lockable castor wheels; welded steel construction; compatible with EasyLoader tables (880-940mm height); compact flat-packed design.",
+          "price": null,
+          "needsReview": true
         }
       ]
     }

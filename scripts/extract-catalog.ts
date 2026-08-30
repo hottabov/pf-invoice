@@ -577,6 +577,42 @@ function buildGlobalOptions(seriesOptionsList: SeriesOptions[]): GlobalOption[] 
 }
 
 // ---------------------------------------------------------------------------
+// Manual products
+//
+// Hand-authored products with no row in the source Excel at all -- not
+// extracted from any sheet, so they can't be represented as an
+// extract*() function. Appended into their series' products arrays in
+// main(), after sheet extraction and before the JSON is written, so a
+// re-run of `npm run extract:catalog` (which fully rebuilds catalog.json
+// from the workbook) preserves them instead of silently dropping them.
+// Both carry price: null / needsReview: true -- pricing isn't published
+// for either yet, same convention as every other needsReview gap above.
+// ---------------------------------------------------------------------------
+
+const MANUAL_PRODUCTS: Record<string, CatalogItem[]> = {
+  FP: [
+    {
+      code: "FP-TROLLEY",
+      name: "Fabric Roll Trolley",
+      description:
+        "Ergonomic fabric roll trolley designed for seamless use with the FabricPro spreading system. Direct roll transfer from storage to FabricPro with no intermediate handling or bulky roll-lifting devices. Carries up to 2 fabric rolls; 2 lockable castor wheels; welded steel construction; compatible with EasyLoader tables (880-940mm height); compact flat-packed design.",
+      price: null,
+      needsReview: true,
+    },
+  ],
+  EF: [
+    {
+      code: "HDRF",
+      name: "Heavy Duty Roll Feeder",
+      description:
+        "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 2240mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
+      price: null,
+      needsReview: true,
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
 // Assembly
 // ---------------------------------------------------------------------------
 
@@ -648,6 +684,14 @@ function main(): void {
     ),
   };
   series.unshift(xcSeries); // "insert at position 1" => first entry in the array
+
+  // Append hand-authored products (see MANUAL_PRODUCTS) into their series,
+  // re-sorting so they take their alphabetical place alongside the
+  // sheet-extracted products rather than always trailing at the end.
+  for (const s of series) {
+    const manual = MANUAL_PRODUCTS[s.seriesCode];
+    if (manual) s.products = sortByCode([...s.products, ...manual]);
+  }
 
   const catalog = {
     extractedAt: new Date().toISOString(),

@@ -55,9 +55,9 @@ describe('Catalog Extraction Validation', () => {
       expect(catalog.series).toHaveLength(9);
     });
 
-    it('should have exactly 52 total products across all series', () => {
+    it('should have exactly 54 total products across all series', () => {
       const totalProducts = catalog.series.reduce((sum, series) => sum + series.products.length, 0);
-      expect(totalProducts).toBe(52);
+      expect(totalProducts).toBe(54);
     });
 
     it('M series should have 12 products', () => {
@@ -77,9 +77,14 @@ describe('Catalog Extraction Validation', () => {
       expect(el.products).toHaveLength(2);
     });
 
-    it('EasyFeeder (EF) should have 3 products (2020/2420/4030)', () => {
+    it('EasyFeeder (EF) should have 4 products (2020/2420/4030 + manual HDRF)', () => {
       const ef = catalog.series.find((s) => s.seriesCode === 'EF')!;
-      expect(ef.products).toHaveLength(3);
+      expect(ef.products).toHaveLength(4);
+    });
+
+    it('FabricPro (FP) should have 3 products (FP-180/FP-220 + manual FP-TROLLEY)', () => {
+      const fp = catalog.series.find((s) => s.seriesCode === 'FP')!;
+      expect(fp.products).toHaveLength(3);
     });
 
     it('Software (SW) should have 10 products', () => {
@@ -188,6 +193,27 @@ describe('Catalog Extraction Validation', () => {
       expect(tpl).toBeDefined();
       expect(tpl?.price).toBe(0);
       expect(tpl?.needsReview).toBe(true);
+    });
+
+    // Manual products (not in the source Excel -- see MANUAL_PRODUCTS in
+    // scripts/extract-catalog.ts) should survive extraction with no price
+    // and needsReview=true, same as every other unpriced item.
+    it('FP-TROLLEY (manual FP product) should exist with needsReview=true and no price', () => {
+      const fp = catalog.series.find((s) => s.seriesCode === 'FP')!;
+      const trolley = fp.products.find((p) => p.code === 'FP-TROLLEY');
+      expect(trolley).toBeDefined();
+      expect(trolley?.name).toBe('Fabric Roll Trolley');
+      expect(trolley?.price).toBeNull();
+      expect(trolley?.needsReview).toBe(true);
+    });
+
+    it('HDRF (manual EF product) should exist with needsReview=true and no price', () => {
+      const ef = catalog.series.find((s) => s.seriesCode === 'EF')!;
+      const hdrf = ef.products.find((p) => p.code === 'HDRF');
+      expect(hdrf).toBeDefined();
+      expect(hdrf?.name).toBe('Heavy Duty Roll Feeder');
+      expect(hdrf?.price).toBeNull();
+      expect(hdrf?.needsReview).toBe(true);
     });
   });
 

@@ -135,8 +135,8 @@ describe("seed-lib: smoke assertions against the real catalog.json (counts only)
     expect(mapSeries(catalog)).toHaveLength(9);
   });
 
-  it("has exactly 52 total products", () => {
-    expect(mapProducts(catalog)).toHaveLength(52);
+  it("has exactly 54 total products", () => {
+    expect(mapProducts(catalog)).toHaveLength(54);
   });
 });
 

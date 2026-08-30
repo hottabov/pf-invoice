@@ -9,12 +9,13 @@
  *  - SERIES_IMAGES: every product in a whole series gets that series'
  *    image (M, XC, L, LNS, EF, FP -- one photo per product line).
  *  - PRODUCT_IMAGES: individual SW-series software modules that share
- *    PathWorks' screenshot, plus Production Analyst's own image. Every
- *    code was verified against prisma/seed-data/catalog.json's SW series
- *    at write time -- see that file's doc comment.
+ *    PathWorks' screenshot, plus Production Analyst's own image, plus the
+ *    two hand-authored manual products (FP-TROLLEY, HDRF) with their own
+ *    standalone photos. Every code was verified against
+ *    prisma/seed-data/catalog.json -- see that file's doc comment.
  * Deliberately unmapped, by design (no catalog code / no useful
- * stand-alone image): Punchline (P series), EasyLoader (EL series),
- * "LS Convert", and the fp-trolley.png / hdrf.png source images.
+ * stand-alone image): Punchline (P series), EasyLoader (EL series), and
+ * "LS Convert".
  *
  * Idempotent:
  *  - Filenames are content-addressed, so re-running never duplicates a
