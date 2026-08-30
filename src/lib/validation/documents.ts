@@ -108,3 +108,41 @@ export const optionSelectionSchema = z.object({
   attributes: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
 });
 export type OptionSelectionInput = z.infer<typeof optionSelectionSchema>;
+
+// --- item reordering (drag-and-drop) ---------------------------------------
+
+/** The full ordered list of a document's item ids submitted by the builder's
+ * drag-and-drop / up-down reorder UI. Bounded to 100 (matches
+ * `MAX_OPTION_SELECTIONS` — no document is expected to ever carry more items
+ * than that) and rejects duplicates outright; the *set* of ids still has to
+ * be checked against the document's actual items by the caller (see
+ * `isPermutation`) since a schema alone can't know what the document holds. */
+export const reorderSchema = z
+  .array(idSchema, { error: "Invalid order" })
+  .min(1, "Invalid order")
+  .max(100, "Invalid order")
+  .refine((ids) => new Set(ids).size === ids.length, "Duplicate item in order");
+export type ReorderInput = z.infer<typeof reorderSchema>;
+
+/**
+ * Pure set-equality check used to validate a proposed reorder: `proposed`
+ * must contain exactly the same ids as `actual` — same set, no duplicates,
+ * no missing or extra members — regardless of order (order is the whole
+ * point of the caller's request, so it's deliberately not compared here).
+ * Two empty arrays count as a permutation of each other. Duplicates in
+ * either array make it fail (checked via length-after-Set-dedupe rather than
+ * relying on `reorderSchema` having already caught it, so this helper is
+ * safe to call standalone in a unit test).
+ */
+export function isPermutation(proposed: string[], actual: string[]): boolean {
+  if (proposed.length !== actual.length) return false;
+  const proposedSet = new Set(proposed);
+  const actualSet = new Set(actual);
+  if (proposedSet.size !== proposed.length) return false;
+  if (actualSet.size !== actual.length) return false;
+  if (proposedSet.size !== actualSet.size) return false;
+  for (const id of proposedSet) {
+    if (!actualSet.has(id)) return false;
+  }
+  return true;
+}

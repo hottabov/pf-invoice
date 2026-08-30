@@ -14,8 +14,10 @@ import {
   discountPctSchema,
   documentTypeSchema,
   idSchema,
+  isPermutation,
   optionSelectionSchema,
   optionalIdSchema,
+  reorderSchema,
   type DocumentTypeInput,
   type OptionSelectionInput,
 } from "@/lib/validation/documents";
@@ -292,6 +294,50 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
   await recalcDocument(item.documentId);
 
   revalidatePath(`/documents/${item.documentId}`);
+  return {};
+}
+
+/**
+ * Reorders a draft's items to match `orderedItemIds`, writing each item's
+ * new `sortOrder` as its index in that array. `orderedItemIds` must be a
+ * permutation of the document's own item ids (same set, no dupes, none
+ * missing, none foreign) — checked via `isPermutation` against the item ids
+ * actually loaded under `documentWhereForUser` scope, so a foreign or
+ * stale id can never sneak an item from another document into this one's
+ * order, and a client that lost track of an item (e.g. a stale tab) gets
+ * rejected instead of silently dropping it. Every `documentItem.update` in
+ * the list runs in one `$transaction` so a partial reorder is never
+ * persisted. No totals recompute — reordering never changes what's owed
+ * (see `recalcDocument`'s callers elsewhere in this file, all of which
+ * mutate price-affecting state, unlike this action).
+ */
+export async function reorderItems(documentId: string, orderedItemIds: string[]): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedDocumentId = idSchema.safeParse(documentId);
+  if (!parsedDocumentId.success) return { error: NOT_FOUND_ERROR };
+
+  const parsedOrder = reorderSchema.safeParse(orderedItemIds);
+  if (!parsedOrder.success) return { error: flattenZodError(parsedOrder.error) };
+
+  const document = await db.document.findFirst({
+    where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
+    include: { items: { select: { id: true } } },
+  });
+  if (!document) return { error: NOT_FOUND_ERROR };
+
+  const actualItemIds = document.items.map((item) => item.id);
+  if (!isPermutation(parsedOrder.data, actualItemIds)) {
+    return { error: "Item list doesn't match — refresh and try again" };
+  }
+
+  await db.$transaction(
+    parsedOrder.data.map((itemId, index) =>
+      db.documentItem.update({ where: { id: itemId }, data: { sortOrder: index } })
+    )
+  );
+
+  revalidatePath(`/documents/${document.id}`);
   return {};
 }
 

@@ -17,6 +17,7 @@ import {
   deleteDraft,
   removeItem,
   removeLine,
+  reorderItems,
   setDocumentClient,
   setDocumentDiscount,
   setItemDiscount,
@@ -123,6 +124,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
             addItemAction={addItem}
             setItemOptionsAction={setItemOptions}
             setItemDiscountAction={setItemDiscount}
+            reorderItemsAction={reorderItems}
             readOnly={!isDraft}
           />
 

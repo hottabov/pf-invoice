@@ -1,9 +1,6 @@
-import { formatMoney } from "@/lib/format";
 import { SectionCard, EmptyState } from "@/components/ui-kit";
-import { RemoveItemButton } from "@/components/builder/remove-item-button";
 import { AddItemPicker } from "@/components/builder/add-item-picker";
-import { ItemOptionsEditor } from "@/components/builder/item-options-editor";
-import { ItemDiscountField } from "@/components/builder/item-discount-field";
+import { ItemsList } from "@/components/builder/items-list";
 import { PackageSearch } from "lucide-react";
 import type { ActionResult } from "@/lib/actions/documents";
 import type { BuilderItem, CompatibleOption, ItemPickerSeries } from "@/lib/queries/documents";
@@ -29,6 +26,7 @@ export function ItemsSection({
   addItemAction,
   setItemOptionsAction,
   setItemDiscountAction,
+  reorderItemsAction,
   readOnly = false,
 }: {
   documentId: string;
@@ -40,6 +38,7 @@ export function ItemsSection({
   addItemAction: (documentId: string, productCode: string) => Promise<ActionResult>;
   setItemOptionsAction: (itemId: string, selections: OptionSelectionInput[]) => Promise<ActionResult>;
   setItemDiscountAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
+  reorderItemsAction: (documentId: string, orderedItemIds: string[]) => Promise<ActionResult>;
   readOnly?: boolean;
 }) {
   return (
@@ -47,63 +46,17 @@ export function ItemsSection({
       {items.length === 0 ? (
         <EmptyState icon={PackageSearch} title="No items yet" description="Add one below to get started." />
       ) : (
-        <div className="flex flex-col gap-3">
-          {items.map((item) => {
-            const compatKey = item.productId ?? (item.seriesId ? `series:${item.seriesId}` : null);
-            return (
-              <div key={item.id} className="rounded-xl border border-slate-200 p-3 sm:p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-3">
-                    {item.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={item.imageUrl}
-                        alt={item.name}
-                        className="size-12 shrink-0 rounded-lg border border-slate-200 object-contain"
-                      />
-                    ) : null}
-                    <div className="flex min-w-0 flex-col">
-                      <span className="truncate text-sm font-medium text-brand-dark">{item.name}</span>
-                      <span className="font-mono text-xs text-slate-500">{item.code}</span>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-start gap-1">
-                    <span className="pt-2 text-sm font-medium tabular-nums text-brand-dark">
-                      {formatMoney(item.total, currency)}
-                    </span>
-                    {!readOnly && (
-                      <RemoveItemButton
-                        action={removeItemAction.bind(null, item.id)}
-                        itemName={item.name}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                <ItemOptionsEditor
-                  itemId={item.id}
-                  currentLines={item.lines
-                    .filter((line) => line.kind === "OPTION")
-                    .map((line) => ({ code: line.code, qty: line.qty, attributes: line.attributes }))}
-                  compatibleOptions={compatKey ? (compatibleOptionsByItemKey[compatKey] ?? []) : []}
-                  currency={currency}
-                  setOptionsAction={setItemOptionsAction}
-                  readOnly={readOnly}
-                />
-
-                <div className="mt-3 border-t border-slate-100 pt-3">
-                  <ItemDiscountField
-                    itemId={item.id}
-                    discountPct={item.discountPct}
-                    maxDiscountPct={item.maxDiscountPct}
-                    setDiscountAction={setItemDiscountAction}
-                    readOnly={readOnly}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <ItemsList
+          documentId={documentId}
+          items={items}
+          currency={currency}
+          compatibleOptionsByItemKey={compatibleOptionsByItemKey}
+          removeItemAction={removeItemAction}
+          setItemOptionsAction={setItemOptionsAction}
+          setItemDiscountAction={setItemDiscountAction}
+          reorderItemsAction={reorderItemsAction}
+          readOnly={readOnly}
+        />
       )}
 
       {!readOnly && (

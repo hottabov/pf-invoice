@@ -4,8 +4,10 @@ import {
   discountPctSchema,
   documentTypeSchema,
   idSchema,
+  isPermutation,
   optionSelectionSchema,
   optionalIdSchema,
+  reorderSchema,
 } from "../src/lib/validation/documents";
 
 describe("documentTypeSchema", () => {
@@ -247,5 +249,81 @@ describe("optionSelectionSchema", () => {
       attributes: { metres: true },
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("reorderSchema", () => {
+  const id1 = "cldz9x1a30000abcd1234efgh";
+  const id2 = "cldz9x1a30001abcd1234efgh";
+  const id3 = "cldz9x1a30002abcd1234efgh";
+
+  it("accepts a list of valid ids", () => {
+    const result = reorderSchema.safeParse([id1, id2, id3]);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toEqual([id1, id2, id3]);
+  });
+
+  it("accepts a single id", () => {
+    expect(reorderSchema.safeParse([id1]).success).toBe(true);
+  });
+
+  it("rejects an empty array", () => {
+    expect(reorderSchema.safeParse([]).success).toBe(false);
+  });
+
+  it("rejects more than 100 ids", () => {
+    const ids = Array.from({ length: 101 }, (_, i) => `cldz9x1a3${String(i).padStart(4, "0")}abcd1234efgh`);
+    expect(reorderSchema.safeParse(ids).success).toBe(false);
+  });
+
+  it("accepts exactly 100 ids", () => {
+    const ids = Array.from({ length: 100 }, (_, i) => `cldz9x1a3${String(i).padStart(4, "0")}abcd1234efgh`);
+    expect(reorderSchema.safeParse(ids).success).toBe(true);
+  });
+
+  it("rejects a duplicate id", () => {
+    expect(reorderSchema.safeParse([id1, id2, id1]).success).toBe(false);
+  });
+
+  it("rejects an invalid id in the list", () => {
+    expect(reorderSchema.safeParse([id1, "short"]).success).toBe(false);
+  });
+
+  it("rejects a non-array value", () => {
+    expect(reorderSchema.safeParse(id1).success).toBe(false);
+  });
+});
+
+describe("isPermutation", () => {
+  it("returns true for the same set in a different order", () => {
+    expect(isPermutation(["a", "b", "c"], ["c", "a", "b"])).toBe(true);
+  });
+
+  it("returns true for identical order", () => {
+    expect(isPermutation(["a", "b"], ["a", "b"])).toBe(true);
+  });
+
+  it("returns true for two empty arrays", () => {
+    expect(isPermutation([], [])).toBe(true);
+  });
+
+  it("returns false when a member is missing", () => {
+    expect(isPermutation(["a", "b"], ["a", "b", "c"])).toBe(false);
+  });
+
+  it("returns false when an extra member is present", () => {
+    expect(isPermutation(["a", "b", "c"], ["a", "b"])).toBe(false);
+  });
+
+  it("returns false when proposed has a duplicate", () => {
+    expect(isPermutation(["a", "a"], ["a", "b"])).toBe(false);
+  });
+
+  it("returns false when actual has a duplicate", () => {
+    expect(isPermutation(["a", "b"], ["a", "a"])).toBe(false);
+  });
+
+  it("returns false when sets differ entirely", () => {
+    expect(isPermutation(["a", "b"], ["c", "d"])).toBe(false);
   });
 });
