@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
 import { companyWhereForUser, documentWhereForUser } from "@/lib/scope";
+import { compatibilityOrFilter } from "@/lib/catalog-compat";
 import { computeTotals, type EngineInput, type EngineViolation } from "@/lib/pricing";
 import {
   customLineSchema,
@@ -301,10 +302,12 @@ const MAX_OPTION_SELECTIONS = 100;
 /**
  * Replaces an item's OPTION lines with exactly `selections`, preserving
  * selection order as `sortOrder`. Every option code must (a) resolve to a
- * real, active-or-not `Option` row, (b) be series-compatible with the
- * item's product (series-level `OptionCompatibility` only, matching the
- * rest of the catalog's phase-3 scope), and (c) carry a usable price
- * (exists, not `needsReview`) in the *document's* region — otherwise
+ * real, active-or-not `Option` row, (b) be compatible with the item —
+ * either via a series-level `OptionCompatibility` row (matching the item's
+ * product's series) or a product-level one (matching the item's product
+ * directly, e.g. EasyLoader accessories scoped to EL-2020 — see
+ * `compatibilityOrFilter`) — and (c) carry a usable price (exists, not
+ * `needsReview`) in the *document's* region — otherwise
  * nothing is written at all and the offending codes are named in the
  * returned error, checked in that order (unknown, then incompatible, then
  * unpriced) so the caller always gets one actionable message. Delete+create
@@ -350,11 +353,15 @@ export async function setItemOptions(
     return {};
   }
 
+  // item.product is checked truthy above, so both its id and seriesId
+  // (a required field on Product) are always available here — the OR filter
+  // is never null in practice, but the `?? []` keeps the type honest.
+  const compatOr = compatibilityOrFilter(item.product.id, item.product.seriesId) ?? [];
   const options = await db.option.findMany({
     where: { code: { in: codes } },
     include: {
       prices: { where: { regionId: item.document.regionId } },
-      compat: { where: { seriesId: item.product.seriesId } },
+      compat: { where: { OR: compatOr } },
     },
   });
   const optionByCode = new Map(options.map((o) => [o.code, o]));

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { companyWhereForUser, documentWhereForUser, type ScopeUser } from "@/lib/scope";
 import { listProductsBySeries, listSeriesWithCounts } from "@/lib/queries/catalog";
 import { computeTotals, type EngineInput } from "@/lib/pricing";
+import { compatibilityOrFilter } from "@/lib/catalog-compat";
 
 // --- list -------------------------------------------------------------
 
@@ -109,12 +110,18 @@ export type BuilderItem = {
   unitPrice: string;
   discountPct: string | null;
   maxDiscountPct: string | null;
-  /** The item's product's series id — needed to look up which options are
-   * compatible with it (see `listCompatibleOptions`). `null` only in the
-   * defensive case of a snapshot item whose product record no longer
-   * resolves a series (shouldn't happen: deleting a referenced product is
-   * blocked — see `deleteProduct` in actions/catalog.ts). */
+  /** The item's product's series id — needed, alongside `productId`, to
+   * look up which options are compatible with it (see
+   * `listCompatibleOptions`). `null` only in the defensive case of a
+   * snapshot item whose product record no longer resolves a series
+   * (shouldn't happen: deleting a referenced product is blocked — see
+   * `deleteProduct` in actions/catalog.ts). */
   seriesId: string | null;
+  /** The item's own product id — options can be compatible at the
+   * product level as well as the series level (see `OptionCompatibility`),
+   * so callers need both ids to look up the full compatible-options set.
+   * `null` only in the same defensive case as `seriesId`. */
+  productId: string | null;
   imageUrl: string | null;
   sortOrder: number;
   lines: BuilderLine[];
@@ -272,6 +279,7 @@ export async function getDocumentForBuilder(
       discountPct: item.discountPct?.toString() ?? null,
       maxDiscountPct: item.product?.series.maxDiscountPct?.toString() ?? null,
       seriesId: item.product?.seriesId ?? null,
+      productId: item.product?.id ?? null,
       imageUrl: item.imageUrl,
       sortOrder: item.sortOrder,
       lines: item.lines.map(toBuilderLine),
@@ -387,21 +395,27 @@ export type CompatibleOption = {
 };
 
 /**
- * Active options compatible with `seriesId` (series-level
- * `OptionCompatibility` only — product-level compatibility is out of scope,
- * same as the rest of the catalog, see listOptions in queries/catalog.ts),
- * each carrying its price in `regionId` if one exists. Preloaded once per
- * distinct series on the builder page (not per item) and handed to each
- * item's options editor — a product with no price row at all, or one
- * flagged `needsReview`, is still included (so the editor can show it
+ * Active options compatible with `productId` and/or `seriesId` — an option
+ * counts as compatible when it has a compat row at either the series level
+ * (matching `seriesId`) or the product level (matching `productId`; e.g.
+ * EasyLoader accessories are only compatible with product EL-2020, not the
+ * whole EasyLoader series) — see `compatibilityOrFilter`. Each result
+ * carries its price in `regionId` if one exists. Preloaded once per distinct
+ * (productId, seriesId) pair on the builder page (not per item) and handed
+ * to each item's options editor — a product with no price row at all, or
+ * one flagged `needsReview`, is still included (so the editor can show it
  * disabled with "price required") rather than silently hidden.
  */
 export async function listCompatibleOptions(
-  seriesId: string,
+  productId: string | null,
+  seriesId: string | null,
   regionId: string
 ): Promise<CompatibleOption[]> {
+  const or = compatibilityOrFilter(productId, seriesId);
+  if (!or) return [];
+
   const options = await db.option.findMany({
-    where: { active: true, compat: { some: { seriesId } } },
+    where: { active: true, compat: { some: { OR: or } } },
     orderBy: { sortOrder: "asc" },
     include: { prices: { where: { regionId } } },
   });

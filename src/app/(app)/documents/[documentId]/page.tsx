@@ -62,14 +62,27 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
     getItemPickerCatalog(document.regionCode),
   ]);
 
-  // Compatible options are preloaded once per distinct series across the
-  // document's items (not once per item) — most documents have items from
-  // a handful of series at most, so this is a small, cheap fan-out.
-  const seriesIds = Array.from(new Set(document.items.map((item) => item.seriesId).filter(Boolean))) as string[];
+  // Compatible options are preloaded once per distinct (productId, seriesId)
+  // pair across the document's items (not once per item) — most documents
+  // have items from a handful of products at most, so this is a small,
+  // cheap fan-out. Keyed by productId when available (compatibility can
+  // differ product-to-product within the same series, e.g. EasyLoader
+  // accessories only for EL-2020) and falling back to `series:<seriesId>`
+  // for the defensive case of an item whose product no longer resolves
+  // (see `BuilderItem.productId`'s doc comment).
+  const compatKeys = new Map<string, { productId: string | null; seriesId: string | null }>();
+  for (const item of document.items) {
+    if (!item.productId && !item.seriesId) continue;
+    const key = item.productId ?? `series:${item.seriesId}`;
+    if (!compatKeys.has(key)) compatKeys.set(key, { productId: item.productId, seriesId: item.seriesId });
+  }
   const compatibleOptionsEntries = await Promise.all(
-    seriesIds.map(async (seriesId) => [seriesId, await listCompatibleOptions(seriesId, document.regionId)] as const)
+    Array.from(compatKeys.entries()).map(
+      async ([key, { productId, seriesId }]) =>
+        [key, await listCompatibleOptions(productId, seriesId, document.regionId)] as const
+    )
   );
-  const compatibleOptionsBySeriesId: Record<string, CompatibleOption[]> = Object.fromEntries(
+  const compatibleOptionsByItemKey: Record<string, CompatibleOption[]> = Object.fromEntries(
     compatibleOptionsEntries
   );
 
@@ -104,7 +117,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
         items={document.items}
         currency={document.currency}
         catalog={catalog}
-        compatibleOptionsBySeriesId={compatibleOptionsBySeriesId}
+        compatibleOptionsByItemKey={compatibleOptionsByItemKey}
         removeItemAction={removeItem}
         addItemAction={addItem}
         setItemOptionsAction={setItemOptions}

@@ -56,14 +56,24 @@ function selectionsFromLines(lines: CurrentLine[]): Map<string, SelectionState> 
 /**
  * Per-item options editor: a row of "code ×qty" chips summarizing the
  * item's current OPTION lines, plus an "Edit options" toggle that opens a
- * panel listing every option compatible with the item's series
- * (series-level `OptionCompatibility` — preloaded via
+ * panel listing every option compatible with the item (series- and/or
+ * product-level `OptionCompatibility` — preloaded via
  * `listCompatibleOptions`). Checking an option reveals its qty stepper and
  * (when it carries an `attributeSchema`) its attribute inputs; an unpriced
  * option is shown but its checkbox is disabled. "Save options" sends the
  * *entire* selection set to `setItemOptions`, which replaces the item's
  * OPTION lines as a whole (see actions/documents.ts) — there's no partial
  * add/remove here.
+ *
+ * The panel also has a search box (client-side filter on code + name),
+ * "Select all" / "Clear" buttons, and a "N of M selected" count badge.
+ * "Select all" adds every currently-*filtered* and priced option to the
+ * selection; "Clear" resets the whole selection (not just the filtered
+ * subset) — a full reset is one click away regardless of search state.
+ * Selected options are pinned to the top of the (filtered) list so they
+ * stay visible while browsing a long catalog; the list itself scrolls
+ * internally (`max-h-80`) so "Save options" stays reachable on mobile even
+ * when a series has many options.
  */
 export function ItemOptionsEditor({
   itemId,
@@ -84,6 +94,7 @@ export function ItemOptionsEditor({
   const [selected, setSelected] = useState<Map<string, SelectionState>>(() =>
     selectionsFromLines(currentLines)
   );
+  const [search, setSearch] = useState("");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -94,8 +105,41 @@ export function ItemOptionsEditor({
   // and shouldn't be clobbered by a stale prop from an unrelated re-render.
   function openPanel() {
     setSelected(selectionsFromLines(currentLines));
+    setSearch("");
     setError(null);
     setOpen(true);
+  }
+
+  const query = search.trim().toLowerCase();
+  const filteredOptions = query
+    ? compatibleOptions.filter(
+        (option) =>
+          option.code.toLowerCase().includes(query) || option.name.toLowerCase().includes(query)
+      )
+    : compatibleOptions;
+
+  // Selected options float to the top of the (filtered) list; `Array.sort`
+  // is stable, so relative order within each group (selected / unselected)
+  // is otherwise unchanged from `compatibleOptions`'s own order.
+  const displayOptions = [...filteredOptions].sort(
+    (a, b) => Number(!selected.has(a.code)) - Number(!selected.has(b.code))
+  );
+
+  function selectAllFiltered() {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      for (const option of filteredOptions) {
+        if (next.has(option.code)) continue;
+        const priced = Boolean(option.price && !option.price.needsReview);
+        if (!priced) continue;
+        next.set(option.code, { qty: 1, attributes: {} });
+      }
+      return next;
+    });
+  }
+
+  function clearAll() {
+    setSelected(new Map());
   }
 
   function toggle(code: string) {
@@ -191,10 +235,33 @@ export function ItemOptionsEditor({
       {open && !readOnly ? (
         <div className="mt-2 rounded-lg border border-border bg-muted/40 p-3">
           {compatibleOptions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No compatible options for this series.</p>
+            <p className="text-sm text-muted-foreground">No compatible options for this item.</p>
           ) : (
-            <div className="flex flex-col gap-2">
-              {compatibleOptions.map((option) => {
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search options…"
+                  className={`${inputClass} h-8 flex-1 min-w-[10rem]`}
+                />
+                <Button type="button" variant="ghost" size="sm" onClick={selectAllFiltered}>
+                  Select all
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
+                  Clear
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {selected.size} of {compatibleOptions.length} selected
+                </span>
+              </div>
+
+              {displayOptions.length === 0 ? (
+                <p className="mt-2 text-sm text-muted-foreground">No options match &ldquo;{search}&rdquo;.</p>
+              ) : (
+              <div className="mt-2 flex max-h-80 flex-col gap-2 overflow-y-auto">
+              {displayOptions.map((option) => {
                 const state = selected.get(option.code);
                 const checked = Boolean(state);
                 const priced = Boolean(option.price && !option.price.needsReview);
@@ -261,7 +328,9 @@ export function ItemOptionsEditor({
                   </div>
                 );
               })}
-            </div>
+              </div>
+              )}
+            </>
           )}
 
           {error ? (

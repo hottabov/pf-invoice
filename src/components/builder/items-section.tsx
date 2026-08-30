@@ -10,17 +10,19 @@ import type { OptionSelectionInput } from "@/lib/validation/documents";
 /**
  * The builder's "Items" section: one card per DocumentItem (product
  * snapshot, its option chips/editor, its discount field and its computed
- * total) plus the "Add item" picker. `compatibleOptionsBySeriesId` is
- * preloaded once per distinct series on the page (see
+ * total) plus the "Add item" picker. `compatibleOptionsByItemKey` is
+ * preloaded once per distinct (productId, seriesId) pair on the page (see
  * getDocumentForBuilder + listCompatibleOptions) and looked up per item by
- * its `seriesId` rather than re-fetched per card.
+ * its `productId` (falling back to `series:<seriesId>` in the defensive
+ * case of an item with no resolvable product — see `BuilderItem`) rather
+ * than re-fetched per card.
  */
 export function ItemsSection({
   documentId,
   items,
   currency,
   catalog,
-  compatibleOptionsBySeriesId,
+  compatibleOptionsByItemKey,
   removeItemAction,
   addItemAction,
   setItemOptionsAction,
@@ -31,7 +33,7 @@ export function ItemsSection({
   items: BuilderItem[];
   currency: string;
   catalog: ItemPickerSeries[];
-  compatibleOptionsBySeriesId: Record<string, CompatibleOption[]>;
+  compatibleOptionsByItemKey: Record<string, CompatibleOption[]>;
   removeItemAction: (itemId: string) => Promise<ActionResult>;
   addItemAction: (documentId: string, productCode: string) => Promise<ActionResult>;
   setItemOptionsAction: (itemId: string, selections: OptionSelectionInput[]) => Promise<ActionResult>;
@@ -46,7 +48,9 @@ export function ItemsSection({
         <p className="mt-3 text-sm text-muted-foreground">No items yet.</p>
       ) : (
         <div className="mt-4 flex flex-col gap-3">
-          {items.map((item) => (
+          {items.map((item) => {
+            const compatKey = item.productId ?? (item.seriesId ? `series:${item.seriesId}` : null);
+            return (
             <div key={item.id} className="rounded-lg border border-border p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
@@ -81,7 +85,7 @@ export function ItemsSection({
                 currentLines={item.lines
                   .filter((line) => line.kind === "OPTION")
                   .map((line) => ({ code: line.code, qty: line.qty, attributes: line.attributes }))}
-                compatibleOptions={item.seriesId ? (compatibleOptionsBySeriesId[item.seriesId] ?? []) : []}
+                compatibleOptions={compatKey ? (compatibleOptionsByItemKey[compatKey] ?? []) : []}
                 currency={currency}
                 setOptionsAction={setItemOptionsAction}
                 readOnly={readOnly}
@@ -97,7 +101,8 @@ export function ItemsSection({
                 />
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
