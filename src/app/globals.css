@@ -12,6 +12,14 @@
   --font-heading: var(--font-sans);
   --color-brand: #243478;
   --color-brand-accent: #00b8e2;
+  /* Text/icon/border-safe variant of brand-accent: raw #00b8e2 on white is
+     only 2.35:1, well under the 4.5:1 (text) / 3:1 (non-text UI) WCAG AA
+     floors — see the Phase 5b accessibility audit. Same hue, darkened until
+     it clears both thresholds (5.36:1 on white), for every place the accent
+     is used as a foreground color on a light surface. brand-accent itself
+     stays unchanged for backgrounds and for foreground use on brand-dark,
+     where it already passes (5.47:1). */
+  --color-brand-accent-ink: #0e7490;
   --color-brand-dark: #2b304f;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);

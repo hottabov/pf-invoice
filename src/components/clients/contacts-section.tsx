@@ -240,6 +240,7 @@ function PrimaryStarButton({ contact, pending, onClick }: { contact: ContactDeta
       type="button"
       onClick={onClick}
       disabled={pending}
+      aria-pressed={contact.isPrimary}
       aria-label={contact.isPrimary ? "Primary contact" : "Make primary contact"}
       className="focus-ring flex size-11 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed"
     >
@@ -278,7 +279,7 @@ function ContactTableRow({
         {[contact.email, contact.phone].filter(Boolean).join(" · ") || "—"}
       </td>
       <td className="px-4 py-3">
-        <div className="flex items-center justify-end gap-1">
+        <div className="flex items-center justify-end gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -335,7 +336,7 @@ function ContactCard({
             {contact.position ? <p className="text-xs text-slate-500">{contact.position}</p> : null}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             type="button"
             variant="ghost"

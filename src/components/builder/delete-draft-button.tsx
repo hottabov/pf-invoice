@@ -42,7 +42,7 @@ export function DeleteDraftButton({ action }: { action: () => Promise<ActionResu
         variant="destructive"
         onClick={handleClick}
         disabled={pending}
-        className="h-9 w-fit"
+        className="h-11 w-fit"
       >
         <Trash2 className="size-4" data-icon="inline-start" aria-hidden="true" />
         {pending ? "Deleting…" : "Delete draft"}

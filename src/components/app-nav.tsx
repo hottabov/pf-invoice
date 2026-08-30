@@ -62,8 +62,8 @@ export function AppNav({ variant }: AppNavProps) {
             aria-current={active ? "page" : undefined}
             className="focus-ring flex min-h-14 flex-col items-center justify-center gap-1 py-2 text-xs text-brand-dark transition-colors active:bg-slate-100"
           >
-            <Icon className={cn("size-5", active ? "text-brand-accent" : "text-brand")} aria-hidden="true" />
-            <span className={cn(active && "font-semibold text-brand-accent")}>{label}</span>
+            <Icon className={cn("size-5", active ? "text-brand-accent-ink" : "text-brand")} aria-hidden="true" />
+            <span className={cn(active && "font-semibold text-brand-accent-ink")}>{label}</span>
           </Link>
         );
       })}

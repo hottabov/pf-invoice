@@ -19,7 +19,7 @@ export default async function CatalogPage() {
           <Link
             key={s.id}
             href={`/catalog/${encodeURIComponent(s.code)}`}
-            className="focus-ring flex min-h-12 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-brand-accent hover:bg-slate-50 active:bg-slate-100"
+            className="focus-ring flex min-h-12 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-brand-accent-ink hover:bg-slate-50 active:bg-slate-100"
           >
             <div className="flex items-start justify-between gap-2">
               <span className="flex min-w-0 items-center gap-2 font-medium text-brand-dark">
@@ -43,10 +43,10 @@ export default async function CatalogPage() {
             per-series cards — it isn't a series, it's a separate catalog. */}
         <Link
           href="/catalog/options"
-          className="focus-ring flex min-h-12 flex-col gap-2 rounded-xl border-2 border-brand-accent bg-white p-4 transition-colors hover:bg-slate-50 active:bg-slate-100"
+          className="focus-ring flex min-h-12 flex-col gap-2 rounded-xl border-2 border-brand-accent-ink bg-white p-4 transition-colors hover:bg-slate-50 active:bg-slate-100"
         >
           <span className="flex items-center gap-2 font-medium text-brand-dark">
-            <Puzzle className="size-5 shrink-0 text-brand-accent" aria-hidden="true" />
+            <Puzzle className="size-5 shrink-0 text-brand-accent-ink" aria-hidden="true" />
             Options
           </span>
           <span className="text-sm text-slate-500">

@@ -116,7 +116,7 @@ function NavCard({
   return (
     <Link
       href={href}
-      className="focus-ring flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-brand-accent hover:bg-slate-50 active:bg-slate-100"
+      className="focus-ring flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-brand-accent-ink hover:bg-slate-50 active:bg-slate-100"
     >
       <div className="flex items-center justify-between">
         <span className="flex size-10 items-center justify-center rounded-lg bg-brand/10 text-brand">

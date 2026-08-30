@@ -21,7 +21,7 @@ const VARIANT_ICON: Record<ToastVariant, typeof CheckCircle2> = {
 const VARIANT_CLASSES: Record<ToastVariant, string> = {
   success: "border-emerald-200 text-emerald-600",
   error: "border-rose-200 text-rose-600",
-  info: "border-brand-accent/40 text-brand-accent",
+  info: "border-brand-accent-ink/40 text-brand-accent-ink",
 };
 
 /**

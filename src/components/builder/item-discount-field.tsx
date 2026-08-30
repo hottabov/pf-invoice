@@ -55,11 +55,11 @@ export function ItemDiscountField({
             inputMode="decimal"
             defaultValue={discountPct ?? ""}
             placeholder="0"
-            className={cn(fieldInputClass, "h-9 w-16 text-right")}
+            className={cn(fieldInputClass, "h-11 w-16 text-right sm:h-9")}
           />
           %
         </label>
-        <Button type="submit" variant="outline" size="sm" disabled={pending} className="h-9">
+        <Button type="submit" variant="outline" size="sm" disabled={pending} className="h-11 sm:h-9">
           {pending ? "…" : "Save"}
         </Button>
         {maxDiscountPct ? (

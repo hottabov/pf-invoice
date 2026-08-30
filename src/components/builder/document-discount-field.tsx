@@ -51,10 +51,10 @@ export function DocumentDiscountField({
           inputMode="decimal"
           defaultValue={discountPct ?? ""}
           placeholder="0"
-          className={cn(fieldInputClass, "h-10 w-24")}
+          className={cn(fieldInputClass, "h-11 w-24 sm:h-10")}
         />
         <span className="text-sm text-slate-500">%</span>
-        <Button type="submit" variant="outline" size="sm" disabled={pending} className="h-10">
+        <Button type="submit" variant="outline" size="sm" disabled={pending} className="h-11 sm:h-10">
           {pending ? "Saving…" : "Save"}
         </Button>
       </form>

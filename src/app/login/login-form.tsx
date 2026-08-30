@@ -85,7 +85,7 @@ export function LoginForm({ callbackUrl = "/" }: LoginFormProps) {
               type="submit"
               variant="outline"
               disabled={magicLinkPending}
-              className="h-12 w-full border-brand-accent text-base text-brand-accent hover:bg-brand-accent/10"
+              className="h-12 w-full border-brand-accent-ink text-base text-brand-accent-ink hover:bg-brand-accent/10"
             >
               {magicLinkPending ? "Sending…" : "Send magic link"}
             </Button>
@@ -96,7 +96,7 @@ export function LoginForm({ callbackUrl = "/" }: LoginFormProps) {
           type="button"
           variant="outline"
           onClick={() => setMode("magic-link")}
-          className="h-12 w-full border-brand-accent text-base text-brand-accent hover:bg-brand-accent/10"
+          className="h-12 w-full border-brand-accent-ink text-base text-brand-accent-ink hover:bg-brand-accent/10"
         >
           Sign in with a magic link
         </Button>

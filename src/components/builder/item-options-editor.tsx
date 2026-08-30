@@ -227,7 +227,7 @@ export function ItemOptionsEditor({
           <button
             type="button"
             onClick={() => (open ? setOpen(false) : openPanel())}
-            className="focus-ring inline-flex min-h-8 items-center gap-1 rounded-md text-xs font-medium text-brand hover:underline"
+            className="focus-ring inline-flex min-h-11 items-center gap-1 rounded-md text-xs font-medium text-brand hover:underline"
           >
             Edit options
             {open ? (
@@ -253,7 +253,7 @@ export function ItemOptionsEditor({
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search options…"
                     aria-label="Search options"
-                    className={cn(fieldInputClass, "h-9 min-w-[10rem] flex-1")}
+                    className={cn(fieldInputClass, "h-11 min-w-[10rem] flex-1 sm:h-9")}
                   />
                   <Button type="button" variant="ghost" size="sm" onClick={selectAllFiltered}>
                     Select all
@@ -310,34 +310,53 @@ export function ItemOptionsEditor({
                             <div className="mt-2 flex flex-wrap items-center gap-3 pl-[1.875rem]">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs text-slate-500">Qty</span>
+                                {/* Visual stepper stays a compact 36px square (dense per-option
+                                    row); the real tap target is the full 44px button around it —
+                                    an invisible hit-area expansion, same idea as the toast close
+                                    button's negative-margin trick elsewhere in this codebase. */}
                                 <button
                                   type="button"
                                   aria-label={`Decrease ${option.name} quantity`}
                                   disabled={state!.qty <= 1}
                                   onClick={() => setQty(option.code, Math.max(1, state!.qty - 1))}
-                                  className="focus-ring flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors md:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                  className="group focus-ring flex size-11 shrink-0 items-center justify-center rounded-lg disabled:cursor-not-allowed disabled:opacity-40"
                                 >
-                                  <Minus className="size-3.5" aria-hidden="true" />
+                                  <span
+                                    aria-hidden="true"
+                                    className="flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors md:group-hover:bg-slate-50"
+                                  >
+                                    <Minus className="size-3.5" />
+                                  </span>
                                 </button>
-                                <input
-                                  type="number"
-                                  inputMode="numeric"
-                                  min={1}
-                                  max={999}
-                                  aria-label={`${option.name} quantity`}
-                                  value={state!.qty}
-                                  onChange={(e) =>
-                                    setQty(option.code, Math.max(1, Number(e.target.value) || 1))
-                                  }
-                                  className={cn(fieldInputClass, "h-9 w-14 text-center")}
-                                />
+                                {/* Wrapping <label> (native click-forwarding to the nested
+                                    control, no JS needed) expands the tap target to 44px tall
+                                    without growing the visible 36px input box. */}
+                                <label className="flex size-11 shrink-0 items-center justify-center">
+                                  <input
+                                    type="number"
+                                    inputMode="numeric"
+                                    min={1}
+                                    max={999}
+                                    aria-label={`${option.name} quantity`}
+                                    value={state!.qty}
+                                    onChange={(e) =>
+                                      setQty(option.code, Math.max(1, Number(e.target.value) || 1))
+                                    }
+                                    className={cn(fieldInputClass, "h-9 w-14 text-center")}
+                                  />
+                                </label>
                                 <button
                                   type="button"
                                   aria-label={`Increase ${option.name} quantity`}
                                   onClick={() => setQty(option.code, Math.min(999, state!.qty + 1))}
-                                  className="focus-ring flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors md:hover:bg-slate-50"
+                                  className="group focus-ring flex size-11 shrink-0 items-center justify-center rounded-lg"
                                 >
-                                  <Plus className="size-3.5" aria-hidden="true" />
+                                  <span
+                                    aria-hidden="true"
+                                    className="flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors md:group-hover:bg-slate-50"
+                                  >
+                                    <Plus className="size-3.5" />
+                                  </span>
                                 </button>
                               </div>
                               {attributeFields.map((field) => (
@@ -351,7 +370,7 @@ export function ItemOptionsEditor({
                                     inputMode={field.type === "number" ? "decimal" : undefined}
                                     value={state!.attributes[field.key] ?? ""}
                                     onChange={(e) => setAttribute(option.code, field.key, e.target.value)}
-                                    className={cn(fieldInputClass, "h-9 w-28")}
+                                    className={cn(fieldInputClass, "h-11 w-28 sm:h-9")}
                                   />
                                 </label>
                               ))}
