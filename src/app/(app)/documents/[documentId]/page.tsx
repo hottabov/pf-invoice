@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import type { Metadata } from "next";
+import { Download, Eye } from "lucide-react";
 import { auth } from "@/auth";
 import {
   getDocumentForBuilder,
@@ -19,11 +21,14 @@ import {
   setItemDiscount,
   setItemOptions,
 } from "@/lib/actions/documents";
+import { finalizeDocument, unfinalizeDocument } from "@/lib/actions/finalize";
 import { ClientSection } from "@/components/builder/client-section";
 import { ItemsSection } from "@/components/builder/items-section";
 import { ExtraLinesSection } from "@/components/builder/extra-lines-section";
 import { DocumentDiscountField } from "@/components/builder/document-discount-field";
 import { StickyFooter } from "@/components/builder/sticky-footer";
+import { FinalizeButton } from "@/components/builder/finalize-button";
+import { UnfinalizeButton } from "@/components/builder/unfinalize-button";
 
 export const dynamic = "force-dynamic";
 
@@ -86,21 +91,57 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
     compatibleOptionsEntries
   );
 
+  const isAdmin = session.user.role === "ADMIN";
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-4">
-      <div>
-        <p className="text-sm text-muted-foreground">
-          {document.type === "QUOTE" ? "Quote" : "Invoice"}
-          {document.number ? ` · ${document.number}` : " · draft"}
-        </p>
-        <h1 className="text-xl font-semibold text-brand-dark">
-          {document.company?.name ?? "New " + document.type.toLowerCase()}
-        </h1>
-        {!isDraft && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            This document is final and read-only.
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            {document.type === "QUOTE" ? "Quote" : "Invoice"}
+            {document.number ? ` · ${document.number}` : " · draft"}
           </p>
-        )}
+          <h1 className="text-xl font-semibold text-brand-dark">
+            {document.company?.name ?? "New " + document.type.toLowerCase()}
+          </h1>
+          {!isDraft && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              This document is final and read-only.
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-start gap-2">
+          {document.number ? (
+            <span className="inline-flex h-8 items-center rounded-full border border-emerald-300 bg-emerald-50 px-3 text-sm font-medium text-emerald-700">
+              {document.number}
+            </span>
+          ) : null}
+
+          <Link
+            href={`/documents/${document.id}/preview`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-sm font-medium text-foreground hover:bg-muted"
+          >
+            <Eye className="size-4" />
+            Preview
+          </Link>
+
+          {!isDraft && (
+            <a
+              href={`/api/documents/${document.id}/pdf`}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-sm font-medium text-foreground hover:bg-muted"
+            >
+              <Download className="size-4" />
+              Download PDF
+            </a>
+          )}
+
+          {isDraft ? (
+            <FinalizeButton documentId={document.id} finalizeAction={finalizeDocument} />
+          ) : isAdmin ? (
+            <UnfinalizeButton documentId={document.id} unfinalizeAction={unfinalizeDocument} />
+          ) : null}
+        </div>
       </div>
 
       <ClientSection

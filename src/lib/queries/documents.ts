@@ -77,12 +77,20 @@ export type BuilderContact = {
   firstName: string;
   lastName: string | null;
   email: string | null;
+  phone: string | null;
+  position: string | null;
   isPrimary: boolean;
 };
 
 export type BuilderCompany = {
   id: string;
   name: string;
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  postcode: string | null;
+  country: string | null;
+  website: string | null;
   contacts: BuilderContact[];
 };
 
@@ -123,6 +131,13 @@ export type BuilderItem = {
    * `null` only in the same defensive case as `seriesId`. */
   productId: string | null;
   imageUrl: string | null;
+  /** Whether the item's thumbnail should actually be shown on a rendered
+   * document (the sheet renderer/PDF) — distinct from `imageUrl` being
+   * present, since a product snapshot can carry an image the author hasn't
+   * opted to display. Not yet toggleable from the builder UI (defaults
+   * `false` on every `DocumentItem`); wired through here so the document
+   * sheet has the flag ready once it is. */
+  showImage: boolean;
   sortOrder: number;
   lines: BuilderLine[];
   /** This item's own line (base price + its OPTION lines, discounted) as
@@ -137,6 +152,11 @@ export type DocumentForBuilder = {
   type: DocumentType;
   status: DocumentStatus;
   number: string | null;
+  issueDate: Date;
+  /** Only ever non-null for a QUOTE, and only once it's been through
+   * `finalizeDocument` (see src/lib/actions/finalize.ts) — an INVOICE, and
+   * any still-DRAFT document, always has `null` here. */
+  validityDays: number | null;
   currency: string;
   taxName: string;
   taxRate: string;
@@ -150,8 +170,27 @@ export type DocumentForBuilder = {
   total: string;
   regionId: string;
   regionCode: string;
+  /** `Document.entitySnapshot` exactly as stored (an opaque `Json?` column,
+   * frozen by `finalizeDocument` — see its doc comment for the shape it
+   * writes) — `null` for a document that has never been finalized.
+   * Consumers that need to read it (the document sheet mapper) are
+   * responsible for validating its shape at runtime since Prisma's `Json`
+   * type gives no compile-time guarantee. */
+  entitySnapshot: unknown;
+  /** The document's *region*'s current entity identity fields — i.e. the
+   * live values, not a frozen snapshot. Used as-is to render a DRAFT (which
+   * has no snapshot yet); a FINAL document's renderer should prefer
+   * `entitySnapshot` instead so an admin editing the region later never
+   * retroactively changes an already-issued document. */
+  entityName: string;
+  entityLegalId: string | null;
+  entityAddress: string | null;
+  bankDetails: unknown;
+  logoUrl: string | null;
+  footerText: string | null;
   company: BuilderCompany | null;
   contactId: string | null;
+  contact: BuilderContact | null;
   items: BuilderItem[];
   extraLines: BuilderLine[];
   updatedAt: Date;
@@ -184,6 +223,26 @@ function toBuilderLine(line: {
   };
 }
 
+function toBuilderContact(contact: {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+  position: string | null;
+  isPrimary: boolean;
+}): BuilderContact {
+  return {
+    id: contact.id,
+    firstName: contact.firstName,
+    lastName: contact.lastName,
+    email: contact.email,
+    phone: contact.phone,
+    position: contact.position,
+    isPrimary: contact.isPrimary,
+  };
+}
+
 /**
  * The full document a builder page needs to render: client (company, with
  * its contacts ordered primary-first then by first name) + contact,
@@ -207,6 +266,7 @@ export async function getDocumentForBuilder(
           contacts: { orderBy: [{ isPrimary: "desc" }, { firstName: "asc" }] },
         },
       },
+      contact: true,
       items: {
         orderBy: { sortOrder: "asc" },
         include: {
@@ -246,6 +306,8 @@ export async function getDocumentForBuilder(
     type: document.type,
     status: document.status,
     number: document.number,
+    issueDate: document.issueDate,
+    validityDays: document.validityDays,
     currency: document.currency,
     taxName: document.taxName,
     taxRate: document.taxRate.toString(),
@@ -256,20 +318,28 @@ export async function getDocumentForBuilder(
     total: document.total.toString(),
     regionId: document.regionId,
     regionCode: document.region.code,
+    entitySnapshot: document.entitySnapshot,
+    entityName: document.region.entityName,
+    entityLegalId: document.region.entityLegalId,
+    entityAddress: document.region.entityAddress,
+    bankDetails: document.region.bankDetails,
+    logoUrl: document.region.logoUrl,
+    footerText: document.region.footerText,
     company: document.company
       ? {
           id: document.company.id,
           name: document.company.name,
-          contacts: document.company.contacts.map((c) => ({
-            id: c.id,
-            firstName: c.firstName,
-            lastName: c.lastName,
-            email: c.email,
-            isPrimary: c.isPrimary,
-          })),
+          street: document.company.street,
+          city: document.company.city,
+          state: document.company.state,
+          postcode: document.company.postcode,
+          country: document.company.country,
+          website: document.company.website,
+          contacts: document.company.contacts.map(toBuilderContact),
         }
       : null,
     contactId: document.contactId,
+    contact: document.contact ? toBuilderContact(document.contact) : null,
     items: document.items.map((item, index) => ({
       id: item.id,
       code: item.code,
@@ -281,6 +351,7 @@ export async function getDocumentForBuilder(
       seriesId: item.product?.seriesId ?? null,
       productId: item.product?.id ?? null,
       imageUrl: item.imageUrl,
+      showImage: item.showImage,
       sortOrder: item.sortOrder,
       lines: item.lines.map(toBuilderLine),
       total: totals.itemTotals[index].toString(),

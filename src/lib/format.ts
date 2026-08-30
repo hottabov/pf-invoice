@@ -21,3 +21,18 @@ export function formatMoney(amount: Moneyish, currency: string, locale = "en-AU"
     maximumFractionDigits: isWhole ? 0 : 2,
   }).format(value);
 }
+
+/**
+ * Formats a date as `DD/MM/YYYY` — the en-AU convention used throughout
+ * document-facing dates (issue date, quote validity). Zero-padded by hand
+ * rather than via `Intl.DateTimeFormat("en-AU")` so the exact digit order
+ * and separator are guaranteed everywhere this renders — including inside
+ * Gotenberg's headless Chromium, whose bundled ICU data this app doesn't
+ * control — rather than depending on the host's CLDR data.
+ */
+export function formatDateAU(date: Date): string {
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
