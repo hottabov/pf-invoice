@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { Field, inputClass, textareaClass } from "@/components/catalog/field";
+import { FieldRow, fieldInputClass } from "@/components/ui-kit";
+import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/clients";
 
 export type CompanyFormValues = {
@@ -26,7 +27,10 @@ const initialState: ActionResult = {};
  * The company create/edit form. Same shape for both — on create, the bound
  * server action redirects to the new company's editor; on update it stays
  * put and just revalidates, so this only ever needs to render an error
- * state (mirrors src/components/catalog/option-form.tsx).
+ * state (mirrors src/components/catalog/option-form.tsx). Laid out as the
+ * two-column desktop grid the design direction calls for: name pairs with
+ * website, region with tax ID, then the full address block, then a
+ * full-width notes field.
  */
 export function CompanyForm({
   action,
@@ -46,87 +50,20 @@ export function CompanyForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <Field label="Company name" htmlFor="company-name">
-        <input
-          id="company-name"
-          name="name"
-          defaultValue={defaultValues.name}
-          required
-          minLength={2}
-          maxLength={200}
-          className={inputClass}
-        />
-      </Field>
-
-      <Field label="Region" htmlFor="company-region" hint="Sets the company's currency and tax rules.">
-        <select
-          id="company-region"
-          name="regionCode"
-          defaultValue={defaultValues.regionCode}
-          required
-          className={inputClass}
-        >
-          {regions.length === 0 && <option value="">No regions configured</option>}
-          {regions.map((r) => (
-            <option key={r.code} value={r.code}>
-              {r.name} ({r.code})
-            </option>
-          ))}
-        </select>
-      </Field>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Street" htmlFor="company-street">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <FieldRow label="Company name" htmlFor="company-name" required>
           <input
-            id="company-street"
-            name="street"
-            defaultValue={defaultValues.street}
-            maxLength={120}
-            className={inputClass}
+            id="company-name"
+            name="name"
+            defaultValue={defaultValues.name}
+            required
+            minLength={2}
+            maxLength={200}
+            className={fieldInputClass}
           />
-        </Field>
+        </FieldRow>
 
-        <Field label="City" htmlFor="company-city">
-          <input
-            id="company-city"
-            name="city"
-            defaultValue={defaultValues.city}
-            maxLength={120}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="State" htmlFor="company-state">
-          <input
-            id="company-state"
-            name="state"
-            defaultValue={defaultValues.state}
-            maxLength={120}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Postcode" htmlFor="company-postcode">
-          <input
-            id="company-postcode"
-            name="postcode"
-            defaultValue={defaultValues.postcode}
-            maxLength={20}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Country" htmlFor="company-country">
-          <input
-            id="company-country"
-            name="country"
-            defaultValue={defaultValues.country}
-            maxLength={120}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Website" htmlFor="company-website">
+        <FieldRow label="Website" htmlFor="company-website">
           <input
             id="company-website"
             name="website"
@@ -134,31 +71,103 @@ export function CompanyForm({
             defaultValue={defaultValues.website}
             placeholder="https://example.com"
             maxLength={200}
-            className={inputClass}
+            className={fieldInputClass}
           />
-        </Field>
+        </FieldRow>
 
-        <Field label="Tax ID" htmlFor="company-tax-id" hint="ABN, EIN, VAT number, etc.">
+        <FieldRow
+          label="Region"
+          htmlFor="company-region"
+          hint="Sets the company's currency and tax rules."
+          required
+        >
+          <select
+            id="company-region"
+            name="regionCode"
+            defaultValue={defaultValues.regionCode}
+            required
+            className={fieldInputClass}
+          >
+            {regions.length === 0 && <option value="">No regions configured</option>}
+            {regions.map((r) => (
+              <option key={r.code} value={r.code}>
+                {r.name} ({r.code})
+              </option>
+            ))}
+          </select>
+        </FieldRow>
+
+        <FieldRow label="Tax ID" htmlFor="company-tax-id" hint="ABN, EIN, VAT number, etc.">
           <input
             id="company-tax-id"
             name="taxId"
             defaultValue={defaultValues.taxId}
             maxLength={50}
-            className={inputClass}
+            className={fieldInputClass}
           />
-        </Field>
-      </div>
+        </FieldRow>
 
-      <Field label="Notes" htmlFor="company-notes">
-        <textarea
-          id="company-notes"
-          name="notes"
-          defaultValue={defaultValues.notes}
-          maxLength={2000}
-          rows={3}
-          className={textareaClass}
-        />
-      </Field>
+        <FieldRow label="Street" htmlFor="company-street">
+          <input
+            id="company-street"
+            name="street"
+            defaultValue={defaultValues.street}
+            maxLength={120}
+            className={fieldInputClass}
+          />
+        </FieldRow>
+
+        <FieldRow label="City" htmlFor="company-city">
+          <input
+            id="company-city"
+            name="city"
+            defaultValue={defaultValues.city}
+            maxLength={120}
+            className={fieldInputClass}
+          />
+        </FieldRow>
+
+        <FieldRow label="State" htmlFor="company-state">
+          <input
+            id="company-state"
+            name="state"
+            defaultValue={defaultValues.state}
+            maxLength={120}
+            className={fieldInputClass}
+          />
+        </FieldRow>
+
+        <FieldRow label="Postcode" htmlFor="company-postcode">
+          <input
+            id="company-postcode"
+            name="postcode"
+            defaultValue={defaultValues.postcode}
+            maxLength={20}
+            className={fieldInputClass}
+          />
+        </FieldRow>
+
+        <FieldRow label="Country" htmlFor="company-country" className="lg:col-span-2">
+          <input
+            id="company-country"
+            name="country"
+            defaultValue={defaultValues.country}
+            maxLength={120}
+            className={fieldInputClass}
+          />
+        </FieldRow>
+
+        <FieldRow label="Notes" htmlFor="company-notes" className="lg:col-span-2">
+          <textarea
+            id="company-notes"
+            name="notes"
+            defaultValue={defaultValues.notes}
+            maxLength={2000}
+            rows={3}
+            className={cn(fieldInputClass, "h-auto min-h-24 py-2")}
+          />
+        </FieldRow>
+      </div>
 
       {state.error ? (
         <p role="alert" className="text-sm text-destructive">
@@ -169,7 +178,7 @@ export function CompanyForm({
       <Button
         type="submit"
         disabled={pending}
-        className="h-10 w-full bg-brand text-white hover:bg-brand/90 sm:w-auto sm:self-start"
+        className="h-11 w-full bg-brand text-white hover:bg-brand/90 sm:w-auto sm:self-start"
       >
         {pending ? "Saving…" : submitLabel}
       </Button>

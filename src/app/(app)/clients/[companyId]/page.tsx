@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { ExternalLink } from "lucide-react";
 import { auth } from "@/auth";
 import { getCompanyDetail } from "@/lib/queries/clients";
 import { listActiveRegions } from "@/lib/queries/catalog";
 import { updateCompany, deleteCompany, createContact, updateContact, deleteContact } from "@/lib/actions/clients";
 import { CompanyForm } from "@/components/clients/company-form";
 import { ContactsSection } from "@/components/clients/contacts-section";
-import { DeleteButton } from "@/components/catalog/delete-button";
+import { DeleteCompanyButton } from "@/components/clients/delete-company-button";
+import { PageHeader, SectionCard } from "@/components/ui-kit";
 
 export const dynamic = "force-dynamic";
 
@@ -42,66 +44,57 @@ export default async function CompanyEditorPage({ params }: { params: Promise<Pa
   if (!company) notFound();
 
   return (
-    <div className="mx-auto w-full max-w-lg">
-      <div>
-        <p className="text-sm text-muted-foreground">Company</p>
-        <h1 className="text-xl font-semibold text-brand-dark">{company.name}</h1>
-        {company.website && (
-          <p className="mt-1 text-sm">
-            <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-              {company.website}
-            </a>
-          </p>
-        )}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1.5">
+        <PageHeader backHref="/clients" backLabel="Clients" title={company.name} />
+        {company.website ? (
+          <a
+            href={company.website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="focus-ring inline-flex w-fit items-center gap-1.5 text-sm text-brand hover:underline"
+          >
+            {company.website}
+            <ExternalLink className="size-3.5" aria-hidden="true" />
+          </a>
+        ) : null}
       </div>
 
-      <section className="mt-6 rounded-xl border border-border bg-white p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-brand-dark">Details</h2>
-        <div className="mt-4">
-          <CompanyForm
-            action={updateCompany.bind(null, company.id)}
-            defaultValues={{
-              name: company.name,
-              street: company.street ?? "",
-              city: company.city ?? "",
-              state: company.state ?? "",
-              postcode: company.postcode ?? "",
-              country: company.country ?? "",
-              website: company.website ?? "",
-              taxId: company.taxId ?? "",
-              notes: company.notes ?? "",
-              regionCode: company.regionCode,
-            }}
-            regions={regions.map((r) => ({ code: r.code, name: r.name }))}
-            submitLabel="Save changes"
-          />
-        </div>
-      </section>
+      <SectionCard title="Details">
+        <CompanyForm
+          action={updateCompany.bind(null, company.id)}
+          defaultValues={{
+            name: company.name,
+            street: company.street ?? "",
+            city: company.city ?? "",
+            state: company.state ?? "",
+            postcode: company.postcode ?? "",
+            country: company.country ?? "",
+            website: company.website ?? "",
+            taxId: company.taxId ?? "",
+            notes: company.notes ?? "",
+            regionCode: company.regionCode,
+          }}
+          regions={regions.map((r) => ({ code: r.code, name: r.name }))}
+          submitLabel="Save changes"
+        />
+      </SectionCard>
 
-      <section className="mt-6 rounded-xl border border-border bg-white p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-brand-dark">Contacts</h2>
-        <div className="mt-4">
-          <ContactsSection
-            companyId={company.id}
-            contacts={company.contacts}
-            actions={{ createContact, updateContact, deleteContact }}
-          />
-        </div>
-      </section>
+      <SectionCard title="Contacts">
+        <ContactsSection
+          companyId={company.id}
+          contacts={company.contacts}
+          actions={{ createContact, updateContact, deleteContact }}
+        />
+      </SectionCard>
 
-      <section className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-destructive">Danger zone</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Deleting a company removes its contacts too. Companies with quotes or invoices
-          can&apos;t be deleted.
-        </p>
-        <div className="mt-3">
-          <DeleteButton
-            action={deleteCompany.bind(null, company.id)}
-            confirmMessage={`Delete ${company.name}? This can't be undone.`}
-          />
-        </div>
-      </section>
+      <SectionCard
+        tone="danger"
+        title="Danger zone"
+        description="Deleting a company removes its contacts too. Companies with quotes or invoices can't be deleted."
+      >
+        <DeleteCompanyButton action={deleteCompany.bind(null, company.id)} companyName={company.name} />
+      </SectionCard>
     </div>
   );
 }

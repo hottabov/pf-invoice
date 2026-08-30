@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Field, inputClass } from "@/components/catalog/field";
+import { FieldRow, fieldInputClass } from "@/components/ui-kit";
 import type { ActionResult } from "@/lib/actions/clients";
 
 export type ContactFormValues = {
@@ -55,64 +55,64 @@ export function ContactForm({
   return (
     <form action={formAction} className="flex flex-col gap-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="First name" htmlFor={`${idPrefix}-first-name`}>
+        <FieldRow label="First name" htmlFor={`${idPrefix}-first-name`} required>
           <input
             id={`${idPrefix}-first-name`}
             name="firstName"
             defaultValue={defaultValues.firstName}
             required
             maxLength={80}
-            className={inputClass}
+            className={fieldInputClass}
           />
-        </Field>
+        </FieldRow>
 
-        <Field label="Last name" htmlFor={`${idPrefix}-last-name`}>
+        <FieldRow label="Last name" htmlFor={`${idPrefix}-last-name`}>
           <input
             id={`${idPrefix}-last-name`}
             name="lastName"
             defaultValue={defaultValues.lastName}
             maxLength={80}
-            className={inputClass}
+            className={fieldInputClass}
           />
-        </Field>
+        </FieldRow>
 
-        <Field label="Email" htmlFor={`${idPrefix}-email`}>
+        <FieldRow label="Email" htmlFor={`${idPrefix}-email`}>
           <input
             id={`${idPrefix}-email`}
             name="email"
             type="email"
             defaultValue={defaultValues.email}
-            className={inputClass}
+            className={fieldInputClass}
           />
-        </Field>
+        </FieldRow>
 
-        <Field label="Phone" htmlFor={`${idPrefix}-phone`}>
+        <FieldRow label="Phone" htmlFor={`${idPrefix}-phone`}>
           <input
             id={`${idPrefix}-phone`}
             name="phone"
             defaultValue={defaultValues.phone}
             maxLength={40}
-            className={inputClass}
+            className={fieldInputClass}
           />
-        </Field>
+        </FieldRow>
 
-        <Field label="Position" htmlFor={`${idPrefix}-position`}>
+        <FieldRow label="Position" htmlFor={`${idPrefix}-position`} className="sm:col-span-2">
           <input
             id={`${idPrefix}-position`}
             name="position"
             defaultValue={defaultValues.position}
             maxLength={80}
-            className={inputClass}
+            className={fieldInputClass}
           />
-        </Field>
+        </FieldRow>
       </div>
 
-      <label className="flex items-center gap-2 text-sm font-medium text-brand-dark">
+      <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-brand-dark">
         <input
           name="isPrimary"
           type="checkbox"
           defaultChecked={defaultValues.isPrimary}
-          className="size-4 rounded border-border accent-brand"
+          className="size-4 rounded border-slate-300 accent-brand"
         />
         Primary contact
       </label>
@@ -123,16 +123,22 @@ export function ContactForm({
         </p>
       ) : null}
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Button
           type="submit"
           disabled={pending}
-          className="h-9 bg-brand text-white hover:bg-brand/90"
+          className="h-11 w-full bg-brand text-white hover:bg-brand/90 sm:h-9 sm:w-auto"
         >
           {pending ? "Saving…" : submitLabel}
         </Button>
         {onCancel && (
-          <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCancel}
+            disabled={pending}
+            className="h-11 w-full sm:h-9 sm:w-auto"
+          >
             Cancel
           </Button>
         )}

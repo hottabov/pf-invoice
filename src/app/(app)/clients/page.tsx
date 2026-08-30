@@ -1,9 +1,19 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Plus, Search, Building2 } from "lucide-react";
+import { Plus, Search, Building2, ExternalLink } from "lucide-react";
 import { auth } from "@/auth";
-import { listCompanies } from "@/lib/queries/clients";
+import { listCompanies, type CompanyListItem } from "@/lib/queries/clients";
 import { buttonVariants } from "@/components/ui/button";
+import {
+  PageHeader,
+  TableShell,
+  tableClassName,
+  tableHeadRowClassName,
+  tableRowClassName,
+  StatusBadge,
+  EmptyState,
+  fieldInputClass,
+} from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Clients" };
@@ -24,86 +34,166 @@ export default async function ClientsPage({
   const companies = await listCompanies(session.user, { q });
 
   return (
-    <div className="mx-auto w-full max-w-3xl">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-brand-dark">Clients</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {session.user.role === "ADMIN"
-              ? "Every company across the business."
-              : "Companies you've added."}
-          </p>
-        </div>
-        <Link href="/clients/new" className={cn(buttonVariants(), "shrink-0")}>
-          <Plus className="size-4" data-icon="inline-start" />
-          Add company
-        </Link>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Clients"
+        description={
+          session.user.role === "ADMIN"
+            ? "Every company across the business."
+            : "Companies you've added."
+        }
+        actions={
+          <Link
+            href="/clients/new"
+            className={cn(
+              buttonVariants(),
+              "h-11 w-full bg-brand text-white hover:bg-brand/90 sm:w-auto"
+            )}
+          >
+            <Plus className="size-4" data-icon="inline-start" aria-hidden="true" />
+            Add company
+          </Link>
+        }
+      />
 
-      <form method="GET" className="mt-6">
+      <form method="GET" className="sm:w-72">
         <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
+            aria-hidden="true"
+          />
           <input
             type="search"
             name="q"
             defaultValue={q ?? ""}
+            aria-label="Search companies"
             placeholder="Search companies by name…"
-            className="h-10 w-full rounded-lg border border-border bg-white pl-9 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className={cn(fieldInputClass, "pl-9")}
           />
         </div>
       </form>
 
       {companies.length === 0 ? (
-        <p className="mt-6 text-sm text-muted-foreground">
-          {q ? "No companies match your search." : "No companies yet — add your first one."}
-        </p>
+        <EmptyState
+          icon={Building2}
+          title={q ? "No companies match your search" : "No companies yet"}
+          description={q ? "Try a different name." : "Add your first client company above."}
+        />
       ) : (
-        <div className="mt-6 flex flex-col gap-2 md:gap-0 md:rounded-xl md:border md:border-border md:bg-white">
-          {companies.map((c, i) => (
-            <Link
-              key={c.id}
-              href={`/clients/${c.id}`}
-              className={cn(
-                "flex flex-col gap-1.5 rounded-xl border border-border bg-white p-4 transition-colors hover:border-brand-accent hover:bg-muted active:bg-muted",
-                "md:flex-row md:items-center md:justify-between md:gap-4 md:rounded-none md:border-x-0 md:border-t-0 md:border-b md:last:border-b-0",
-                i === 0 && "md:rounded-t-xl",
-                i === companies.length - 1 && "md:rounded-b-xl md:border-b-0"
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <Building2 className="size-5 shrink-0 text-brand" />
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-medium text-brand-dark">{c.name}</span>
-                  <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
-                    <span>
-                      {[c.city, c.country].filter(Boolean).join(", ") || "No address"}
-                    </span>
-                    {c.website && (
-                      <a
-                        href={c.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-muted-foreground hover:text-blue-600 hover:underline"
-                      >
-                        {c.website}
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 pl-8 md:pl-0">
-                <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  {c.regionCode}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {c.contactCount} {c.contactCount === 1 ? "contact" : "contacts"}
-                </span>
-              </div>
-            </Link>
+        <TableShell
+          table={
+            <table className={tableClassName}>
+              <thead>
+                <tr className={tableHeadRowClassName}>
+                  <th scope="col" className="px-4 py-3">
+                    Name
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Location
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Region
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Contacts
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    <span className="sr-only">Website</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {companies.map((c) => (
+                  <CompanyRow key={c.id} company={c} />
+                ))}
+              </tbody>
+            </table>
+          }
+          cards={companies.map((c) => (
+            <CompanyCard key={c.id} company={c} />
           ))}
-        </div>
+        />
       )}
     </div>
+  );
+}
+
+function CompanyRow({ company: c }: { company: CompanyListItem }) {
+  const location = [c.city, c.country].filter(Boolean).join(", ") || "No address";
+
+  return (
+    <tr className={cn(tableRowClassName, "relative")}>
+      <td className="px-4 py-3 align-middle">
+        <Link
+          href={`/clients/${c.id}`}
+          className="absolute inset-0 focus-visible:z-10 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+        >
+          <span className="sr-only">Open {c.name}</span>
+        </Link>
+        <span aria-hidden="true" className="relative font-medium text-brand-dark">
+          {c.name}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-sm text-slate-600">{location}</td>
+      <td className="px-4 py-3">
+        <StatusBadge tone="slate">{c.regionCode}</StatusBadge>
+      </td>
+      <td className="px-4 py-3 text-sm text-slate-500">
+        {c.contactCount} {c.contactCount === 1 ? "contact" : "contacts"}
+      </td>
+      <td className="px-4 py-3 text-right">
+        {c.website ? (
+          <a
+            href={c.website}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Open ${c.name}'s website`}
+            className="focus-ring relative z-10 -my-1 inline-flex size-11 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand"
+          >
+            <ExternalLink className="size-4" aria-hidden="true" />
+          </a>
+        ) : null}
+      </td>
+    </tr>
+  );
+}
+
+function CompanyCard({ company: c }: { company: CompanyListItem }) {
+  const location = [c.city, c.country].filter(Boolean).join(", ") || "No address";
+
+  return (
+    <Link
+      href={`/clients/${c.id}`}
+      className="focus-ring flex min-h-12 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-colors active:bg-slate-100"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Building2 className="size-4 shrink-0 text-brand" aria-hidden="true" />
+          <p className="truncate font-medium text-brand-dark">{c.name}</p>
+        </div>
+        <StatusBadge tone="slate" className="shrink-0">
+          {c.regionCode}
+        </StatusBadge>
+      </div>
+      <div className="flex items-center justify-between gap-3 text-sm text-slate-500">
+        <span className="truncate">{location}</span>
+        <span className="shrink-0">
+          {c.contactCount} {c.contactCount === 1 ? "contact" : "contacts"}
+        </span>
+      </div>
+      {c.website ? (
+        <a
+          href={c.website}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Open ${c.name}'s website`}
+          className="focus-ring -my-1 inline-flex min-h-11 w-fit items-center gap-1.5 rounded-md text-sm text-slate-500 hover:text-brand"
+        >
+          <ExternalLink className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{c.website}</span>
+        </a>
+      ) : null}
+    </Link>
   );
 }
