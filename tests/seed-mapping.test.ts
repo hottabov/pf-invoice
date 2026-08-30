@@ -1,16 +1,20 @@
 import { describe, it, expect } from "vitest";
 import catalogData from "../prisma/seed-data/catalog.json";
+import contentBlocksData from "../prisma/seed-data/content-blocks.json";
 import {
   type Catalog,
+  type ContentBlocksJson,
   REGIONS,
   mapSeries,
   mapProducts,
   mapOptions,
   mapPrices,
   mapCompatibility,
+  mapContentBlocks,
 } from "../prisma/seed-lib";
 
 const catalog = catalogData as Catalog;
+const contentBlocksJson = contentBlocksData as ContentBlocksJson;
 
 /**
  * Small, handcrafted catalog used to assert literal expected outputs of the
@@ -133,5 +137,44 @@ describe("seed-lib: smoke assertions against the real catalog.json (counts only)
 
   it("has exactly 52 total products", () => {
     expect(mapProducts(catalog)).toHaveLength(52);
+  });
+});
+
+describe("mapContentBlocks", () => {
+  const FIXTURE_JSON: ContentBlocksJson = {
+    blocks: [
+      { key: "terms.delivery", title: "Delivery", sortOrder: 1, body: "Delivered in {{weeks}} weeks." },
+      { key: "option.OFD", title: "OFD", sortOrder: 2, body: "**OFD** offload display." },
+    ],
+    placeholders: { weeks: "Delivery time in weeks" },
+  };
+
+  it("maps each block's key/title/body/sortOrder 1:1 from the JSON", () => {
+    expect(mapContentBlocks(FIXTURE_JSON)).toEqual([
+      { key: "terms.delivery", title: "Delivery", body: "Delivered in {{weeks}} weeks.", sortOrder: 1 },
+      { key: "option.OFD", title: "OFD", body: "**OFD** offload display.", sortOrder: 2 },
+    ]);
+  });
+
+  it("real content-blocks.json has exactly 52 blocks", () => {
+    expect(mapContentBlocks(contentBlocksJson)).toHaveLength(52);
+  });
+
+  it("real content-blocks.json has unique keys", () => {
+    const keys = mapContentBlocks(contentBlocksJson).map((b) => b.key);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("real content-blocks.json has no empty (or whitespace-only) bodies", () => {
+    for (const block of mapContentBlocks(contentBlocksJson)) {
+      expect(block.body.trim().length, `expected "${block.key}" to have a non-empty body`).toBeGreaterThan(0);
+    }
+  });
+
+  it("real content-blocks.json has no empty titles and non-negative sort orders", () => {
+    for (const block of mapContentBlocks(contentBlocksJson)) {
+      expect(block.title.trim().length, `expected "${block.key}" to have a non-empty title`).toBeGreaterThan(0);
+      expect(block.sortOrder).toBeGreaterThanOrEqual(0);
+    }
   });
 });

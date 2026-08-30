@@ -1,0 +1,175 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
+import type { z } from "zod";
+import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/authz";
+import { contentBlockSchema, regionCodeSchema, CONTENT_KEY_REGEX } from "@/lib/validation/content";
+
+export type ActionResult = { error?: string };
+
+/** Join every zod issue message (form-level + field-level) into one string
+ * for a plain `{ error }` result — mirrors src/lib/actions/catalog.ts. */
+function flattenZodError(error: z.ZodError): string {
+  const flat = error.flatten();
+  const messages = [...flat.formErrors, ...Object.values(flat.fieldErrors).flat()].filter(
+    (m): m is string => Boolean(m)
+  );
+  return messages.length > 0 ? messages.join(" ") : "Invalid input";
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function readContentBlockForm(formData: FormData) {
+  return {
+    title: formData.get("title"),
+    body: formData.get("body"),
+    sortOrder: formData.get("sortOrder"),
+  };
+}
+
+function revalidateContentPaths(key: string) {
+  revalidatePath("/settings/content");
+  revalidatePath(`/settings/content/${encodeURIComponent(key)}`);
+}
+
+/** Resolves a region code to its id, or `null` for the default (regionId
+ * null) row. Returns `{ error }` if a non-null code doesn't match an
+ * existing region. */
+async function resolveRegionId(regionCode: string | null): Promise<{ error: string } | { regionId: string | null }> {
+  if (regionCode === null) return { regionId: null };
+  const parsed = regionCodeSchema.safeParse(regionCode);
+  if (!parsed.success) return { error: flattenZodError(parsed.error) };
+  const region = await db.region.findUnique({ where: { code: parsed.data } });
+  if (!region) return { error: "Region not found" };
+  return { regionId: region.id };
+}
+
+/**
+ * Creates or updates the content block at `key` for `regionCode` (or the
+ * region-null default when `regionCode` is null). `ContentBlock`'s
+ * `@@unique([key, regionId])` can't stop two regionId:null rows for the
+ * same key at the Postgres level (NULL is never equal to NULL for
+ * uniqueness purposes), so this always finds-then-writes rather than
+ * relying on Prisma's composite-key upsert — same pattern as
+ * `setOptionCompatibility` in src/lib/actions/catalog.ts. A P2002 from a
+ * concurrent create (two admins saving the same new override at once) is
+ * retried as an update against the row the other request just created,
+ * rather than failing the whole save.
+ */
+export async function updateContentBlock(
+  key: string,
+  regionCode: string | null,
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  if (!CONTENT_KEY_REGEX.test(key)) return { error: "Invalid content block key" };
+
+  const parsed = contentBlockSchema.safeParse({ key, ...readContentBlockForm(formData) });
+  if (!parsed.success) {
+    return { error: flattenZodError(parsed.error) };
+  }
+
+  const resolved = await resolveRegionId(regionCode);
+  if ("error" in resolved) return { error: resolved.error };
+  const { regionId } = resolved;
+
+  const data = {
+    title: parsed.data.title ?? null,
+    body: parsed.data.body,
+    sortOrder: parsed.data.sortOrder,
+  };
+
+  const existing = await db.contentBlock.findFirst({ where: { key: parsed.data.key, regionId } });
+
+  if (existing) {
+    await db.contentBlock.update({ where: { id: existing.id }, data });
+  } else {
+    try {
+      await db.contentBlock.create({ data: { key: parsed.data.key, regionId, ...data } });
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error;
+      const raced = await db.contentBlock.findFirst({ where: { key: parsed.data.key, regionId } });
+      if (!raced) throw error;
+      await db.contentBlock.update({ where: { id: raced.id }, data });
+    }
+  }
+
+  revalidateContentPaths(parsed.data.key);
+  return {};
+}
+
+/**
+ * Creates a region override for `key`/`regionCode`, seeded with a copy of
+ * the current default (regionId:null) block's title/body/sortOrder — the
+ * admin then edits it independently via `updateContentBlock`. Fails if the
+ * default block doesn't exist (nothing to copy from) or an override for
+ * this region already exists.
+ */
+export async function createRegionOverride(key: string, regionCode: string): Promise<ActionResult> {
+  await requireAdmin();
+
+  if (!CONTENT_KEY_REGEX.test(key)) return { error: "Invalid content block key" };
+
+  const parsedRegion = regionCodeSchema.safeParse(regionCode);
+  if (!parsedRegion.success) return { error: flattenZodError(parsedRegion.error) };
+
+  const region = await db.region.findUnique({ where: { code: parsedRegion.data } });
+  if (!region) return { error: "Region not found" };
+
+  const [defaultBlock, existingOverride] = await Promise.all([
+    db.contentBlock.findFirst({ where: { key, regionId: null } }),
+    db.contentBlock.findFirst({ where: { key, regionId: region.id } }),
+  ]);
+  if (!defaultBlock) return { error: "Default block not found" };
+  if (existingOverride) return { error: "An override already exists for this region" };
+
+  try {
+    await db.contentBlock.create({
+      data: {
+        key,
+        regionId: region.id,
+        title: defaultBlock.title,
+        body: defaultBlock.body,
+        sortOrder: defaultBlock.sortOrder,
+      },
+    });
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error;
+    return { error: "An override already exists for this region" };
+  }
+
+  revalidateContentPaths(key);
+  return {};
+}
+
+/**
+ * Deletes the region override for `key`/`regionCode`, so that region falls
+ * back to the default block again. Never touches the default (regionId:
+ * null) row — there is no `regionCode: null` overload of this action, and a
+ * non-existent/invalid region code just fails with "Region not found"
+ * rather than resolving to the default.
+ */
+export async function deleteRegionOverride(key: string, regionCode: string): Promise<ActionResult> {
+  await requireAdmin();
+
+  if (!CONTENT_KEY_REGEX.test(key)) return { error: "Invalid content block key" };
+
+  const parsedRegion = regionCodeSchema.safeParse(regionCode);
+  if (!parsedRegion.success) return { error: flattenZodError(parsedRegion.error) };
+
+  const region = await db.region.findUnique({ where: { code: parsedRegion.data } });
+  if (!region) return { error: "Region not found" };
+
+  const existing = await db.contentBlock.findFirst({ where: { key, regionId: region.id } });
+  if (!existing) return { error: "Override not found" };
+
+  await db.contentBlock.delete({ where: { id: existing.id } });
+
+  revalidateContentPaths(key);
+  return {};
+}

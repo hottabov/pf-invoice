@@ -14,17 +14,21 @@
 import "dotenv/config";
 import { Prisma } from "@prisma/client";
 import catalogData from "./seed-data/catalog.json";
+import contentBlocksData from "./seed-data/content-blocks.json";
 import {
   type Catalog,
+  type ContentBlocksJson,
   REGIONS,
   mapSeries,
   mapProducts,
   mapOptions,
   mapPrices,
   mapCompatibility,
+  mapContentBlocks,
 } from "./seed-lib";
 
 const catalog = catalogData as Catalog;
+const contentBlocksJson = contentBlocksData as ContentBlocksJson;
 
 /**
  * Option codes retired by the EasyLoader/EasyFeeder/Software reclassification
@@ -230,6 +234,45 @@ async function main() {
     compatCount++;
   }
 
+  // 8. Content blocks -- one regionId:null "default" row per key from
+  // prisma/seed-data/content-blocks.json. Create if the key has never been
+  // seeded before; if a default row already exists, leave it entirely alone
+  // (never overwrite title/body/sortOrder) so an admin's edits made via
+  // /settings/content always win over re-running the seed. Like
+  // OptionCompatibility above, ContentBlock's @@unique([key, regionId]) can't
+  // stop two regionId:null rows for the same key at the Postgres level
+  // (NULL is never equal to NULL for uniqueness purposes), so this checks
+  // first via findFirst rather than a composite-key upsert, and tolerates a
+  // P2002 from a concurrent/duplicate seed run the same way compatibility
+  // rows do.
+  let contentBlockCreated = 0;
+  let contentBlockSkipped = 0;
+  for (const block of mapContentBlocks(contentBlocksJson)) {
+    const existing = await db.contentBlock.findFirst({
+      where: { key: block.key, regionId: null },
+    });
+    if (existing) {
+      contentBlockSkipped++;
+      continue;
+    }
+    try {
+      await db.contentBlock.create({
+        data: {
+          key: block.key,
+          regionId: null,
+          title: block.title,
+          body: block.body,
+          sortOrder: block.sortOrder,
+        },
+      });
+      contentBlockCreated++;
+    } catch (e) {
+      const isDuplicate = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+      if (!isDuplicate) throw e;
+      contentBlockSkipped++;
+    }
+  }
+
   console.log("seed: done");
   console.log(`  regions:        ${regionIdByCode.size}`);
   console.log(`  series:         ${seriesIdByCode.size}`);
@@ -238,6 +281,7 @@ async function main() {
   console.log(`  options:        ${optionIdByCode.size}`);
   console.log(`  prices:         ${priceCount}`);
   console.log(`  compatibility:  ${compatCount}`);
+  console.log(`  content blocks: ${contentBlockCreated} created, ${contentBlockSkipped} skipped (already seeded)`);
 }
 
 main()

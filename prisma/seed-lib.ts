@@ -214,3 +214,46 @@ export function mapCompatibility(catalog: Catalog): CompatPayload[] {
   }
   return out;
 }
+
+// --- content blocks ------------------------------------------------------
+
+/** One entry of prisma/seed-data/content-blocks.json's `blocks` array. */
+export interface ContentBlockJsonItem {
+  key: string;
+  title: string;
+  sortOrder: number;
+  body: string;
+}
+
+/** Shape of prisma/seed-data/content-blocks.json. `placeholders` maps a
+ * `{{token}}` name (as it appears in one or more block bodies) to a
+ * human-readable description — consumed directly by the admin editor's
+ * placeholder hint panel, not by this mapper. */
+export interface ContentBlocksJson {
+  blocks: ContentBlockJsonItem[];
+  placeholders: Record<string, string>;
+}
+
+export interface ContentBlockPayload {
+  key: string;
+  title: string;
+  body: string;
+  sortOrder: number;
+}
+
+/**
+ * Pure passthrough mapping from content-blocks.json's `blocks` array to the
+ * flat payload prisma/seed.ts writes as each key's regionId:null default row.
+ * No validation here (that's the admin editor's zod schema's job for
+ * *edits*) — this just shapes the seed data 1:1, kept as its own function so
+ * it's unit-testable and so the IO shell (prisma/seed.ts) never touches the
+ * JSON's field names directly.
+ */
+export function mapContentBlocks(json: ContentBlocksJson): ContentBlockPayload[] {
+  return json.blocks.map((b) => ({
+    key: b.key,
+    title: b.title,
+    body: b.body,
+    sortOrder: b.sortOrder,
+  }));
+}

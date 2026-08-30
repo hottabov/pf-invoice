@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import { Settings2 } from "lucide-react";
+import Link from "next/link";
+import { FileText, Settings2 } from "lucide-react";
 import { auth } from "@/auth";
 import { getRegionById } from "@/lib/queries/catalog";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE, EmptyState } from "@/components/ui-kit";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
@@ -37,6 +40,21 @@ export default async function SettingsPage() {
           </div>
         </dl>
       </SectionCard>
+
+      {session.user.role === "ADMIN" ? (
+        <SectionCard
+          title="Content blocks"
+          description="Manage reusable quote text — machine descriptions, options, terms, and conditions."
+        >
+          <Link
+            href="/settings/content"
+            className={cn(buttonVariants({ variant: "outline" }), "h-11 w-full sm:w-auto")}
+          >
+            <FileText className="size-4" data-icon="inline-start" aria-hidden="true" />
+            Manage content blocks
+          </Link>
+        </SectionCard>
+      ) : null}
 
       <EmptyState
         icon={Settings2}
