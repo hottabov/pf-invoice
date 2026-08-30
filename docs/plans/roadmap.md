@@ -11,7 +11,7 @@ Spec: `docs/specs/2026-08-29-pathquote-design.md`. Detailed plans live in `docs/
 | 5. Invoice PDF ✅ | Invoice HTML template (brand, entity legal block, tax), Gotenberg PDF, numbering sequences, finalize + snapshots. Done 2026-08-30. | `2026-08-30-phase-5-finalize-pdf.md` |
 | 5b. UI/UX overhaul ✅ | Touch-friendly + full desktop layouts, ui-ux-pro-max driven design pass across all screens. Done 2026-08-31. | 2026-08-30-phase-5b-ux-overhaul.md |
 | 6. Quotation ✅ | Extended quotation template, content_blocks admin (T&C, General Conditions, RSP, option descriptions), RSP coverage table. Done 2026-08-31. | seed-data/content-blocks.json + quotation renderer |
-| 7. Admin & polish | Users/regions/entities admin, settings, backups (pg_dump cron), e2e suite, mobile polish. | TBD |
+| 7. Admin & polish ✅ | Users/regions/entities admin, settings, backups (pg_dump cron documented), polish. Done 2026-08-31. E2E deferred post-v1. | TBD |
 
 Out of scope v1: client emailing, payment tracking, FX conversion, client portal.
 
