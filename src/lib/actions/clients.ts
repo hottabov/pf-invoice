@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
 import { companyWhereForUser } from "@/lib/scope";
 import { companySchema, contactSchema } from "@/lib/validation/clients";
+import { idSchema } from "@/lib/validation/documents";
 
 export type ActionResult = { error?: string };
 
@@ -90,6 +91,11 @@ export async function createCompany(formData: FormData): Promise<ActionResult> {
 export async function updateCompany(companyId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
 
+  const idParsed = idSchema.safeParse(companyId);
+  if (!idParsed.success) {
+    return { error: NOT_FOUND_ERROR };
+  }
+
   const parsed = companySchema.safeParse(readCompanyForm(formData));
   if (!parsed.success) {
     return { error: flattenZodError(parsed.error) };
@@ -126,6 +132,11 @@ export async function updateCompany(companyId: string, formData: FormData): Prom
 export async function deleteCompany(companyId: string): Promise<ActionResult> {
   const session = await requireSession();
 
+  const idParsed = idSchema.safeParse(companyId);
+  if (!idParsed.success) {
+    return { error: NOT_FOUND_ERROR };
+  }
+
   const existing = await db.company.findFirst({
     where: { id: companyId, ...companyWhereForUser(session.user) },
   });
@@ -153,6 +164,11 @@ export async function deleteCompany(companyId: string): Promise<ActionResult> {
  */
 export async function createContact(companyId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
+
+  const idParsed = idSchema.safeParse(companyId);
+  if (!idParsed.success) {
+    return { error: NOT_FOUND_ERROR };
+  }
 
   const company = await db.company.findFirst({
     where: { id: companyId, ...companyWhereForUser(session.user) },
@@ -191,6 +207,11 @@ export async function createContact(companyId: string, formData: FormData): Prom
 export async function updateContact(contactId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
 
+  const idParsed = idSchema.safeParse(contactId);
+  if (!idParsed.success) {
+    return { error: NOT_FOUND_ERROR };
+  }
+
   const existing = await db.contact.findFirst({
     where: { id: contactId, company: companyWhereForUser(session.user) },
   });
@@ -227,6 +248,11 @@ export async function updateContact(contactId: string, formData: FormData): Prom
 
 export async function deleteContact(contactId: string): Promise<ActionResult> {
   const session = await requireSession();
+
+  const idParsed = idSchema.safeParse(contactId);
+  if (!idParsed.success) {
+    return { error: NOT_FOUND_ERROR };
+  }
 
   const existing = await db.contact.findFirst({
     where: { id: contactId, company: companyWhereForUser(session.user) },

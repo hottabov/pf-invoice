@@ -38,6 +38,9 @@ function flattenZodError(error: z.ZodError): string {
 
 // --- recalculation --------------------------------------------------------
 
+// NOTE: callers currently ignore the returned violations. Phase 5 finalize MUST
+// check them (a series' maxDiscountPct can be lowered after an item discount was
+// saved) and refuse to finalize a document with violations.
 /**
  * Recomputes and persists a document's subtotal/taxAmount/total from its
  * current items, item lines and document-level lines, via the pure pricing
