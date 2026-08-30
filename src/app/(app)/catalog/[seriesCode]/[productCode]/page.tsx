@@ -7,6 +7,7 @@ import { ProductForm } from "@/components/catalog/product-form";
 import { PriceEditor } from "@/components/catalog/price-editor";
 import { ImageUpload } from "@/components/catalog/image-upload";
 import { DeleteButton } from "@/components/catalog/delete-button";
+import { PageHeader, SectionCard } from "@/components/ui-kit";
 
 export const dynamic = "force-dynamic";
 
@@ -34,20 +35,18 @@ export default async function ProductEditorPage({ params }: { params: Promise<Pa
   const isAdmin = session?.user?.role === "ADMIN";
 
   return (
-    <div className="mx-auto w-full max-w-lg">
-      <div>
-        <p className="text-sm text-muted-foreground">{product.series.name}</p>
-        <h1 className="text-xl font-semibold text-brand-dark">{product.name}</h1>
-        {!isAdmin && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            View only — ask an admin to make changes.
-          </p>
-        )}
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        backHref={`/catalog/${encodeURIComponent(product.series.code)}`}
+        backLabel={product.series.name}
+        title={product.name}
+        description={
+          isAdmin ? product.code : "View only — ask an admin to make changes."
+        }
+      />
 
-      <section className="mt-6 rounded-xl border border-border bg-white p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-brand-dark">Details</h2>
-        <div className="mt-4">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
+        <SectionCard title="Details" className="lg:col-span-2">
           <ProductForm
             action={updateProduct.bind(null, product.id)}
             defaultValues={{
@@ -60,47 +59,42 @@ export default async function ProductEditorPage({ params }: { params: Promise<Pa
             submitLabel="Save changes"
             readOnly={!isAdmin}
           />
-        </div>
-      </section>
+        </SectionCard>
 
-      <section className="mt-6">
-        <h2 className="text-sm font-semibold text-brand-dark">Prices by region</h2>
-        <div className="mt-3">
-          <PriceEditor
-            target={{ productId: product.id }}
-            rows={product.prices}
-            action={upsertPrice}
-            readOnly={!isAdmin}
-          />
-        </div>
-      </section>
+        <div className="flex flex-col gap-6">
+          <SectionCard title="Image">
+            <ImageUpload
+              currentUrl={product.imageUrl}
+              alt={product.name}
+              onSave={updateProductImage.bind(null, product.id)}
+              readOnly={!isAdmin}
+            />
+          </SectionCard>
 
-      <section className="mt-6 rounded-xl border border-border bg-white p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-brand-dark">Image</h2>
-        <div className="mt-3">
-          <ImageUpload
-            currentUrl={product.imageUrl}
-            alt={product.name}
-            onSave={updateProductImage.bind(null, product.id)}
-            readOnly={!isAdmin}
-          />
+          <SectionCard title="Prices by region">
+            <PriceEditor
+              target={{ productId: product.id }}
+              rows={product.prices}
+              action={upsertPrice}
+              readOnly={!isAdmin}
+            />
+          </SectionCard>
         </div>
-      </section>
+      </div>
 
       {isAdmin && (
-        <section className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-destructive">Danger zone</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Deleting a product removes its prices too. Products used on a document can&apos;t be
-            deleted.
-          </p>
-          <div className="mt-3">
-            <DeleteButton
-              action={deleteProduct.bind(null, product.id)}
-              confirmMessage={`Delete ${product.code} — ${product.name}? This can't be undone.`}
-            />
-          </div>
-        </section>
+        <SectionCard
+          tone="danger"
+          title="Danger zone"
+          description="Deleting a product removes its prices too. Products used on a document can't be deleted."
+        >
+          <DeleteButton
+            action={deleteProduct.bind(null, product.id)}
+            confirmTitle={`Delete ${product.code} — ${product.name}?`}
+            confirmDescription="This removes its prices too. This can't be undone."
+            label="Delete product"
+          />
+        </SectionCard>
       )}
     </div>
   );

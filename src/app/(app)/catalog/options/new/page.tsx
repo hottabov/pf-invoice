@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { createOption } from "@/lib/actions/catalog";
 import { OptionForm } from "@/components/catalog/option-form";
+import { PageHeader, SectionCard } from "@/components/ui-kit";
 
 export const metadata: Metadata = { title: "New option" };
 export const dynamic = "force-dynamic";
@@ -12,13 +13,15 @@ export default async function NewOptionPage() {
   if (session?.user?.role !== "ADMIN") redirect("/catalog/options");
 
   return (
-    <div className="mx-auto w-full max-w-lg">
-      <h1 className="text-xl font-semibold text-brand-dark">New option</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        A global option, available across product series.
-      </p>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+      <PageHeader
+        backHref="/catalog/options"
+        backLabel="Options"
+        title="New option"
+        description="A global option, available across product series."
+      />
 
-      <div className="mt-6 rounded-xl border border-border bg-white p-4 sm:p-6">
+      <SectionCard>
         <OptionForm
           action={createOption}
           defaultValues={{
@@ -31,7 +34,7 @@ export default async function NewOptionPage() {
           }}
           submitLabel="Create option"
         />
-      </div>
+      </SectionCard>
     </div>
   );
 }

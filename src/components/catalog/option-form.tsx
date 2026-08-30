@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { Field, inputClass, textareaClass } from "@/components/catalog/field";
+import { FieldRow, fieldInputClass } from "@/components/ui-kit";
+import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/catalog";
 
 export type OptionFormValues = {
@@ -19,7 +20,8 @@ const initialState: ActionResult = {};
 /**
  * The option create/edit form. Same fields as ProductForm plus a short
  * description and a raw-JSON attribute schema textarea (validated by
- * optionSchema — must parse to an array or object, or be left empty).
+ * optionSchema — must parse to an array or object, or be left empty), set
+ * in a monospace face since it holds structured text.
  */
 export function OptionForm({
   action,
@@ -40,80 +42,87 @@ export function OptionForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <Field label="Code" htmlFor="option-code">
-        <input
-          id="option-code"
-          name="code"
-          defaultValue={defaultValues.code}
-          required
-          disabled={readOnly}
-          className={inputClass}
-        />
-      </Field>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <FieldRow label="Code" htmlFor="option-code" required>
+          <input
+            id="option-code"
+            name="code"
+            defaultValue={defaultValues.code}
+            required
+            disabled={readOnly}
+            className={fieldInputClass}
+          />
+        </FieldRow>
 
-      <Field label="Name" htmlFor="option-name">
-        <input
-          id="option-name"
-          name="name"
-          defaultValue={defaultValues.name}
-          required
-          minLength={2}
-          maxLength={200}
-          disabled={readOnly}
-          className={inputClass}
-        />
-      </Field>
+        <FieldRow label="Name" htmlFor="option-name" required>
+          <input
+            id="option-name"
+            name="name"
+            defaultValue={defaultValues.name}
+            required
+            minLength={2}
+            maxLength={200}
+            disabled={readOnly}
+            className={fieldInputClass}
+          />
+        </FieldRow>
 
-      <Field label="Short description" htmlFor="option-short-description">
-        <textarea
-          id="option-short-description"
-          name="shortDescription"
-          defaultValue={defaultValues.shortDescription}
-          maxLength={500}
-          rows={2}
-          disabled={readOnly}
-          className={textareaClass}
-        />
-      </Field>
+        <FieldRow
+          label="Short description"
+          htmlFor="option-short-description"
+          className="lg:col-span-2"
+        >
+          <textarea
+            id="option-short-description"
+            name="shortDescription"
+            defaultValue={defaultValues.shortDescription}
+            maxLength={500}
+            rows={2}
+            disabled={readOnly}
+            className={cn(fieldInputClass, "h-auto min-h-16 py-2")}
+          />
+        </FieldRow>
 
-      <Field
-        label="Attribute schema (JSON)"
-        htmlFor="option-attribute-schema"
-        hint='Optional. Must be a JSON array or object, e.g. [{"key":"metres","label":"Travel (m)","type":"number"}]. Leave blank for none.'
-      >
-        <textarea
-          id="option-attribute-schema"
-          name="attributeSchema"
-          defaultValue={defaultValues.attributeSchema}
-          rows={4}
-          disabled={readOnly}
-          className={`${textareaClass} font-mono text-xs`}
-        />
-      </Field>
+        <FieldRow
+          label="Attribute schema (JSON)"
+          htmlFor="option-attribute-schema"
+          hint='Optional. Must be a JSON array or object, e.g. [{"key":"metres","label":"Travel (m)","type":"number"}]. Leave blank for none.'
+          className="lg:col-span-2"
+        >
+          <textarea
+            id="option-attribute-schema"
+            name="attributeSchema"
+            defaultValue={defaultValues.attributeSchema}
+            rows={4}
+            disabled={readOnly}
+            className={cn(fieldInputClass, "h-auto min-h-24 py-2 font-mono text-xs")}
+          />
+        </FieldRow>
 
-      <label className="flex items-center gap-2 text-sm font-medium text-brand-dark">
-        <input
-          name="active"
-          type="checkbox"
-          defaultChecked={defaultValues.active}
-          disabled={readOnly}
-          className="size-4 rounded border-border accent-brand disabled:cursor-not-allowed"
-        />
-        Active
-      </label>
+        <label className="flex h-11 items-center gap-2 text-sm font-medium text-brand-dark">
+          <input
+            name="active"
+            type="checkbox"
+            defaultChecked={defaultValues.active}
+            disabled={readOnly}
+            className="size-4 rounded border-slate-300 accent-brand disabled:cursor-not-allowed"
+          />
+          Active
+        </label>
 
-      <Field label="Sort order" htmlFor="option-sort-order" hint="Lower numbers list first.">
-        <input
-          id="option-sort-order"
-          name="sortOrder"
-          type="number"
-          min={0}
-          step={1}
-          defaultValue={defaultValues.sortOrder}
-          disabled={readOnly}
-          className={inputClass}
-        />
-      </Field>
+        <FieldRow label="Sort order" htmlFor="option-sort-order" hint="Lower numbers list first.">
+          <input
+            id="option-sort-order"
+            name="sortOrder"
+            type="number"
+            min={0}
+            step={1}
+            defaultValue={defaultValues.sortOrder}
+            disabled={readOnly}
+            className={fieldInputClass}
+          />
+        </FieldRow>
+      </div>
 
       {state.error ? (
         <p role="alert" className="text-sm text-destructive">
@@ -125,7 +134,7 @@ export function OptionForm({
         <Button
           type="submit"
           disabled={pending}
-          className="h-10 w-full bg-brand text-white hover:bg-brand/90 sm:w-auto sm:self-start"
+          className="h-11 w-full bg-brand text-white hover:bg-brand/90 sm:w-auto sm:self-start"
         >
           {pending ? "Saving…" : submitLabel}
         </Button>

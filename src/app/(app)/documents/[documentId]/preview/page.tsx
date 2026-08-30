@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowLeft, Download } from "lucide-react";
+import { ChevronLeft, Download } from "lucide-react";
 import { auth } from "@/auth";
 import { getDocumentForBuilder } from "@/lib/queries/documents";
 import { toSheetData } from "@/lib/sheet-data";
 import { DocumentSheet } from "@/components/sheet/document-sheet";
+import { buttonVariants } from "@/components/ui/button";
+import { StatusBadge, STATUS_TONE } from "@/components/ui-kit";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +36,9 @@ export async function generateMetadata({
  * `/api/files/<name>` URL (the default `toSheetData` resolver): unlike the
  * PDF pipeline, this page runs in an already-authenticated browser tab, so
  * the auth-gated file route just works.
+ *
+ * The chrome around the sheet (this file) is restyled per phase 5b; the
+ * sheet itself (`DocumentSheet`) is print-critical and untouched.
  */
 export default async function DocumentPreviewPage({ params }: { params: Promise<Params> }) {
   const { documentId } = await params;
@@ -46,27 +52,36 @@ export default async function DocumentPreviewPage({ params }: { params: Promise<
   if (!document) notFound();
 
   const sheetData = toSheetData(document);
+  const statusLabel = document.status === "DRAFT" ? "Draft" : "Final";
+  const numberLabel = document.number ?? `${document.type === "QUOTE" ? "Quote" : "Invoice"} draft`;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 pb-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-white px-4 py-3">
-        <Link
-          href={`/documents/${document.id}`}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-brand-dark"
-        >
-          <ArrowLeft className="size-4" />
-          Back to editor
-        </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link
+            href={`/documents/${document.id}`}
+            className="focus-ring -my-1 inline-flex items-center gap-1 rounded-md py-1 text-sm font-medium text-slate-500 transition-colors hover:text-brand-dark"
+          >
+            <ChevronLeft className="size-4" aria-hidden="true" />
+            Back to editor
+          </Link>
+          <span className="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true" />
+          <span className="truncate font-mono text-sm text-brand-dark">{numberLabel}</span>
+          <StatusBadge tone={STATUS_TONE[document.status]} className="shrink-0">
+            {statusLabel}
+          </StatusBadge>
+        </div>
         <a
           href={`/api/documents/${document.id}/pdf`}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-2.5 text-sm font-medium text-white hover:bg-brand/90"
+          className={cn(buttonVariants(), "h-11 w-full bg-brand text-white hover:bg-brand/90 sm:w-auto")}
         >
-          <Download className="size-4" />
+          <Download className="size-4" data-icon="inline-start" aria-hidden="true" />
           Download PDF
         </a>
       </div>
 
-      <div className="overflow-x-auto rounded-xl bg-zinc-200 p-4 sm:p-8">
+      <div className="overflow-x-auto rounded-xl bg-slate-100 p-4 sm:p-8">
         <div className="mx-auto w-fit shadow-lg">
           <DocumentSheet data={sheetData} />
         </div>

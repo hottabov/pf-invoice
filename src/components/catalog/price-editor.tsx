@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { inputClass } from "@/components/catalog/field";
+import { fieldInputClass, StatusBadge } from "@/components/ui-kit";
+import { cn } from "@/lib/utils";
 import type { ActionResult, PriceTarget } from "@/lib/actions/catalog";
 
 export type PriceRowData = {
@@ -34,14 +35,12 @@ function PriceRow({
   return (
     <form
       action={formAction}
-      className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4"
+      className="flex flex-col gap-2 border-b border-slate-100 py-3 last:border-b-0 sm:flex-row sm:items-center sm:gap-3"
     >
       <input type="hidden" name="regionCode" value={row.regionCode} />
-      <div className="flex min-w-[8rem] flex-col">
-        <span className="text-sm font-medium text-brand-dark">{row.regionName}</span>
-        <span className="text-xs text-muted-foreground">
-          {row.regionCode} &middot; {row.currency}
-        </span>
+      <div className="flex min-w-0 flex-1 items-baseline gap-1.5 sm:flex-none sm:w-32">
+        <span className="text-sm font-medium text-brand-dark">{row.regionCode}</span>
+        <span className="text-xs text-slate-500">{row.currency}</span>
       </div>
       <div className="flex flex-1 items-center gap-2">
         <input
@@ -52,19 +51,24 @@ function PriceRow({
           placeholder="e.g. 175000"
           defaultValue={row.amount ?? ""}
           disabled={readOnly}
-          className={`${inputClass} sm:max-w-[10rem]`}
+          className={cn(fieldInputClass, "text-right tabular-nums")}
         />
         {!readOnly && (
-          <Button type="submit" variant="outline" size="sm" disabled={pending}>
+          <Button
+            type="submit"
+            variant="outline"
+            className="h-11 shrink-0 sm:h-9"
+            disabled={pending}
+          >
             {pending ? "Saving…" : "Save"}
           </Button>
         )}
-        {row.needsReview ? (
-          <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-600">
-            price required
-          </span>
-        ) : null}
       </div>
+      {row.needsReview ? (
+        <StatusBadge tone="amber" className="w-fit shrink-0 sm:ml-1">
+          Price required
+        </StatusBadge>
+      ) : null}
       {state.error ? (
         <p role="alert" className="text-sm text-destructive sm:basis-full">
           {state.error}
@@ -79,6 +83,8 @@ function PriceRow({
  * to `upsertPrice` for the given target (a product or an option). Empty
  * amount clears the price; anything else upserts it and clears
  * needsReview. Read-only for non-admins (Managers can view but not edit).
+ * Amounts are right-aligned with tabular figures per the design direction's
+ * numeric-column convention.
  */
 export function PriceEditor({
   target,
@@ -92,7 +98,7 @@ export function PriceEditor({
   readOnly?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-white px-4">
+    <div>
       {rows.map((row) => (
         <PriceRow key={row.regionCode} target={target} row={row} action={action} readOnly={readOnly} />
       ))}

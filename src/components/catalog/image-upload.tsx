@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useTransition, type ChangeEvent } from "react";
+import { ImageIcon, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui-kit";
+import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/catalog";
 
 const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp";
@@ -13,6 +16,9 @@ const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp";
  * `/api/files/<name>` URL), then the bound `onSave` server action
  * (`updateProductImage`/`updateOptionImage`) persists that URL onto the
  * product/option row. "Remove image" calls the same action with `null`.
+ * The dashed border reads as a dropzone even though the only interaction
+ * is the file picker button below it (no drag-and-drop wiring — presentation
+ * only, per phase 5b scope).
  */
 export function ImageUpload({
   currentUrl,
@@ -30,6 +36,7 @@ export function ImageUpload({
   const [uploading, setUploading] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const busy = uploading || pending;
 
@@ -50,12 +57,16 @@ export function ImageUpload({
         | { url?: string; error?: string }
         | null;
       if (!response.ok || !body?.url) {
-        setError(body?.error ?? "Upload failed.");
+        const message = body?.error ?? "Upload failed.";
+        setError(message);
+        toast.error(message);
         return;
       }
       uploadedUrl = body.url;
     } catch {
-      setError("Upload failed. Check your connection and try again.");
+      const message = "Upload failed. Check your connection and try again.";
+      setError(message);
+      toast.error(message);
       return;
     } finally {
       setUploading(false);
@@ -65,9 +76,11 @@ export function ImageUpload({
       const result = await onSave(uploadedUrl);
       if (result.error) {
         setError(result.error);
+        toast.error(result.error);
         return;
       }
       setUrl(uploadedUrl);
+      toast.success("Image saved");
     });
   }
 
@@ -77,41 +90,59 @@ export function ImageUpload({
       const result = await onSave(null);
       if (result.error) {
         setError(result.error);
+        toast.error(result.error);
         return;
       }
       setUrl(null);
+      toast.success("Image removed");
     });
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={url}
-          alt={alt}
-          className="h-32 w-auto rounded-lg border border-border object-contain"
-        />
-      ) : (
-        <p className="text-sm text-muted-foreground">No image yet.</p>
-      )}
+      <div
+        className={cn(
+          "flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-4 text-center",
+          url ? "py-3" : "py-6"
+        )}
+      >
+        {url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={url}
+            alt={alt}
+            className="h-28 w-auto max-w-full rounded-lg border border-slate-200 bg-white object-contain"
+          />
+        ) : (
+          <>
+            <div className="flex size-10 items-center justify-center rounded-full bg-slate-100">
+              <ImageIcon className="size-5 text-slate-400" aria-hidden="true" />
+            </div>
+            <p className="text-sm text-slate-500">No image yet.</p>
+          </>
+        )}
+      </div>
 
       {!readOnly && (
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="file"
-            accept={ACCEPTED_TYPES}
-            onChange={handleFileChange}
-            disabled={busy}
-            aria-label="Upload image"
-            className="text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:border-border file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
-          />
+          <Button type="button" variant="outline" disabled={busy} className="relative h-11 overflow-hidden">
+            <Upload className="size-4" data-icon="inline-start" aria-hidden="true" />
+            {url ? "Replace image" : "Upload image"}
+            <input
+              type="file"
+              accept={ACCEPTED_TYPES}
+              onChange={handleFileChange}
+              disabled={busy}
+              aria-label="Upload image"
+              className="absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+            />
+          </Button>
           {url ? (
-            <Button type="button" variant="outline" onClick={handleRemove} disabled={busy}>
+            <Button type="button" variant="outline" onClick={handleRemove} disabled={busy} className="h-11">
               Remove image
             </Button>
           ) : null}
-          {busy ? <span className="text-sm text-muted-foreground">Saving…</span> : null}
+          {busy ? <span className="text-sm text-slate-500">Saving…</span> : null}
         </div>
       )}
 

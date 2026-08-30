@@ -14,6 +14,7 @@ import { PriceEditor } from "@/components/catalog/price-editor";
 import { CompatEditor } from "@/components/catalog/compat-editor";
 import { ImageUpload } from "@/components/catalog/image-upload";
 import { DeleteButton } from "@/components/catalog/delete-button";
+import { PageHeader, SectionCard } from "@/components/ui-kit";
 
 export const dynamic = "force-dynamic";
 
@@ -42,20 +43,16 @@ export default async function OptionEditorPage({ params }: { params: Promise<Par
   const isAdmin = session?.user?.role === "ADMIN";
 
   return (
-    <div className="mx-auto w-full max-w-lg">
-      <div>
-        <p className="text-sm text-muted-foreground">Option</p>
-        <h1 className="text-xl font-semibold text-brand-dark">{option.name}</h1>
-        {!isAdmin && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            View only — ask an admin to make changes.
-          </p>
-        )}
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        backHref="/catalog/options"
+        backLabel="Options"
+        title={option.name}
+        description={isAdmin ? option.code : "View only — ask an admin to make changes."}
+      />
 
-      <section className="mt-6 rounded-xl border border-border bg-white p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-brand-dark">Details</h2>
-        <div className="mt-4">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
+        <SectionCard title="Details" className="lg:col-span-2">
           <OptionForm
             action={updateOption.bind(null, option.id)}
             defaultValues={{
@@ -71,63 +68,55 @@ export default async function OptionEditorPage({ params }: { params: Promise<Par
             submitLabel="Save changes"
             readOnly={!isAdmin}
           />
-        </div>
-      </section>
+        </SectionCard>
 
-      <section className="mt-6 rounded-xl border border-border bg-white p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-brand-dark">Compatible series</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Series this option is available on. Product-level overrides aren&apos;t supported yet.
-        </p>
-        <div className="mt-3">
-          <CompatEditor
-            optionId={option.id}
-            series={series.map((s) => ({ id: s.id, code: s.code, name: s.name }))}
-            initialSelected={option.compatSeriesCodes}
-            action={setOptionCompatibility}
-            readOnly={!isAdmin}
-          />
-        </div>
-      </section>
+        <div className="flex flex-col gap-6">
+          <SectionCard title="Image">
+            <ImageUpload
+              currentUrl={option.imageUrl}
+              alt={option.name}
+              onSave={updateOptionImage.bind(null, option.id)}
+              readOnly={!isAdmin}
+            />
+          </SectionCard>
 
-      <section className="mt-6">
-        <h2 className="text-sm font-semibold text-brand-dark">Prices by region</h2>
-        <div className="mt-3">
-          <PriceEditor
-            target={{ optionId: option.id }}
-            rows={option.prices}
-            action={upsertPrice}
-            readOnly={!isAdmin}
-          />
-        </div>
-      </section>
+          <SectionCard title="Prices by region">
+            <PriceEditor
+              target={{ optionId: option.id }}
+              rows={option.prices}
+              action={upsertPrice}
+              readOnly={!isAdmin}
+            />
+          </SectionCard>
 
-      <section className="mt-6 rounded-xl border border-border bg-white p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-brand-dark">Image</h2>
-        <div className="mt-3">
-          <ImageUpload
-            currentUrl={option.imageUrl}
-            alt={option.name}
-            onSave={updateOptionImage.bind(null, option.id)}
-            readOnly={!isAdmin}
-          />
+          <SectionCard
+            title="Compatible series"
+            description="Series this option is available on. Product-level overrides aren't supported yet."
+          >
+            <CompatEditor
+              optionId={option.id}
+              series={series.map((s) => ({ id: s.id, code: s.code, name: s.name }))}
+              initialSelected={option.compatSeriesCodes}
+              action={setOptionCompatibility}
+              readOnly={!isAdmin}
+            />
+          </SectionCard>
         </div>
-      </section>
+      </div>
 
       {isAdmin && (
-        <section className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-destructive">Danger zone</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Deleting an option removes its prices and compatibility too. Options used on a
-            document can&apos;t be deleted.
-          </p>
-          <div className="mt-3">
-            <DeleteButton
-              action={deleteOption.bind(null, option.id)}
-              confirmMessage={`Delete ${option.code} — ${option.name}? This can't be undone.`}
-            />
-          </div>
-        </section>
+        <SectionCard
+          tone="danger"
+          title="Danger zone"
+          description="Deleting an option removes its prices and compatibility too. Options used on a document can't be deleted."
+        >
+          <DeleteButton
+            action={deleteOption.bind(null, option.id)}
+            confirmTitle={`Delete ${option.code} — ${option.name}?`}
+            confirmDescription="This removes its prices and compatibility too. This can't be undone."
+            label="Delete option"
+          />
+        </SectionCard>
       )}
     </div>
   );

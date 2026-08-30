@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui-kit";
+import { cn } from "@/lib/utils";
 
 export type SeriesOption = { id: string; code: string; name: string };
 
@@ -10,7 +12,10 @@ export type SeriesOption = { id: string; code: string; name: string };
  * `setOptionCompatibility` server action directly (not via a <form action>,
  * since it takes a plain string array rather than FormData) once the admin
  * hits Save, sending the full desired set — the action diffs it against
- * what's currently stored.
+ * what's currently stored. Rendered as a list of full-width 44px checkbox
+ * rows (rather than the compact pill layout used for read-only filters
+ * elsewhere) since each row needs a comfortable touch target and room for
+ * both the series code and its name.
  */
 export function CompatEditor({
   optionId,
@@ -27,7 +32,8 @@ export function CompatEditor({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(initialSelected));
   const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<{ error?: string; success?: boolean }>({});
+  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   function toggle(code: string) {
     if (readOnly) return;
@@ -37,50 +43,53 @@ export function CompatEditor({
       else next.add(code);
       return next;
     });
-    setResult({});
+    setError(null);
   }
 
   function save() {
     startTransition(async () => {
       const res = await action(optionId, Array.from(selected));
-      setResult(res.error ? { error: res.error } : { success: true });
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
+      setError(null);
+      toast.success("Compatibility saved");
     });
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-2">
+      <div className="rounded-lg border border-slate-200">
         {series.map((s) => {
           const active = selected.has(s.code);
           return (
             <label
               key={s.id}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-                active
-                  ? "border-brand bg-brand text-white"
-                  : "border-border bg-white text-muted-foreground hover:border-brand-accent"
-              } ${readOnly ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+              htmlFor={`compat-${s.id}`}
+              className={cn(
+                "flex min-h-11 items-center gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0 transition-colors",
+                readOnly ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:bg-slate-50"
+              )}
             >
               <input
+                id={`compat-${s.id}`}
                 type="checkbox"
                 checked={active}
                 onChange={() => toggle(s.code)}
                 disabled={readOnly}
-                className="sr-only"
+                className="size-4 shrink-0 rounded border-slate-300 accent-brand disabled:cursor-not-allowed"
               />
-              {s.code}
+              <span className="font-mono text-xs text-slate-500">{s.code}</span>
+              <span className="min-w-0 truncate font-medium text-brand-dark">{s.name}</span>
             </label>
           );
         })}
       </div>
 
-      {result.error ? (
+      {error ? (
         <p role="alert" className="text-sm text-destructive">
-          {result.error}
-        </p>
-      ) : result.success ? (
-        <p role="status" className="text-sm text-brand-dark">
-          Compatibility saved.
+          {error}
         </p>
       ) : null}
 
@@ -89,7 +98,7 @@ export function CompatEditor({
           type="button"
           onClick={save}
           disabled={pending}
-          className="h-10 w-fit bg-brand text-white hover:bg-brand/90"
+          className="h-11 w-full bg-brand text-white hover:bg-brand/90 sm:w-fit"
         >
           {pending ? "Saving…" : "Save compatibility"}
         </Button>

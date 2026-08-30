@@ -21,6 +21,16 @@ export const listActiveRegions = cache(async function listActiveRegions(): Promi
   return regions.map((r) => ({ id: r.id, code: r.code, name: r.name, currency: r.currency }));
 });
 
+/** A single region by id — used by the settings page to show the current
+ * user's region name/currency alongside their role. `null` id (no region
+ * assigned yet) short-circuits to `null` without hitting the database. */
+export async function getRegionById(regionId: string | null): Promise<RegionSummary | null> {
+  if (!regionId) return null;
+  const region = await db.region.findUnique({ where: { id: regionId } });
+  if (!region) return null;
+  return { id: region.id, code: region.code, name: region.name, currency: region.currency };
+}
+
 export type SeriesWithCounts = {
   id: string;
   code: string;
