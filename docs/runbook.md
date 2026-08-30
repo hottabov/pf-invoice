@@ -327,6 +327,46 @@ curl -fsS http://127.0.0.1:3010/api/health
 Return to `main` (`git checkout main`) once a fix is pushed, so the next
 automated deploy's `git pull --ff-only` succeeds.
 
+**Testing PDF download locally (Gotenberg)**
+
+The PDF route (`GET /api/documents/[documentId]/pdf`, `src/app/api/
+documents/[documentId]/pdf/route.ts`) needs a reachable Gotenberg instance —
+there is none in the sandbox this was built in, so this pipeline is
+code-verified only until checked against a real container. To check it
+locally:
+
+```bash
+docker compose up -d gotenberg
+# GOTENBERG_URL=http://localhost:3001 in your local .env matches the port
+# gotenberg's compose service publishes for host access; in-cluster it's
+# http://gotenberg:3000, per .env.example.
+npm run dev
+```
+
+Then either:
+
+- Log in at `http://localhost:3100/login`, open any document's builder page
+  or `/documents/<id>/preview`, and click **Download PDF** — the browser
+  already carries the session cookie the route requires.
+- Or, with a valid session cookie copied from the browser's dev tools
+  (Application → Cookies → `authjs.session-token` or `__Secure-authjs.
+  session-token`), hit the route directly:
+
+  ```bash
+  curl -v --cookie "authjs.session-token=<value>" \
+    http://localhost:3100/api/documents/<documentId>/pdf \
+    -o out.pdf
+  file out.pdf   # should report "PDF document"
+  ```
+
+A `502 {"error":"PDF service unavailable"}` response means the route reached
+the auth/scope/render steps fine but Gotenberg itself is unreachable or
+returned a non-200 — check `docker compose logs gotenberg` and confirm
+`GOTENBERG_URL` in `.env` points at the right host:port. A `401` means the
+cookie is missing/expired; a `404` means the document id doesn't exist or
+isn't visible to that user (wrong scope) — both are indistinguishable by
+design, same as the preview page.
+
 ## 6. Host environment notes (IONOS + WordOps)
 
 The production box is an IONOS VPS running Ubuntu 22.04 with WordOps already
