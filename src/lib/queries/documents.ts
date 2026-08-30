@@ -148,10 +148,14 @@ export type BuilderItem = {
   /** Whether the item's thumbnail should actually be shown on a rendered
    * document (the sheet renderer/PDF) — distinct from `imageUrl` being
    * present, since a product snapshot can carry an image the author hasn't
-   * opted to display. Not yet toggleable from the builder UI (defaults
-   * `false` on every `DocumentItem`); wired through here so the document
-   * sheet has the flag ready once it is. */
+   * opted to display. Toggleable from the builder UI via `setItemShowImage`
+   * (src/lib/actions/documents.ts); the sheet renderer/PDF (src/lib/sheet-data.ts)
+   * only shows the thumbnail when both this and `imageUrl` are set. */
   showImage: boolean;
+  /** Same presence check as `imageUrl !== null`, exposed as its own boolean
+   * so the builder card can gate the "Show image in PDF" checkbox on it
+   * without every caller re-deriving that null-check itself. */
+  productHasImage: boolean;
   sortOrder: number;
   lines: BuilderLine[];
   /** This item's own line (base price + its OPTION lines, discounted) as
@@ -369,6 +373,7 @@ export async function getDocumentForBuilder(
       serialNumber: item.serialNumber,
       imageUrl: item.imageUrl,
       showImage: item.showImage,
+      productHasImage: item.imageUrl !== null,
       sortOrder: item.sortOrder,
       lines: item.lines.map(toBuilderLine),
       total: totals.itemTotals[index].toString(),

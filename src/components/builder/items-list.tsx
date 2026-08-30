@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/format";
 import { RemoveItemButton } from "@/components/builder/remove-item-button";
 import { ItemOptionsEditor } from "@/components/builder/item-options-editor";
 import { ItemDiscountField } from "@/components/builder/item-discount-field";
+import { ItemShowImageToggle } from "@/components/builder/item-show-image-toggle";
 import { useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
@@ -49,6 +50,7 @@ export function ItemsList({
   removeItemAction,
   setItemOptionsAction,
   setItemDiscountAction,
+  setItemShowImageAction,
   reorderItemsAction,
   readOnly = false,
 }: {
@@ -59,6 +61,7 @@ export function ItemsList({
   removeItemAction: (itemId: string) => Promise<ActionResult>;
   setItemOptionsAction: (itemId: string, selections: OptionSelectionInput[]) => Promise<ActionResult>;
   setItemDiscountAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
+  setItemShowImageAction: (itemId: string, show: boolean) => Promise<ActionResult>;
   reorderItemsAction: (documentId: string, orderedItemIds: string[]) => Promise<ActionResult>;
   readOnly?: boolean;
 }) {
@@ -215,7 +218,7 @@ export function ItemsList({
               readOnly={readOnly}
             />
 
-            <div className="mt-3 border-t border-slate-100 pt-3">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
               <ItemDiscountField
                 itemId={item.id}
                 discountPct={item.discountPct}
@@ -223,6 +226,13 @@ export function ItemsList({
                 setDiscountAction={setItemDiscountAction}
                 readOnly={readOnly}
               />
+              {!readOnly && item.productHasImage ? (
+                <ItemShowImageToggle
+                  itemId={item.id}
+                  showImage={item.showImage}
+                  setShowImageAction={setItemShowImageAction}
+                />
+              ) : null}
             </div>
           </div>
         );

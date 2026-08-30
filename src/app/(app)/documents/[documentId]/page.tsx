@@ -22,6 +22,7 @@ import {
   setDocumentDiscount,
   setItemDiscount,
   setItemOptions,
+  setItemShowImage,
 } from "@/lib/actions/documents";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { ClientSection } from "@/components/builder/client-section";
@@ -124,6 +125,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
             addItemAction={addItem}
             setItemOptionsAction={setItemOptions}
             setItemDiscountAction={setItemDiscount}
+            setItemShowImageAction={setItemShowImage}
             reorderItemsAction={reorderItems}
             readOnly={!isDraft}
           />

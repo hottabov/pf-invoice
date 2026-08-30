@@ -602,6 +602,38 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
 }
 
 /**
+ * Toggles whether an item's product image is shown on the rendered
+ * document (sheet/PDF — see `toSheetData`'s `showImage && imageUrl` check
+ * in src/lib/sheet-data.ts). Scoped through the item -> document chain like
+ * `setItemDiscount`, DRAFT-only, same as every other item mutation in this
+ * file. Purely a display flag — it doesn't affect pricing, so unlike
+ * `setItemDiscount`/`setItemOptions` there's no `recalcDocument` call here.
+ */
+export async function setItemShowImage(itemId: string, show: boolean): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedItemId = idSchema.safeParse(itemId);
+  if (!parsedItemId.success) return { error: NOT_FOUND_ERROR };
+
+  const item = await db.documentItem.findFirst({
+    where: {
+      id: parsedItemId.data,
+      document: { status: "DRAFT", ...documentWhereForUser(session.user) },
+    },
+    select: { id: true, documentId: true },
+  });
+  if (!item) return { error: NOT_FOUND_ERROR };
+
+  await db.documentItem.update({
+    where: { id: item.id },
+    data: { showImage: show },
+  });
+
+  revalidatePath(`/documents/${item.documentId}`);
+  return {};
+}
+
+/**
  * Sets (or clears) the document-level discount percentage. There's no cap
  * at the document level — only item discounts are bounded by their
  * series' `maxDiscountPct`.

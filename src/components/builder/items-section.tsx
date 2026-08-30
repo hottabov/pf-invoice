@@ -26,6 +26,7 @@ export function ItemsSection({
   addItemAction,
   setItemOptionsAction,
   setItemDiscountAction,
+  setItemShowImageAction,
   reorderItemsAction,
   readOnly = false,
 }: {
@@ -38,6 +39,7 @@ export function ItemsSection({
   addItemAction: (documentId: string, productCode: string) => Promise<ActionResult>;
   setItemOptionsAction: (itemId: string, selections: OptionSelectionInput[]) => Promise<ActionResult>;
   setItemDiscountAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
+  setItemShowImageAction: (itemId: string, show: boolean) => Promise<ActionResult>;
   reorderItemsAction: (documentId: string, orderedItemIds: string[]) => Promise<ActionResult>;
   readOnly?: boolean;
 }) {
@@ -54,6 +56,7 @@ export function ItemsSection({
           removeItemAction={removeItemAction}
           setItemOptionsAction={setItemOptionsAction}
           setItemDiscountAction={setItemDiscountAction}
+          setItemShowImageAction={setItemShowImageAction}
           reorderItemsAction={reorderItemsAction}
           readOnly={readOnly}
         />

@@ -12,7 +12,8 @@
     "extract:catalog": "tsx scripts/extract-catalog.ts",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "user:create": "tsx scripts/create-user.ts"
+    "user:create": "tsx scripts/create-user.ts",
+    "images:import": "tsx scripts/import-product-images.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
