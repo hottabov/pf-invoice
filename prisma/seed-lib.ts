@@ -24,6 +24,10 @@ export interface CatalogSeries {
 
 export interface CatalogOption extends CatalogItem {
   compatibleSeries: string[];
+  /** Present (non-empty) only for options scoped to specific products
+   *  (e.g. an EasyLoader accessory tied to one drive-module product) rather
+   *  than a whole series -- in that case compatibleSeries is `[]`. */
+  compatibleProducts?: string[];
 }
 
 export interface Catalog {
@@ -184,18 +188,28 @@ export function mapPrices(catalog: Catalog, regionCode = "AU"): PricePayload[] {
   return out;
 }
 
-export interface CompatPayload {
-  optionCode: string;
-  seriesCode: string;
-}
+/**
+ * One row per (option, compatible series) OR (option, compatible product)
+ * pair. Exactly one of `seriesCode` / `productCode` is set per entry — the
+ * DB mirrors this with OptionCompatibility.seriesId/productId, one of which
+ * is always null (see the two partial-unique indexes in schema.prisma).
+ */
+export type CompatPayload =
+  | { optionCode: string; seriesCode: string; productCode?: undefined }
+  | { optionCode: string; seriesCode?: undefined; productCode: string };
 
-/** One row per (option, compatible series) pair — always series-level
- *  (productId stays null); the catalog has no per-product overrides. */
+/** One row per (option, compatible series) pair and one row per (option,
+ *  compatible product) pair. Most options are series-level (productCode
+ *  entries stay empty for them); a few (e.g. EasyLoader accessories) are
+ *  scoped to one or more specific products instead, via compatibleProducts. */
 export function mapCompatibility(catalog: Catalog): CompatPayload[] {
   const out: CompatPayload[] = [];
   for (const o of catalog.options) {
     for (const seriesCode of o.compatibleSeries) {
       out.push({ optionCode: o.code, seriesCode });
+    }
+    for (const productCode of o.compatibleProducts ?? []) {
+      out.push({ optionCode: o.code, productCode });
     }
   }
   return out;

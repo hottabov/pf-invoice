@@ -1,5 +1,5 @@
 {
-  "extractedAt": "2026-08-29T09:14:06.441Z",
+  "extractedAt": "2026-08-30T10:56:15.268Z",
   "series": [
     {
       "seriesCode": "XC",
@@ -257,7 +257,78 @@
       "seriesCode": "SW",
       "seriesName": "Software",
       "maxDiscountPct": null,
-      "products": []
+      "products": [
+        {
+          "code": "ANT-V5",
+          "name": "Automatic Nester V5",
+          "description": "Automatic Nester V5",
+          "price": 8320,
+          "needsReview": false
+        },
+        {
+          "code": "ANT-V6",
+          "name": "Automatic Nester V6 (Faster results, higher level nesting algorithm) Includes edge buffer function (container)",
+          "description": "Automatic Nester V6 (Faster results, higher level nesting algorithm) Includes edge buffer function (container)",
+          "price": 11720,
+          "needsReview": false
+        },
+        {
+          "code": "EDG",
+          "name": "External Digitizer- enabling software functionality to connect an external digitizer.",
+          "description": "External Digitizer- enabling software functionality to connect an external digitizer.",
+          "price": 1114,
+          "needsReview": false
+        },
+        {
+          "code": "LS Convert",
+          "name": "LS Convert software module (dongle protected)",
+          "description": "LS Convert software module (dongle protected)",
+          "price": null,
+          "needsReview": true
+        },
+        {
+          "code": "PDG",
+          "name": "PhotoDigitiser-Digitizing of photo patterns using tools available within PathWorks",
+          "description": "PhotoDigitiser-Digitizing of photo patterns using tools available within PathWorks",
+          "price": 1800,
+          "needsReview": false
+        },
+        {
+          "code": "PRA",
+          "name": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
+          "description": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
+          "price": 3500,
+          "needsReview": false
+        },
+        {
+          "code": "PTN",
+          "name": "Photo Nesting (Note: option only, does NOT include hardware or ANT)",
+          "description": "Photo Nesting (Note: option only, does NOT include hardware or ANT)",
+          "price": 20577,
+          "needsReview": false
+        },
+        {
+          "code": "PTW(S)",
+          "name": "PathWorks Standalone software module. Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
+          "description": "PathWorks Standalone software module. Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
+          "price": 4000,
+          "needsReview": false
+        },
+        {
+          "code": "WPL",
+          "name": "PoolLiner Wizard- automatic creation of flat shapes (unfolding) based on 3D point measurments.",
+          "description": "PoolLiner Wizard- automatic creation of flat shapes (unfolding) based on 3D point measurments.",
+          "price": 5850,
+          "needsReview": false
+        },
+        {
+          "code": "WPN",
+          "name": "Panel Wizard-Automatic creation of panels based with automatic tool path optimisation.",
+          "description": "Panel Wizard-Automatic creation of panels based with automatic tool path optimisation.",
+          "price": 500,
+          "needsReview": false
+        }
+      ]
     },
     {
       "seriesCode": "LNS",
@@ -291,13 +362,50 @@
       "seriesCode": "EL",
       "seriesName": "EasyLoader",
       "maxDiscountPct": null,
-      "products": []
+      "products": [
+        {
+          "code": "EL-2020",
+          "name": "EasyLoader 2020",
+          "description": "2020mm width, to suit FM180/FabricPro-180. Base: drive module, first 1.2M.",
+          "price": 4050,
+          "needsReview": false
+        },
+        {
+          "code": "EL-2420",
+          "name": "EasyLoader 2420",
+          "description": "2420mm width, to suit FM220/FabricPro220. Base: drive module, first 1.2M.",
+          "price": 4455,
+          "needsReview": false
+        }
+      ]
     },
     {
       "seriesCode": "EF",
       "seriesName": "EasyFeeder",
       "maxDiscountPct": null,
-      "products": []
+      "products": [
+        {
+          "code": "EF-2020",
+          "name": "EasyFeeder 2020",
+          "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+          "price": 10400,
+          "needsReview": false
+        },
+        {
+          "code": "EF-2420",
+          "name": "EasyFeeder 2420",
+          "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+          "price": 10860,
+          "needsReview": false
+        },
+        {
+          "code": "EF-4030",
+          "name": "EasyFeeder 4030",
+          "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+          "price": 17540,
+          "needsReview": false
+        }
+      ]
     },
     {
       "seriesCode": "FP",
@@ -452,26 +560,6 @@
       "compatibleSeries": [
         "M",
         "XC"
-      ]
-    },
-    {
-      "code": "ANT-V5",
-      "name": "Automatic Nester V5",
-      "description": "Automatic Nester V5",
-      "price": 8320,
-      "needsReview": false,
-      "compatibleSeries": [
-        "SW"
-      ]
-    },
-    {
-      "code": "ANT-V6",
-      "name": "Automatic Nester V6 (Faster results, higher level nesting algorithm) Includes edge buffer function (container)",
-      "description": "Automatic Nester V6 (Faster results, higher level nesting algorithm) Includes edge buffer function (container)",
-      "price": 11720,
-      "needsReview": false,
-      "compatibleSeries": [
-        "SW"
       ]
     },
     {
@@ -696,46 +784,6 @@
       ]
     },
     {
-      "code": "EasyFeeder- 2020",
-      "name": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
-      "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
-      "price": 10400,
-      "needsReview": false,
-      "compatibleSeries": [
-        "EF"
-      ]
-    },
-    {
-      "code": "EasyFeeder- 2420",
-      "name": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
-      "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
-      "price": 10860,
-      "needsReview": false,
-      "compatibleSeries": [
-        "EF"
-      ]
-    },
-    {
-      "code": "EasyFeeder- 4030",
-      "name": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
-      "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
-      "price": 17540,
-      "needsReview": false,
-      "compatibleSeries": [
-        "EF"
-      ]
-    },
-    {
-      "code": "EDG",
-      "name": "External Digitizer- enabling software functionality to connect an external digitizer.",
-      "description": "External Digitizer- enabling software functionality to connect an external digitizer.",
-      "price": 1114,
-      "needsReview": false,
-      "compatibleSeries": [
-        "SW"
-      ]
-    },
-    {
       "code": "EDS-500",
       "name": "Edge sealer Static- clip on blanking panel 500mm width. This can be trimmed by customer if narrower required.",
       "description": "Edge sealer Static- clip on blanking panel 500mm width. This can be trimmed by customer if narrower required.",
@@ -763,8 +811,9 @@
       "description": "#ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
       "price": 1040,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2020"
       ]
     },
     {
@@ -773,18 +822,9 @@
       "description": "Additional 1.2M lengths",
       "price": 1200,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
-      ]
-    },
-    {
-      "code": "EL-2020 Drive Module (first 1.2M)",
-      "name": "Drive Module (first 1.2M)",
-      "description": "Drive Module (first 1.2M)",
-      "price": 4050,
-      "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2020"
       ]
     },
     {
@@ -793,8 +833,9 @@
       "description": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
       "price": 120,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2020"
       ]
     },
     {
@@ -803,8 +844,9 @@
       "description": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
       "price": 735,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2020"
       ]
     },
     {
@@ -813,8 +855,9 @@
       "description": "Static table 1.2M lengths",
       "price": 743,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2020"
       ]
     },
     {
@@ -823,8 +866,9 @@
       "description": "Syncronisation Feature (same speed sync with cutter)",
       "price": 1500,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2020"
       ]
     },
     {
@@ -833,8 +877,9 @@
       "description": "Travel Platform support rail. Per 1.2m",
       "price": 45,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2020"
       ]
     },
     {
@@ -843,18 +888,9 @@
       "description": "Additional 1.2M lengths",
       "price": 1320,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
-      ]
-    },
-    {
-      "code": "EL-2420 Drive Module (first 1.2M)",
-      "name": "Drive Module (first 1.2M)",
-      "description": "Drive Module (first 1.2M)",
-      "price": 4455,
-      "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2420"
       ]
     },
     {
@@ -863,8 +899,9 @@
       "description": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
       "price": 120,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2420"
       ]
     },
     {
@@ -873,8 +910,9 @@
       "description": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
       "price": 780,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2420"
       ]
     },
     {
@@ -883,8 +921,9 @@
       "description": "ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
       "price": 1080,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2420"
       ]
     },
     {
@@ -893,8 +932,9 @@
       "description": "Static table 1.2M lengths",
       "price": 780,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2420"
       ]
     },
     {
@@ -903,8 +943,9 @@
       "description": "Syncronisation Feature (same speed sync with cutter)",
       "price": 1500,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2420"
       ]
     },
     {
@@ -913,8 +954,9 @@
       "description": "Travel Platform support rail. Per 1.2m",
       "price": 45,
       "needsReview": false,
-      "compatibleSeries": [
-        "EL"
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2420"
       ]
     },
     {
@@ -1025,16 +1067,6 @@
       ]
     },
     {
-      "code": "LS Convert",
-      "name": "LS Convert software module (dongle protected)",
-      "description": "LS Convert software module (dongle protected)",
-      "price": null,
-      "needsReview": true,
-      "compatibleSeries": [
-        "SW"
-      ]
-    },
-    {
       "code": "MRK",
       "name": "Marking tool includes standard Bic biro pen holder (After sales: Head cover replacement is at extra cost)",
       "description": "Marking tool includes standard Bic biro pen holder (After sales: Head cover replacement is at extra cost)",
@@ -1131,16 +1163,6 @@
       ]
     },
     {
-      "code": "PDG",
-      "name": "PhotoDigitiser-Digitizing of photo patterns using tools available within PathWorks",
-      "description": "PhotoDigitiser-Digitizing of photo patterns using tools available within PathWorks",
-      "price": 1800,
-      "needsReview": false,
-      "compatibleSeries": [
-        "SW"
-      ]
-    },
-    {
       "code": "PM-L",
       "name": "Pattern Match - spot light pattern match software",
       "description": "Pattern Match - spot light pattern match software",
@@ -1172,16 +1194,6 @@
       ]
     },
     {
-      "code": "PRA-SW",
-      "name": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
-      "description": "Production Analyst is a stand alone software that enables remote manipulation of Production Manager data.",
-      "price": 3500,
-      "needsReview": false,
-      "compatibleSeries": [
-        "SW"
-      ]
-    },
-    {
       "code": "PRM-L",
       "name": "Production Manager software",
       "description": "Production Manager software",
@@ -1203,16 +1215,6 @@
       ]
     },
     {
-      "code": "PTN",
-      "name": "Photo Nesting (Note: option only, does NOT include hardware or ANT)",
-      "description": "Photo Nesting (Note: option only, does NOT include hardware or ANT)",
-      "price": 20577,
-      "needsReview": false,
-      "compatibleSeries": [
-        "SW"
-      ]
-    },
-    {
       "code": "PTW",
       "name": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, digitising using the Pathfinder cutter controls, magnetic nesting, importing and exporting of standard DXF and G-code.",
       "description": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, digitising using the Pathfinder cutter controls, magnetic nesting, importing and exporting of standard DXF and G-code.",
@@ -1222,16 +1224,6 @@
         "M",
         "XC",
         "L"
-      ]
-    },
-    {
-      "code": "PTW(S)",
-      "name": "PathWorks Standalone software module. Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
-      "description": "PathWorks Standalone software module. Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
-      "price": 4000,
-      "needsReview": false,
-      "compatibleSeries": [
-        "SW"
       ]
     },
     {
@@ -1296,26 +1288,6 @@
       "compatibleSeries": [
         "M",
         "XC"
-      ]
-    },
-    {
-      "code": "WPL",
-      "name": "PoolLiner Wizard- automatic creation of flat shapes (unfolding) based on 3D point measurments.",
-      "description": "PoolLiner Wizard- automatic creation of flat shapes (unfolding) based on 3D point measurments.",
-      "price": 5850,
-      "needsReview": false,
-      "compatibleSeries": [
-        "SW"
-      ]
-    },
-    {
-      "code": "WPN",
-      "name": "Panel Wizard-Automatic creation of panels based with automatic tool path optimisation.",
-      "description": "Panel Wizard-Automatic creation of panels based with automatic tool path optimisation.",
-      "price": 500,
-      "needsReview": false,
-      "compatibleSeries": [
-        "SW"
       ]
     }
   ]

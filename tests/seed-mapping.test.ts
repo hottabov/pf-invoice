@@ -20,9 +20,12 @@ const catalog = catalogData as Catalog;
  * real catalog is regenerated.
  *
  * 2 series ("A", "B"), 3 products (A has 2, including one with a null price
- * to exercise the amount-0/needsReview-true path; B has 1), 2 options with
- * distinct compatibleSeries (one spanning both series, one series-exclusive)
- * so mapCompatibility's fan-out can be checked against known pairs.
+ * to exercise the amount-0/needsReview-true path; B has 1), 3 options:
+ * two series-scoped with distinct compatibleSeries (one spanning both
+ * series, one series-exclusive) so mapCompatibility's series fan-out can be
+ * checked against known pairs, and one product-scoped (compatibleSeries: [],
+ * compatibleProducts: ["A-100"]) mirroring EasyLoader-style accessories, so
+ * mapCompatibility's product fan-out is exercised too.
  */
 const FIXTURE: Catalog = {
   extractedAt: "2026-01-01T00:00:00.000Z",
@@ -62,6 +65,15 @@ const FIXTURE: Catalog = {
       needsReview: true,
       compatibleSeries: ["B"],
     },
+    {
+      code: "OPT-3",
+      name: "Widget Accessory",
+      description: "Product-scoped accessory",
+      price: 25,
+      needsReview: false,
+      compatibleSeries: [],
+      compatibleProducts: ["A-100"],
+    },
   ],
 };
 
@@ -85,6 +97,7 @@ describe("seed-lib: pure mapping (FIXTURE -> literal expected outputs)", () => {
     expect(mapOptions(FIXTURE)).toEqual([
       { code: "OPT-1", name: "Option One", shortDescription: "First option", sortOrder: 0 },
       { code: "OPT-2", name: "Option Two", shortDescription: "Second option", sortOrder: 1 },
+      { code: "OPT-3", name: "Widget Accessory", shortDescription: "Product-scoped accessory", sortOrder: 2 },
     ]);
   });
 
@@ -95,14 +108,16 @@ describe("seed-lib: pure mapping (FIXTURE -> literal expected outputs)", () => {
       { kind: "product", code: "B-100", regionCode: "AU", amount: 1000, needsReview: false },
       { kind: "option", code: "OPT-1", regionCode: "AU", amount: 50, needsReview: false },
       { kind: "option", code: "OPT-2", regionCode: "AU", amount: 0, needsReview: true },
+      { kind: "option", code: "OPT-3", regionCode: "AU", amount: 25, needsReview: false },
     ]);
   });
 
-  it("mapCompatibility produces the exact (option, series) pairs", () => {
+  it("mapCompatibility produces the exact (option, series) and (option, product) pairs", () => {
     expect(mapCompatibility(FIXTURE)).toEqual([
       { optionCode: "OPT-1", seriesCode: "A" },
       { optionCode: "OPT-1", seriesCode: "B" },
       { optionCode: "OPT-2", seriesCode: "B" },
+      { optionCode: "OPT-3", productCode: "A-100" },
     ]);
   });
 });
@@ -116,7 +131,7 @@ describe("seed-lib: smoke assertions against the real catalog.json (counts only)
     expect(mapSeries(catalog)).toHaveLength(9);
   });
 
-  it("has exactly 37 total products", () => {
-    expect(mapProducts(catalog)).toHaveLength(37);
+  it("has exactly 52 total products", () => {
+    expect(mapProducts(catalog)).toHaveLength(52);
   });
 });

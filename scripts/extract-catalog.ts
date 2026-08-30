@@ -33,6 +33,12 @@ type CatalogItem = {
   description: string;
   price: number | null;
   needsReview: boolean;
+  /** Only set on options scoped to one or more specific products rather than
+   *  a whole series (e.g. an EasyLoader accessory tied to one drive-module
+   *  product, not the EL series generally). Carried through to GlobalOption
+   *  by buildGlobalOptions; unset/undefined for series-scoped items and for
+   *  every product (products don't have compatibility of their own). */
+  compatibleProducts?: string[];
 };
 
 type CatalogSeries = {
@@ -52,6 +58,10 @@ type GlobalOption = {
   price: number | null;
   needsReview: boolean;
   compatibleSeries: string[];
+  /** Present (non-empty) only for options scoped to specific products; in
+   *  that case compatibleSeries is `[]` rather than the series the product
+   *  happens to belong to -- see buildGlobalOptions. */
+  compatibleProducts?: string[];
 };
 
 /** A per-sheet option before cross-sheet merging, tagged with the series it
@@ -162,20 +172,36 @@ function register(
 // ---------------------------------------------------------------------------
 // Per-sheet extraction
 //
-// Series/product-vs-option classification follows the Task 7 spec: within
+// Series/product-vs-option classification follows the Task 7 spec (as
+// corrected by the later catalog-reclassification fix below): within
 // M-series, L-Series and Punchline the sheet has a dedicated machine-code
 // column (product) separate from an accessory column (option), so we use
-// sheet position directly. Software and EasyLoader/EasyFeeder/FabricPro have
-// a single flat list per sheet with no such split, so (per spec) everything
-// in them is an option -- with the explicit exception of the Leather Nesting
-// System's 3 LNS-* rows, which are "clearly standalone systems" and are
-// products. This produces 12 (M) + 6 (L) + 2 (Punchline) + 3 (LNS) = 23 base
-// machines before the X-Calibre clone, matching the spec's "~23" checkpoint
-// exactly. FabricPro's FP-180/FP-220 additionally match the spec's explicit
-// "FM/FP models -> products" cue and are standalone machines in their own
-// right, so they're classified as FabricPro products (TPL/Crate remain
-// options); M-series' FM180 is left as an M-series option since it lives
-// structurally in that sheet's accessory column, not its machine column.
+// sheet position directly. FabricPro's FP-180/FP-220 match the spec's
+// explicit "FM/FP models -> products" cue and are standalone machines in
+// their own right, so they're classified as FabricPro products (TPL/Crate
+// remain options); M-series' FM180 is left as an M-series option since it
+// lives structurally in that sheet's accessory column, not its machine
+// column. The Leather Nesting System's 3 LNS-* rows are "clearly standalone
+// systems" and are products, with no options of their own.
+//
+// EasyLoader, EasyFeeder and Software were originally (incorrectly) treated
+// as pure accessory sheets with no dedicated machine/product column, which
+// left all three series with 0 products -- making their machines/modules
+// impossible to add to a document. Re-verified against the source sheets:
+//  - EasyLoader has two width sections, each headed by a priced
+//    "Drive Module (first 1.2M)" row that IS the base machine for that
+//    width; the remaining rows in each section are accessories scoped to
+//    that specific drive-module product (not the EL series generally), so
+//    they carry compatibleProducts instead of compatibleSeries.
+//  - EasyFeeder's three rows (2020/2420/4030) are each a complete,
+//    standalone unit with no separate accessory rows -- all products.
+//  - Software's rows are all standalone, independently sellable modules
+//    (including the SW-sheet "PRA" and the two-row "LS Convert" straddle)
+//    with no accessory/option split on that sheet -- all products. The
+//    L-Series sheet's own "PRA" row (a different price) remains an L-scoped
+//    option, explicitly coded "PRA-L" so it can't collide with the SW
+//    product code "PRA" now that there's no second "PRA" option to
+//    auto-suffix it via the merge/split logic below.
 // ---------------------------------------------------------------------------
 
 function extractMSeries(wb: XLSX.WorkBook) {
@@ -237,6 +263,12 @@ function extractLSeries(wb: XLSX.WorkBook) {
     if (!desc && !code) continue; // blank spacer row
     if (price === null && !code) continue; // note row with no code and no price
     if (!code) code = desc; // fall back to the (normalized) description as the code
+    // "PRA" here is a distinct, differently-priced option from the SW
+    // sheet's own "PRA" -- which is now a SW product (see extractSoftware),
+    // not an option, so it can no longer collide with this one and trigger
+    // the auto-suffixing merge/split logic below. Hard-code the "-L" suffix
+    // so this row keeps its long-standing "PRA-L" code regardless.
+    if (code === "PRA") code = "PRA-L";
     // Only pass the description as a disambiguator when the code came from a
     // real, distinct code column -- when the code IS the description (the
     // fallback above), appending it to itself can't disambiguate anything;
@@ -277,25 +309,29 @@ function extractPunchline(wb: XLSX.WorkBook) {
 
 function extractSoftware(wb: XLSX.WorkBook) {
   const ws = getSheet(wb, "Software");
-  const options: CatalogItem[] = [];
+  const products: CatalogItem[] = [];
   const seen = new Set<string>();
 
-  // Rows 5-14: code column A, description column C, price column E.
+  // Rows 5-14: code column A, description column C, price column E. Every
+  // row on this sheet (including "PRA", row 14) is a standalone, separately
+  // sellable software module -- there's no accessory/option column here, so
+  // (unlike M/L/Punchline) sheet position doesn't split product from option;
+  // per spec, all of them are products.
   for (let row = 5; row <= 14; row++) {
     const code = cellText(ws, `A${row}`);
     if (!code) continue;
     const desc = cellText(ws, `C${row}`);
     const price = cellNumber(ws, `E${row}`);
-    register(options, seen, { code, name: desc, description: desc, price, needsReview: price === null }, "SW", "option");
+    register(products, seen, { code, name: desc, description: desc, price, needsReview: price === null }, "SW", "product");
   }
 
   // LS Convert (row 17) is laid out differently: its own Total formulas
   // (G17/I17/K17) multiply against $F17 -- the same column every other row
   // in this sheet uses for its unit price -- but F17 is blank. A numeric
   // value (9018) does sit in E17, but given the row's own formula wiring
-  // treats the price as unset, and per the spec's known-gaps list ("LS
-  // Convert" is expected to need review), this is extracted as a missing
-  // price rather than trusting the stray E17 value.
+  // treats the price as unset, this is extracted as a missing price rather
+  // than trusting the stray E17 value -- needsReview stays true so a human
+  // confirms which figure (if either) is correct before it's trusted.
   // NOTE: this reads code from row 16 and description from row 17 -- a
   // deliberate two-row straddle specific to LS Convert's current layout in
   // this sheet. If the sheet is ever re-laid-out (rows inserted/removed
@@ -303,9 +339,9 @@ function extractSoftware(wb: XLSX.WorkBook) {
   // by hand; they are not derived from any structural marker.
   const lsCode = cellText(ws, "A16") || "LS Convert";
   const lsDesc = cellText(ws, "C17");
-  register(options, seen, { code: lsCode, name: lsDesc, description: lsDesc, price: null, needsReview: true }, "SW", "option");
+  register(products, seen, { code: lsCode, name: lsDesc, description: lsDesc, price: null, needsReview: true }, "SW", "product");
 
-  return { products: [], options };
+  return { products, options: [] as CatalogItem[] };
 }
 
 function extractLNS(wb: XLSX.WorkBook) {
@@ -329,47 +365,100 @@ function extractLNS(wb: XLSX.WorkBook) {
 
 function extractEasyLoader(wb: XLSX.WorkBook) {
   const ws = getSheet(wb, "EasyLoader");
+  const products: CatalogItem[] = [];
   const options: CatalogItem[] = [];
-  const seen = new Set<string>();
+  const seenP = new Set<string>();
+  const seenO = new Set<string>();
 
-  // No short-code column on this sheet -- component descriptions (column D)
-  // repeat verbatim across the two width groups (e.g. "Additional 1.2M
-  // lengths" appears in both), so each row is prefixed with its group's
-  // width tag (read from the group header in column A) to keep codes unique.
-  const groups: { tag: string; rows: number[] }[] = [
-    { tag: "2020", rows: [7, 8, 9, 10, 11, 12, 13, 14] }, // "EasyLoader- 2020 width..." (A7)
-    { tag: "2420", rows: [21, 22, 23, 24, 25, 26, 27, 28] }, // "EasyLoader- 2420 width..." (A21)
+  // Two width sections, each headed by a "Drive Module (first 1.2M)" row
+  // that IS the base machine for that width (product EL-2020 / EL-2420).
+  // The remaining rows in each section are accessories for that specific
+  // drive module -- not the EL series generally -- so they're extracted as
+  // options scoped via compatibleProducts rather than compatibleSeries.
+  // No short-code column on this sheet for the accessory rows -- component
+  // descriptions (column D) repeat verbatim across the two width groups
+  // (e.g. "Additional 1.2M lengths" appears in both), so each option code is
+  // still prefixed with its group's width tag to keep codes unique.
+  const groups: {
+    tag: string;
+    driveRow: number;
+    accessoryRows: number[];
+    productName: string;
+    productDescription: string;
+  }[] = [
+    {
+      tag: "2020",
+      driveRow: 7, // "EasyLoader- 2020 width (to suit FM180/FabricPro-180)" (A7)
+      accessoryRows: [8, 9, 10, 11, 12, 13, 14],
+      productName: "EasyLoader 2020",
+      productDescription: "2020mm width, to suit FM180/FabricPro-180. Base: drive module, first 1.2M.",
+    },
+    {
+      tag: "2420",
+      driveRow: 21, // "EasyLoader- 2420 width(to suit FM220/FabricPro220)" (A21)
+      accessoryRows: [22, 23, 24, 25, 26, 27, 28],
+      productName: "EasyLoader 2420",
+      productDescription: "2420mm width, to suit FM220/FabricPro220. Base: drive module, first 1.2M.",
+    },
   ];
 
   for (const group of groups) {
-    for (const row of group.rows) {
+    const productCode = `EL-${group.tag}`;
+    const price = cellNumber(ws, `F${group.driveRow}`);
+    register(
+      products,
+      seenP,
+      {
+        code: productCode,
+        name: group.productName,
+        description: group.productDescription,
+        price,
+        needsReview: price === null,
+      },
+      "EL",
+      "product"
+    );
+
+    for (const row of group.accessoryRows) {
       const rawDesc = cellText(ws, `D${row}`);
       if (!rawDesc) continue;
       const desc = stripNotes(rawDesc);
       const price = cellNumber(ws, `F${row}`);
       if (price === null) continue; // no priced item on this row
       const code = `EL-${group.tag} ${desc}`;
-      register(options, seen, { code, name: desc, description: desc, price, needsReview: false }, "EL", "option");
+      register(
+        options,
+        seenO,
+        { code, name: desc, description: desc, price, needsReview: false, compatibleProducts: [productCode] },
+        "EL",
+        "option"
+      );
     }
   }
 
-  return { products: [] as CatalogItem[], options };
+  return { products, options };
 }
 
 function extractEasyFeeder(wb: XLSX.WorkBook) {
   const ws = getSheet(wb, "EasyFeeder");
-  const options: CatalogItem[] = [];
+  const products: CatalogItem[] = [];
   const seen = new Set<string>();
 
-  // Rows 8, 10, 12: code column A, description column D, price column E.
+  // Rows 8, 10, 12: code column A (e.g. "EasyFeeder- 2020"), description
+  // column D, price column E. Each row is a complete, standalone unit with
+  // no separate accessory rows on this sheet -- all three are products,
+  // coded EF-<width> to match the EL-<width> convention.
   for (const row of [8, 10, 12]) {
-    const code = cellText(ws, `A${row}`);
+    const rawCode = cellText(ws, `A${row}`);
+    const width = rawCode.match(/\d+/)?.[0] ?? "";
+    const code = `EF-${width}`;
+    const name = `EasyFeeder ${width}`;
     const desc = cellText(ws, `D${row}`);
     const price = cellNumber(ws, `E${row}`);
-    register(options, seen, { code, name: desc, description: desc, price, needsReview: price === null }, "EF", "option");
+    register(products, seen, { code, name, description: desc, price, needsReview: price === null }, "EF", "product");
   }
 
-  return { products: [] as CatalogItem[], options };
+  return { products, options: [] as CatalogItem[] };
 }
 
 function extractFabricPro(wb: XLSX.WorkBook) {
@@ -435,13 +524,18 @@ function buildGlobalOptions(seriesOptionsList: SeriesOptions[]): GlobalOption[] 
   for (const [code, entries] of byCode) {
     if (entries.length === 1) {
       const { seriesCode, item } = entries[0];
+      const hasProductCompat = Boolean(item.compatibleProducts?.length);
       result.push({
         code: item.code,
         name: item.name,
         description: item.description,
         price: item.price,
         needsReview: item.needsReview,
-        compatibleSeries: compatibleSeriesFor(seriesCode),
+        // Product-scoped options (e.g. EasyLoader accessories) carry an
+        // empty compatibleSeries -- their compatibility is expressed via
+        // compatibleProducts instead, not "the item's series generally".
+        compatibleSeries: hasProductCompat ? [] : compatibleSeriesFor(seriesCode),
+        ...(hasProductCompat ? { compatibleProducts: item.compatibleProducts } : {}),
       });
       continue;
     }

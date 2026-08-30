@@ -11,6 +11,7 @@ interface CatalogItem {
 
 interface GlobalOption extends CatalogItem {
   compatibleSeries: string[];
+  compatibleProducts?: string[];
 }
 
 interface Series {
@@ -54,9 +55,9 @@ describe('Catalog Extraction Validation', () => {
       expect(catalog.series).toHaveLength(9);
     });
 
-    it('should have exactly 37 total products across all series', () => {
+    it('should have exactly 52 total products across all series', () => {
       const totalProducts = catalog.series.reduce((sum, series) => sum + series.products.length, 0);
-      expect(totalProducts).toBe(37);
+      expect(totalProducts).toBe(52);
     });
 
     it('M series should have 12 products', () => {
@@ -65,6 +66,25 @@ describe('Catalog Extraction Validation', () => {
 
     it('L series maxDiscountPct should be 10', () => {
       expect(lSeries.maxDiscountPct).toBe(10);
+    });
+
+    // EasyLoader/EasyFeeder/Software were originally misclassified as
+    // options-only sheets (0 products each), which made their machines and
+    // software modules impossible to add to a document. Re-verified against
+    // the source sheets and reclassified -- see scripts/extract-catalog.ts.
+    it('EasyLoader (EL) should have 2 products (one per width: drive module base machine)', () => {
+      const el = catalog.series.find((s) => s.seriesCode === 'EL')!;
+      expect(el.products).toHaveLength(2);
+    });
+
+    it('EasyFeeder (EF) should have 3 products (2020/2420/4030)', () => {
+      const ef = catalog.series.find((s) => s.seriesCode === 'EF')!;
+      expect(ef.products).toHaveLength(3);
+    });
+
+    it('Software (SW) should have 10 products', () => {
+      const sw = catalog.series.find((s) => s.seriesCode === 'SW')!;
+      expect(sw.products).toHaveLength(10);
     });
   });
 
@@ -109,6 +129,24 @@ describe('Catalog Extraction Validation', () => {
       const p220 = pSeries.products.find((p) => p.code === 'P-220');
       expect(p220?.price).toBe(11310);
     });
+
+    it('EL-2020 should have price 4050', () => {
+      const el = catalog.series.find((s) => s.seriesCode === 'EL')!;
+      const el2020 = el.products.find((p) => p.code === 'EL-2020');
+      expect(el2020?.price).toBe(4050);
+    });
+
+    it('EF-4030 should have price 17540', () => {
+      const ef = catalog.series.find((s) => s.seriesCode === 'EF')!;
+      const ef4030 = ef.products.find((p) => p.code === 'EF-4030');
+      expect(ef4030?.price).toBe(17540);
+    });
+
+    it('PTN should have price 20577', () => {
+      const sw = catalog.series.find((s) => s.seriesCode === 'SW')!;
+      const ptn = sw.products.find((p) => p.code === 'PTN');
+      expect(ptn?.price).toBe(20577);
+    });
   });
 
   describe('Price Validation Rules', () => {
@@ -137,10 +175,12 @@ describe('Catalog Extraction Validation', () => {
       expect(m3390?.price).toBeNull();
     });
 
-    it('LS Convert option should have needsReview=true', () => {
-      const lsConvert = allItems.find((item) => item.code === 'LS Convert');
+    it('LS Convert (now a Software product) should have needsReview=true', () => {
+      const sw = catalog.series.find((s) => s.seriesCode === 'SW')!;
+      const lsConvert = sw.products.find((p) => p.code === 'LS Convert');
       expect(lsConvert).toBeDefined();
       expect(lsConvert?.needsReview).toBe(true);
+      expect(lsConvert?.price).toBeNull();
     });
 
     it('TPL should have price 0 and needsReview=true (genuine 0 in source, not a missing cell)', () => {
@@ -152,10 +192,32 @@ describe('Catalog Extraction Validation', () => {
   });
 
   describe('Global Options', () => {
-    it('every option should have a non-empty compatibleSeries list', () => {
+    it('should have exactly 81 global options', () => {
+      expect(catalog.options).toHaveLength(81);
+    });
+
+    // Most options are series-scoped (non-empty compatibleSeries). A few
+    // (e.g. EasyLoader accessories, scoped to one specific drive-module
+    // product rather than the whole EL series) are product-scoped instead:
+    // compatibleSeries is `[]` and compatibleProducts carries the scoping.
+    // Every option must be compatible with *something*, one way or the other.
+    it('every option should have a non-empty compatibleSeries OR compatibleProducts list', () => {
       catalog.options.forEach((option) => {
         expect(Array.isArray(option.compatibleSeries)).toBe(true);
-        expect(option.compatibleSeries.length).toBeGreaterThan(0);
+        const hasSeries = option.compatibleSeries.length > 0;
+        const hasProducts = Array.isArray(option.compatibleProducts) && option.compatibleProducts.length > 0;
+        expect(hasSeries || hasProducts).toBe(true);
+      });
+    });
+
+    it('EasyLoader accessory options should be product-scoped: empty compatibleSeries + compatibleProducts', () => {
+      const elOptions = catalog.options.filter((o) => o.code.startsWith('EL-'));
+      expect(elOptions.length).toBeGreaterThan(0);
+      elOptions.forEach((option) => {
+        expect(option.compatibleSeries).toEqual([]);
+        expect(option.compatibleProducts).toBeDefined();
+        expect(option.compatibleProducts!.length).toBeGreaterThan(0);
+        option.compatibleProducts!.forEach((code) => expect(['EL-2020', 'EL-2420']).toContain(code));
       });
     });
 
@@ -202,13 +264,29 @@ describe('Catalog Extraction Validation', () => {
       expect(new Set([crateM!.price, crateP!.price, crateFP!.price]).size).toBe(3);
       expect(catalog.options.some((o) => o.code === 'Crate')).toBe(false);
 
-      // PRA splits two ways (L, SW), at different prices.
+    });
+
+    // PRA used to split two ways (L-Series option, SW-sheet option) at
+    // different prices. The SW-sheet "PRA" is now a Software product (see
+    // Series Structure above) rather than an option, so there's no longer a
+    // second "PRA" option to trigger the automatic merge/split logic --
+    // the L-Series option keeps its long-standing "PRA-L" code (hard-coded
+    // in extractLSeries) rather than reverting to an unsuffixed "PRA", which
+    // would collide with the new SW product code.
+    it('PRA-L (L-Series option) and PRA (SW product) coexist as distinct codes with different prices', () => {
       const praL = catalog.options.find((o) => o.code === 'PRA-L');
-      const praSW = catalog.options.find((o) => o.code === 'PRA-SW');
       expect(praL).toBeDefined();
-      expect(praSW).toBeDefined();
-      expect(praL!.price).not.toBe(praSW!.price);
+      expect(praL!.price).toBe(2200);
+      expect(praL!.compatibleSeries).toEqual(['L']);
+      // No leftover "PRA-SW" option and no unsuffixed "PRA" option -- SW's
+      // PRA is a product now.
+      expect(catalog.options.some((o) => o.code === 'PRA-SW')).toBe(false);
       expect(catalog.options.some((o) => o.code === 'PRA')).toBe(false);
+
+      const sw = catalog.series.find((s) => s.seriesCode === 'SW')!;
+      const praProduct = sw.products.find((p) => p.code === 'PRA');
+      expect(praProduct).toBeDefined();
+      expect(praProduct!.price).toBe(3500);
     });
   });
 

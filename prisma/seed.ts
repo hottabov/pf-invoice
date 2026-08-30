@@ -26,6 +26,43 @@ import {
 
 const catalog = catalogData as Catalog;
 
+/**
+ * Option codes retired by the EasyLoader/EasyFeeder/Software reclassification
+ * fix: these sheets' rows were originally (incorrectly) extracted entirely as
+ * options, leaving their series with 0 products. They're now products (see
+ * scripts/extract-catalog.ts), so any pre-existing Option row seeded under
+ * the old code must be removed -- otherwise it lingers alongside its new
+ * product-equivalent, duplicating the item in the catalog UI.
+ *
+ * Exact old codes, as they existed in prisma/seed-data/catalog.json before
+ * this fix (captured from the pre-change catalog, not regenerated):
+ *  - the 2 EasyLoader drive-module options -> now products EL-2020 / EL-2420
+ *  - the 3 EasyFeeder options -> now products EF-2020 / EF-2420 / EF-4030
+ *  - the 10 Software options (incl. PRA-SW) -> now SW-series products of the
+ *    same codes (PRA-SW's SW-sheet counterpart is now product code "PRA";
+ *    L-Series' differently-priced "PRA-L" option is unaffected and stays).
+ */
+const RETIRED_OPTION_CODES: string[] = [
+  // EasyLoader drive modules -> products EL-2020 / EL-2420.
+  "EL-2020 Drive Module (first 1.2M)",
+  "EL-2420 Drive Module (first 1.2M)",
+  // EasyFeeder -> products EF-2020 / EF-2420 / EF-4030.
+  "EasyFeeder- 2020",
+  "EasyFeeder- 2420",
+  "EasyFeeder- 4030",
+  // Software -> products of the same codes.
+  "ANT-V5",
+  "ANT-V6",
+  "EDG",
+  "LS Convert",
+  "PDG",
+  "PRA-SW",
+  "PTN",
+  "PTW(S)",
+  "WPL",
+  "WPN",
+];
+
 async function main() {
   // Import db module only after dotenv has loaded DATABASE_URL.
   const { db } = await import("../src/lib/db");
@@ -71,7 +108,28 @@ async function main() {
     seriesIdByCode.set(s.code, series.id);
   }
 
-  // 3. Products
+  // 3. Retire options reclassified as products (or otherwise removed) by
+  // this catalog revision -- see RETIRED_OPTION_CODES above. Only delete an
+  // option if no DocumentLine snapshot still references it; a document that
+  // already used the option keeps working as-is, and the stale option row
+  // is left in place (skipped + warned) rather than breaking that document's
+  // history. Price and OptionCompatibility rows cascade on Option delete.
+  let retiredCount = 0;
+  for (const code of RETIRED_OPTION_CODES) {
+    const existing = await db.option.findUnique({ where: { code } });
+    if (!existing) continue; // never seeded under this code (e.g. fresh DB) -- nothing to retire
+    const refCount = await db.documentLine.count({ where: { refId: existing.id, kind: "OPTION" } });
+    if (refCount > 0) {
+      console.warn(
+        `seed: retired option "${code}" is still referenced by ${refCount} document line(s) -- skipped, not deleted`
+      );
+      continue;
+    }
+    await db.option.delete({ where: { id: existing.id } });
+    retiredCount++;
+  }
+
+  // 4. Products
   const productIdByCode = new Map<string, string>();
   for (const p of mapProducts(catalog)) {
     const seriesId = seriesIdByCode.get(p.seriesCode);
@@ -84,7 +142,7 @@ async function main() {
     productIdByCode.set(p.code, product.id);
   }
 
-  // 4. Options
+  // 5. Options
   const optionIdByCode = new Map<string, string>();
   for (const o of mapOptions(catalog)) {
     const option = await db.option.upsert({
@@ -95,7 +153,7 @@ async function main() {
     optionIdByCode.set(o.code, option.id);
   }
 
-  // 5. Prices (AU only — the other regions have no pricing data yet)
+  // 6. Prices (AU only — the other regions have no pricing data yet)
   let priceCount = 0;
   for (const price of mapPrices(catalog, "AU")) {
     const regionId = regionIdByCode.get(price.regionCode);
@@ -121,28 +179,47 @@ async function main() {
     priceCount++;
   }
 
-  // 6. Option <-> Series compatibility. The (optionId, seriesId) partial
-  // unique index only applies WHERE productId IS NULL, so Prisma's
-  // composite-key `upsert` (which can't target a NULL member) doesn't
-  // apply here — check for an existing row first, then create if absent.
+  // 7. Option <-> Series/Product compatibility. Each row is series-level
+  // (seriesId set, productId null) or product-level (productId set, seriesId
+  // null) — never both, mirroring the two partial unique indexes in
+  // schema.prisma. Both are partial ("WHERE the other column IS NULL"), so
+  // Prisma's composite-key `upsert` (which can't target a NULL member)
+  // doesn't apply either way — check for an existing row first, then create
+  // if absent, same pattern for both branches.
   let compatCount = 0;
   for (const c of mapCompatibility(catalog)) {
     const optionId = optionIdByCode.get(c.optionCode);
-    const seriesId = seriesIdByCode.get(c.seriesCode);
-    if (!optionId || !seriesId) {
-      throw new Error(`seed: compatibility references unknown option/series ${c.optionCode}/${c.seriesCode}`);
+    if (!optionId) {
+      throw new Error(`seed: compatibility references unknown option ${c.optionCode}`);
     }
-    const existing = await db.optionCompatibility.findFirst({
-      where: { optionId, seriesId, productId: null },
-    });
+
+    const where =
+      c.seriesCode !== undefined
+        ? (() => {
+            const seriesId = seriesIdByCode.get(c.seriesCode);
+            if (!seriesId) {
+              throw new Error(`seed: compatibility references unknown series ${c.seriesCode} (option ${c.optionCode})`);
+            }
+            return { optionId, seriesId, productId: null as string | null };
+          })()
+        : (() => {
+            const productId = productIdByCode.get(c.productCode);
+            if (!productId) {
+              throw new Error(`seed: compatibility references unknown product ${c.productCode} (option ${c.optionCode})`);
+            }
+            return { optionId, seriesId: null as string | null, productId };
+          })();
+
+    const existing = await db.optionCompatibility.findFirst({ where });
     if (!existing) {
       try {
-        await db.optionCompatibility.create({ data: { optionId, seriesId, productId: null } });
+        await db.optionCompatibility.create({ data: where });
       } catch (e) {
         // Two concurrent/duplicate seed runs can both pass the findFirst
         // check above and then race on the create -- the loser hits the
-        // partial unique index (optionId, seriesId) WHERE productId IS NULL
-        // as a P2002 unique-constraint violation. That's the same "already
+        // relevant partial unique index (optionId, seriesId) WHERE productId
+        // IS NULL, or (optionId, productId) WHERE seriesId IS NULL, as a
+        // P2002 unique-constraint violation. That's the same "already
         // compatible" outcome the findFirst branch above no-ops on, so treat
         // it the same way instead of failing the whole seed run. Any other
         // error is a genuine problem and must still propagate.
@@ -154,12 +231,13 @@ async function main() {
   }
 
   console.log("seed: done");
-  console.log(`  regions:       ${regionIdByCode.size}`);
-  console.log(`  series:        ${seriesIdByCode.size}`);
-  console.log(`  products:      ${productIdByCode.size}`);
-  console.log(`  options:       ${optionIdByCode.size}`);
-  console.log(`  prices:        ${priceCount}`);
-  console.log(`  compatibility: ${compatCount}`);
+  console.log(`  regions:        ${regionIdByCode.size}`);
+  console.log(`  series:         ${seriesIdByCode.size}`);
+  console.log(`  retired options: ${retiredCount}`);
+  console.log(`  products:       ${productIdByCode.size}`);
+  console.log(`  options:        ${optionIdByCode.size}`);
+  console.log(`  prices:         ${priceCount}`);
+  console.log(`  compatibility:  ${compatCount}`);
 }
 
 main()
