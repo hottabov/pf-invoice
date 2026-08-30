@@ -8,7 +8,8 @@ Spec: `docs/specs/2026-08-29-pathquote-design.md`. Detailed plans live in `docs/
 | 2. Schema & seed ✅ | Full DB schema, migrations, Excel → JSON → DB seed (M/X-Calibre/L/Punchline/Software/LNS/EasyLoader/EasyFeeder/FabricPro, options, AUD prices, compatibility). Done 2026-08-29 (code complete; VPS bring-up pending per docs/runbook.md). | same plan |
 | 3. Catalog admin ✅ | CRUD: series/products/options, image upload, per-region prices, compatibility matrix editor. Done 2026-08-29. | `2026-08-29-phase-3-catalog-admin.md` |
 | 4. Clients & builder ✅ | Companies + contacts CRUD; document wizard: multi-item, options, discounts with series caps, totals, autosave drafts. Done 2026-08-30. | `2026-08-29-phase-4-clients-builder.md` |
-| 5. Invoice PDF | Invoice HTML template (brand, entity legal block, tax), Gotenberg PDF, numbering sequences, finalize + snapshots. | TBD |
+| 5. Invoice PDF ✅ | Invoice HTML template (brand, entity legal block, tax), Gotenberg PDF, numbering sequences, finalize + snapshots. Done 2026-08-30. | `2026-08-30-phase-5-finalize-pdf.md` |
+| 5b. UI/UX overhaul | Touch-friendly + full desktop layouts, ui-ux-pro-max driven design pass across all screens. | next |
 | 6. Quotation | Extended quotation template, content_blocks admin (T&C, General Conditions, RSP, option descriptions), RSP coverage table. | TBD |
 | 7. Admin & polish | Users/regions/entities admin, settings, backups (pg_dump cron), e2e suite, mobile polish. | TBD |
 
