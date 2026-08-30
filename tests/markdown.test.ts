@@ -15,6 +15,32 @@ describe("renderMarkdown — escaping", () => {
     const html = renderMarkdown(`Tom & Jerry's "great" day`);
     expect(html).toContain("Tom &amp; Jerry&#39;s &quot;great&quot; day");
   });
+
+  it("escapes an <img onerror=...> XSS payload instead of leaving it as a live tag", () => {
+    const html = renderMarkdown(`<img src=x onerror="alert(1)">`);
+    // The whole tag is neutralized to inert text — no live "<img" element
+    // and no live '="' attribute boundary an HTML parser could act on.
+    expect(html).not.toContain("<img");
+    expect(html).not.toMatch(/onerror\s*=\s*"/);
+    expect(html).toBe("<p>&lt;img src=x onerror=&quot;alert(1)&quot;&gt;</p>");
+  });
+
+  it("escaping runs before the inline bold/italic transform, so markers can't re-open a tag", () => {
+    // If escaping ran second (or not at all before the inline transform),
+    // "*<img onerror=x>*" would let the emphasis wrapper sit around a live
+    // tag. Escaping first means the transform only ever sees "&lt;...&gt;"
+    // text to wrap in <em>, never a real "<".
+    const html = renderMarkdown(`*<img onerror=alert(1)>*`);
+    expect(html).toBe("<p><em>&lt;img onerror=alert(1)&gt;</em></p>");
+  });
+
+  it("never unescapes entities via the bold/italic regex (no raw '<', '>', '&' reappears)", () => {
+    const html = renderMarkdown(`**<b>&amp;</b>**`);
+    expect(html).not.toMatch(/<b>|<\/b>/);
+    // The literal ampersand-entity text passes through inline transforms
+    // unchanged — only wrapped in <strong>, never decoded back to "&".
+    expect(html).toContain("<strong>&lt;b&gt;&amp;amp;&lt;/b&gt;</strong>");
+  });
 });
 
 describe("renderMarkdown — inline emphasis", () => {

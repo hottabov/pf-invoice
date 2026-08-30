@@ -115,9 +115,17 @@ export function resolveBlocks(blocks: ContentBlockRow[], regionId: string): Map<
  * order: the exact code first (e.g. "ABR-M" -> "option.ABR-M"), then — only
  * when the code contains a "-" — the code with its trailing series suffix
  * stripped (e.g. "ABR-M" -> "option.ABR", "ABR-FP" -> "option.ABR"). A code
- * with no "-" only ever produces the one exact candidate. Callers should try
- * each candidate against the resolved blocks map in order and use the first
- * hit, skipping the option entirely if neither resolves.
+ * with no "-" only ever produces the one exact candidate.
+ *
+ * Fabric Master is catalogued as an M/XC-series *option* rather than a
+ * standalone product (e.g. "FM180"), so it never goes through
+ * `productBlockKey`. To keep it reachable, any code starting with "FM" gets
+ * "equipment.fabric-master" appended as a last-resort candidate, after the
+ * exact-key (and, where applicable, stripped-suffix) misses.
+ *
+ * Callers should try each candidate against the resolved blocks map in
+ * order and use the first hit, skipping the option entirely if none
+ * resolve.
  */
 export function optionBlockKey(code: string): string[] {
   const candidates = [`option.${code}`];
@@ -126,6 +134,9 @@ export function optionBlockKey(code: string): string[] {
     const stripped = code.slice(0, lastDash);
     const strippedKey = `option.${stripped}`;
     if (!candidates.includes(strippedKey)) candidates.push(strippedKey);
+  }
+  if (code.startsWith("FM") && !candidates.includes("equipment.fabric-master")) {
+    candidates.push("equipment.fabric-master");
   }
   return candidates;
 }
@@ -165,6 +176,18 @@ export function productBlockKey(productCode: string, seriesCode: string | null):
       return null;
   }
 }
+
+// --- RSP coverage --------------------------------------------------------
+
+/**
+ * Series codes that identify a cutting machine (as opposed to an accessory
+ * or software product) for the RSP coverage table — see
+ * `buildQuotationData`'s `coverageRows`. Kept separate from
+ * `productBlockKey`'s switch because the two questions differ: this is
+ * "is this a machine at all" (RSP coverage), that is "which content block
+ * describes this specific product".
+ */
+const MACHINE_SERIES_CODES = new Set(["M", "XC", "L", "P", "LNS"]);
 
 // --- substitutePlaceholders ------------------------------------------------
 
@@ -349,11 +372,13 @@ export function buildQuotationData(
   const rspAgreement = resolved.get("rsp.agreement");
   const agreementHtml = rspAgreement ? renderMarkdown(substitutePlaceholders(rspAgreement.body, globalVars)) : null;
 
-  const coverageRows: QuotationRspRow[] = doc.items.map((item) => ({
-    name: item.name,
-    serialNumber: item.serialNumber ?? "",
-    rspUnitCost: "____",
-  }));
+  const coverageRows: QuotationRspRow[] = doc.items
+    .filter((item) => MACHINE_SERIES_CODES.has(item.seriesCode ?? "") || Boolean(item.serialNumber))
+    .map((item) => ({
+      name: item.name,
+      serialNumber: item.serialNumber ?? "",
+      rspUnitCost: "____",
+    }));
 
   return {
     isDraft: sheet.isDraft,

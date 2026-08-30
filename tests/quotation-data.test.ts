@@ -56,6 +56,21 @@ describe("optionBlockKey — fallback", () => {
     // A dash at position 0 (lastIndexOf > 0 guard) never strips.
     expect(optionBlockKey("-M")).toEqual(["option.-M"]);
   });
+
+  it("appends equipment.fabric-master as a last-resort candidate for FM-prefixed codes", () => {
+    // Fabric Master is catalogued as an M/XC option (e.g. "FM180"), not a
+    // standalone product, so it needs a fallback into the equipment.* key
+    // space rather than a never-seeded "option.FM180".
+    expect(optionBlockKey("FM180")).toEqual(["option.FM180", "equipment.fabric-master"]);
+  });
+
+  it("appends the fabric-master fallback after a stripped-suffix candidate too", () => {
+    expect(optionBlockKey("FM-220")).toEqual(["option.FM-220", "option.FM", "equipment.fabric-master"]);
+  });
+
+  it("does not add the fabric-master fallback for non-FM codes", () => {
+    expect(optionBlockKey("MTS")).not.toContain("equipment.fabric-master");
+  });
 });
 
 describe("productBlockKey", () => {
@@ -159,7 +174,7 @@ const machineBlock: ContentBlockRow = {
   key: "machine.m-series",
   regionId: null,
   title: "M-Series",
-  body: "Model M{{model}}. Height {{cutHeightCm}}cm, width {{cutWidthCm}}cm. Price {{price}}.",
+  body: "Model {{model}}. Height {{cutHeightCm}}cm, width {{cutWidthCm}}cm. Price {{price}}.",
   sortOrder: 1,
 };
 
@@ -197,16 +212,12 @@ const rspAgreementBlock: ContentBlockRow = {
 
 describe("buildQuotationData", () => {
   it("resolves a machine title block with substituted vars", () => {
-    // Per the spec, `model` is substituted with the raw `item.code` — the
-    // real machine.m-series seed template hardcodes a literal "M" before
-    // "{{model}}" (see prisma/seed-data/content-blocks.json), so it expects
-    // `model` to be just the numeric suffix (e.g. "450"), not a full
-    // "M"-prefixed product code. Using "450" here (matching the
-    // placeholder hint's documented example) rather than a code like
-    // "M5180" avoids asserting on the resulting double-"M" — see this
-    // module's final report for that as a flagged content-authoring
-    // concern rather than a bug in `buildQuotationData` itself.
-    const data = buildQuotationData(baseDoc({ items: [baseItem({ code: "450" })] }), [machineBlock]);
+    // `model` is substituted with the raw `item.code` (e.g. "M5180") as-is —
+    // the real machine.m-series seed template (see
+    // prisma/seed-data/content-blocks.json) uses a bare "{{model}}" (no
+    // hardcoded "M" prefix), so a full product code renders correctly with
+    // no doubled "M". This fixture's own block body mirrors that shape.
+    const data = buildQuotationData(baseDoc({ items: [baseItem({ code: "M450" })] }), [machineBlock]);
     expect(data.machineSections).toHaveLength(1);
     expect(data.machineSections[0].titleBlockHtml).toContain("Model M450");
     expect(data.machineSections[0].titleBlockHtml).toContain("Height 18cm, width 180cm");
@@ -270,5 +281,35 @@ describe("buildQuotationData", () => {
   it("blanks serialNumber when unset rather than rendering null", () => {
     const data = buildQuotationData(baseDoc(), []);
     expect(data.rsp.coverageRows[0].serialNumber).toBe("");
+  });
+
+  it("includes items from every machine series (M, XC, L, P, LNS)", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({ id: "i-m", name: "M item", seriesCode: "M" }),
+        baseItem({ id: "i-xc", name: "XC item", seriesCode: "XC" }),
+        baseItem({ id: "i-l", name: "L item", seriesCode: "L" }),
+        baseItem({ id: "i-p", name: "P item", seriesCode: "P" }),
+        baseItem({ id: "i-lns", name: "LNS item", seriesCode: "LNS" }),
+      ],
+    });
+    const data = buildQuotationData(doc, []);
+    expect(data.rsp.coverageRows.map((r) => r.name)).toEqual(["M item", "XC item", "L item", "P item", "LNS item"]);
+  });
+
+  it("excludes a non-machine-series item with no serial number (e.g. an option/accessory/software item)", () => {
+    const doc = baseDoc({
+      items: [baseItem({ name: "Easy-Loader", seriesCode: "EL", serialNumber: null })],
+    });
+    const data = buildQuotationData(doc, []);
+    expect(data.rsp.coverageRows).toEqual([]);
+  });
+
+  it("includes a non-machine-series item when it has a serial number", () => {
+    const doc = baseDoc({
+      items: [baseItem({ name: "Fabric Master", seriesCode: null, serialNumber: "SN-FM-1" })],
+    });
+    const data = buildQuotationData(doc, []);
+    expect(data.rsp.coverageRows).toEqual([{ name: "Fabric Master", serialNumber: "SN-FM-1", rspUnitCost: "____" }]);
   });
 });
