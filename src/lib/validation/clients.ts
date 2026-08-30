@@ -31,6 +31,32 @@ const countrySchema = optionalText(120, "Country");
 const taxIdSchema = optionalText(50, "Tax ID");
 const notesSchema = optionalText(2000, "Notes");
 
+// Website URL: optional, normalized to https:// if no protocol
+const websiteSchema = z.preprocess(
+  (value) =>
+    value === null || value === undefined || (typeof value === "string" && value.trim() === "")
+      ? undefined
+      : value,
+  z
+    .string()
+    .trim()
+    .max(200, "Website must be at most 200 characters")
+    .refine((value) => {
+      // Match either https?://... OR bare domain
+      const protocolRegex = /^https?:\/\/\S+/i;
+      const domainRegex = /^[a-z0-9.-]+\.[a-z]{2,}(\/\S*)?$/i;
+      return protocolRegex.test(value) || domainRegex.test(value);
+    }, "Website must be a valid URL or domain")
+    .transform((value) => {
+      // Normalize: if no protocol, prepend https://
+      if (!value.match(/^https?:\/\//i)) {
+        return `https://${value}`;
+      }
+      return value;
+    })
+    .optional()
+);
+
 const regionCodeSchema = z
   .string()
   .trim()
@@ -48,6 +74,7 @@ export const companySchema = z.object({
   state: stateSchema,
   postcode: postcodeSchema,
   country: countrySchema,
+  website: websiteSchema,
   taxId: taxIdSchema,
   notes: notesSchema,
   regionCode: regionCodeSchema,

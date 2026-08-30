@@ -46,6 +46,13 @@ export default async function CompanyEditorPage({ params }: { params: Promise<Pa
       <div>
         <p className="text-sm text-muted-foreground">Company</p>
         <h1 className="text-xl font-semibold text-brand-dark">{company.name}</h1>
+        {company.website && (
+          <p className="mt-1 text-sm">
+            <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+              {company.website}
+            </a>
+          </p>
+        )}
       </div>
 
       <section className="mt-6 rounded-xl border border-border bg-white p-4 sm:p-6">
@@ -60,6 +67,7 @@ export default async function CompanyEditorPage({ params }: { params: Promise<Pa
               state: company.state ?? "",
               postcode: company.postcode ?? "",
               country: company.country ?? "",
+              website: company.website ?? "",
               taxId: company.taxId ?? "",
               notes: company.notes ?? "",
               regionCode: company.regionCode,

@@ -6,6 +6,7 @@ export type CompanyListItem = {
   name: string;
   city: string | null;
   country: string | null;
+  website: string | null;
   regionCode: string;
   contactCount: number;
 };
@@ -43,6 +44,7 @@ export async function listCompanies(
     name: c.name,
     city: c.city,
     country: c.country,
+    website: c.website,
     regionCode: c.region.code,
     contactCount: c._count.contacts,
   }));
@@ -66,6 +68,7 @@ export type CompanyDetail = {
   state: string | null;
   postcode: string | null;
   country: string | null;
+  website: string | null;
   taxId: string | null;
   notes: string | null;
   regionCode: string;
@@ -102,6 +105,7 @@ export async function getCompanyDetail(
     state: company.state,
     postcode: company.postcode,
     country: company.country,
+    website: company.website,
     taxId: company.taxId,
     notes: company.notes,
     regionCode: company.region.code,

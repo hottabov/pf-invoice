@@ -12,6 +12,7 @@ export type CompanyFormValues = {
   state: string;
   postcode: string;
   country: string;
+  website: string;
   taxId: string;
   notes: string;
   regionCode: string;
@@ -121,6 +122,18 @@ export function CompanyForm({
             name="country"
             defaultValue={defaultValues.country}
             maxLength={120}
+            className={inputClass}
+          />
+        </Field>
+
+        <Field label="Website" htmlFor="company-website">
+          <input
+            id="company-website"
+            name="website"
+            type="text"
+            defaultValue={defaultValues.website}
+            placeholder="https://example.com"
+            maxLength={200}
             className={inputClass}
           />
         </Field>

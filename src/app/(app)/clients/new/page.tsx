@@ -26,6 +26,7 @@ export default async function NewCompanyPage() {
             state: "",
             postcode: "",
             country: "",
+            website: "",
             taxId: "",
             notes: "",
             regionCode: regions[0]?.code ?? "",

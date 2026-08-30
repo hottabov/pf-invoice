@@ -72,11 +72,24 @@ export default async function ClientsPage({
             >
               <div className="flex items-center gap-3">
                 <Building2 className="size-5 shrink-0 text-brand" />
-                <div className="flex flex-col">
+                <div className="flex flex-col gap-0.5">
                   <span className="font-medium text-brand-dark">{c.name}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {[c.city, c.country].filter(Boolean).join(", ") || "No address"}
-                  </span>
+                  <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+                    <span>
+                      {[c.city, c.country].filter(Boolean).join(", ") || "No address"}
+                    </span>
+                    {c.website && (
+                      <a
+                        href={c.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-muted-foreground hover:text-blue-600 hover:underline"
+                      >
+                        {c.website}
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2 pl-8 md:pl-0">

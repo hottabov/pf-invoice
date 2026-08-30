@@ -173,3 +173,101 @@ describe("contactSchema", () => {
     });
   });
 });
+
+describe("companySchema - website validation", () => {
+  const base = {
+    name: "Acme Landscaping",
+    street: "1 Example St",
+    city: "Sydney",
+    state: "NSW",
+    postcode: "2000",
+    country: "Australia",
+    taxId: "64 072 458 667",
+    notes: "Prefers email contact.",
+    regionCode: "AU",
+  };
+
+  it("accepts a fully populated company with a website", () => {
+    const result = companySchema.safeParse({
+      ...base,
+      website: "https://example.com",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("normalizes a bare domain by prepending https://", () => {
+    const result = companySchema.safeParse({
+      ...base,
+      website: "example.com",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.website).toBe("https://example.com");
+    }
+  });
+
+  it("accepts a bare domain with a path", () => {
+    const result = companySchema.safeParse({
+      ...base,
+      website: "example.com/path/to/page",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.website).toBe("https://example.com/path/to/page");
+    }
+  });
+
+  it("accepts https:// URLs", () => {
+    const result = companySchema.safeParse({
+      ...base,
+      website: "https://example.com",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.website).toBe("https://example.com");
+    }
+  });
+
+  it("accepts http:// URLs", () => {
+    const result = companySchema.safeParse({
+      ...base,
+      website: "http://example.com",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.website).toBe("http://example.com");
+    }
+  });
+
+  it("collapses an empty-string website to undefined", () => {
+    const result = companySchema.safeParse({ ...base, website: "" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.website).toBeUndefined();
+    }
+  });
+
+  it("collapses null/undefined website to undefined", () => {
+    for (const website of [null, undefined]) {
+      const result = companySchema.safeParse({ ...base, website });
+      expect(result.success, JSON.stringify(website)).toBe(true);
+      if (result.success) {
+        expect(result.data.website).toBeUndefined();
+      }
+    }
+  });
+
+  it("rejects an invalid URL (no protocol, not a domain)", () => {
+    expect(companySchema.safeParse({ ...base, website: "not a url" }).success).toBe(false);
+  });
+
+  it("rejects a website over 200 characters", () => {
+    const longUrl = `https://example.com/${"a".repeat(200)}`;
+    expect(companySchema.safeParse({ ...base, website: longUrl }).success).toBe(false);
+  });
+
+  it("accepts a 200-character website (boundary)", () => {
+    const url200 = `https://example.com/${"a".repeat(177)}`; // 8 + 11 + 1 + 177 = 197
+    expect(companySchema.safeParse({ ...base, website: url200 }).success).toBe(true);
+  });
+});
