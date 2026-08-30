@@ -133,7 +133,44 @@ async function main() {
     retiredCount++;
   }
 
-  // 4. Products
+  // 4. Rename legacy "XC-####" product codes to "X-####" (the X-Calibre
+  // product-code prefix changed from "XC-" to "X-" -- see
+  // scripts/extract-catalog.ts; the series code itself stays "XC"). Existing
+  // DBs (local and the future VPS) may already contain products seeded under
+  // the old "XC-####" codes, and some may already be referenced by
+  // DocumentItems (e.g. a finalized quote) -- those rows can never be
+  // deleted, and duplicating them under the new code is unacceptable, so
+  // this renames the code string in place instead. Renaming (rather than
+  // delete+recreate) preserves the product's id and every relation to it
+  // (DocumentItems, Prices, OptionCompatibility, etc). If a product already
+  // exists under the target "X-####" code (shouldn't happen — codes are
+  // unique and this migration only ever needs to run once per row), the
+  // update hits the unique-code constraint (P2002); log a warning and skip
+  // rather than crashing the whole seed run.
+  let renamedXCount = 0;
+  const legacyXCProducts = await db.product.findMany({
+    where: { code: { startsWith: "XC-" } },
+  });
+  for (const product of legacyXCProducts) {
+    const match = /^XC-(\d+)$/.exec(product.code);
+    if (!match) continue; // not a plain "XC-####" code -- leave untouched
+    const newCode = `X-${match[1]}`;
+    try {
+      await db.product.update({
+        where: { id: product.id },
+        data: { code: newCode },
+      });
+      renamedXCount++;
+    } catch (e) {
+      const isDuplicate = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+      if (!isDuplicate) throw e;
+      console.warn(
+        `seed: cannot rename product "${product.code}" -> "${newCode}" -- a product with code "${newCode}" already exists; skipped`
+      );
+    }
+  }
+
+  // 5. Products
   const productIdByCode = new Map<string, string>();
   for (const p of mapProducts(catalog)) {
     const seriesId = seriesIdByCode.get(p.seriesCode);
@@ -146,7 +183,7 @@ async function main() {
     productIdByCode.set(p.code, product.id);
   }
 
-  // 5. Options
+  // 6. Options
   const optionIdByCode = new Map<string, string>();
   for (const o of mapOptions(catalog)) {
     const option = await db.option.upsert({
@@ -157,7 +194,7 @@ async function main() {
     optionIdByCode.set(o.code, option.id);
   }
 
-  // 6. Prices (AU only — the other regions have no pricing data yet)
+  // 7. Prices (AU only — the other regions have no pricing data yet)
   let priceCount = 0;
   for (const price of mapPrices(catalog, "AU")) {
     const regionId = regionIdByCode.get(price.regionCode);
@@ -183,7 +220,7 @@ async function main() {
     priceCount++;
   }
 
-  // 7. Option <-> Series/Product compatibility. Each row is series-level
+  // 8. Option <-> Series/Product compatibility. Each row is series-level
   // (seriesId set, productId null) or product-level (productId set, seriesId
   // null) — never both, mirroring the two partial unique indexes in
   // schema.prisma. Both are partial ("WHERE the other column IS NULL"), so
@@ -234,7 +271,7 @@ async function main() {
     compatCount++;
   }
 
-  // 8. Content blocks -- one regionId:null "default" row per key from
+  // 9. Content blocks -- one regionId:null "default" row per key from
   // prisma/seed-data/content-blocks.json. Create if the key has never been
   // seeded before; if a default row already exists, leave it entirely alone
   // (never overwrite title/body/sortOrder) so an admin's edits made via
@@ -277,6 +314,7 @@ async function main() {
   console.log(`  regions:        ${regionIdByCode.size}`);
   console.log(`  series:         ${seriesIdByCode.size}`);
   console.log(`  retired options: ${retiredCount}`);
+  console.log(`  renamed XC->X products: ${renamedXCount}`);
   console.log(`  products:       ${productIdByCode.size}`);
   console.log(`  options:        ${optionIdByCode.size}`);
   console.log(`  prices:         ${priceCount}`);

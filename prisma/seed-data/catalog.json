@@ -1,5 +1,5 @@
 {
-  "extractedAt": "2026-08-30T23:26:00.885Z",
+  "extractedAt": "2026-08-30T23:30:01.198Z",
   "series": [
     {
       "seriesCode": "XC",
@@ -7,84 +7,84 @@
       "maxDiscountPct": null,
       "products": [
         {
-          "code": "XC-10180",
+          "code": "X-10180",
           "name": "Computer controlled cutting machine - 10cm compressed lay height, 180cm cutting width",
           "description": "Computer controlled cutting machine - 10cm compressed lay height, 180cm cutting width",
           "price": 212500,
           "needsReview": true
         },
         {
-          "code": "XC-10220",
+          "code": "X-10220",
           "name": "Computer controlled cutting machine - 10cm compressed lay height, 227cm cutting width",
           "description": "Computer controlled cutting machine - 10cm compressed lay height, 227cm cutting width",
           "price": 225500,
           "needsReview": true
         },
         {
-          "code": "XC-10390",
+          "code": "X-10390",
           "name": "Computer controlled cutting machine - 10cm compressed lay height, 390cm cutting width",
           "description": "Computer controlled cutting machine - 10cm compressed lay height, 390cm cutting width",
           "price": 262000,
           "needsReview": true
         },
         {
-          "code": "XC-3180",
+          "code": "X-3180",
           "name": "Computer controlled cutting machine - 3cm compressed lay height, 180cm cutting width",
           "description": "Computer controlled cutting machine - 3cm compressed lay height, 180cm cutting width",
           "price": 175000,
           "needsReview": true
         },
         {
-          "code": "XC-3220",
+          "code": "X-3220",
           "name": "Computer controlled cutting machine - 3cm compressed lay height, 227cm cutting width",
           "description": "Computer controlled cutting machine - 3cm compressed lay height, 227cm cutting width",
           "price": 188000,
           "needsReview": true
         },
         {
-          "code": "XC-3390",
+          "code": "X-3390",
           "name": "Computer controlled cutting machine - 3cm compressed lay height, 390cm cutting width",
           "description": "Computer controlled cutting machine - 3cm compressed lay height, 390cm cutting width",
           "price": null,
           "needsReview": true
         },
         {
-          "code": "XC-5180",
+          "code": "X-5180",
           "name": "Computer controlled cutting machine - 5cm compressed lay height, 180cm cutting width",
           "description": "Computer controlled cutting machine - 5cm compressed lay height, 180cm cutting width",
           "price": 195000,
           "needsReview": true
         },
         {
-          "code": "XC-5220",
+          "code": "X-5220",
           "name": "Computer controlled cutting machine - 5cm compressed lay height, 227cm cutting width",
           "description": "Computer controlled cutting machine - 5cm compressed lay height, 227cm cutting width",
           "price": 208000,
           "needsReview": true
         },
         {
-          "code": "XC-5390",
+          "code": "X-5390",
           "name": "Computer controlled cutting machine - 5cm compressed lay height, 390cm cutting width",
           "description": "Computer controlled cutting machine - 5cm compressed lay height, 390cm cutting width",
           "price": 245000,
           "needsReview": true
         },
         {
-          "code": "XC-7180",
+          "code": "X-7180",
           "name": "Computer controlled cutting machine - 7cm compressed lay height, 180cm cutting width",
           "description": "Computer controlled cutting machine - 7cm compressed lay height, 180cm cutting width",
           "price": 207500,
           "needsReview": true
         },
         {
-          "code": "XC-7220",
+          "code": "X-7220",
           "name": "Computer controlled cutting machine - 7cm compressed lay height, 227cm cutting width",
           "description": "Computer controlled cutting machine - 7cm compressed lay height, 227cm cutting width",
           "price": 220500,
           "needsReview": true
         },
         {
-          "code": "XC-7390",
+          "code": "X-7390",
           "name": "Computer controlled cutting machine - 7cm compressed lay height, 390cm cutting width",
           "description": "Computer controlled cutting machine - 7cm compressed lay height, 390cm cutting width",
           "price": 257000,

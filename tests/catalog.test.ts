@@ -98,10 +98,10 @@ describe('Catalog Extraction Validation', () => {
       expect(xcSeries.products).toHaveLength(mSeries.products.length);
     });
 
-    it('every XC product code should match pattern XC- + M code without leading M', () => {
+    it('every XC product code should match pattern X- + M code without leading M', () => {
       mSeries.products.forEach((mProduct, index) => {
         const xcProduct = xcSeries.products[index];
-        const expectedXcCode = 'XC-' + mProduct.code.substring(1);
+        const expectedXcCode = 'X-' + mProduct.code.substring(1);
         expect(xcProduct.code).toBe(expectedXcCode);
       });
     });
@@ -109,7 +109,7 @@ describe('Catalog Extraction Validation', () => {
     it('XC and M products should be in same order', () => {
       mSeries.products.forEach((mProduct, index) => {
         const xcProduct = xcSeries.products[index];
-        expect(xcProduct.code).toBe('XC-' + mProduct.code.substring(1));
+        expect(xcProduct.code).toBe('X-' + mProduct.code.substring(1));
       });
     });
   });

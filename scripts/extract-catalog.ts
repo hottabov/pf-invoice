@@ -665,9 +665,12 @@ function main(): void {
 
   // X-Calibre: a distinct sellable line built on M-Series' machine specs.
   // Cloned from the already-extracted M products; codes drop the leading
-  // "M" and gain an "XC-" prefix (M3180 -> XC-3180). Prices are copied
+  // "M" and gain an "X-" prefix (M3180 -> X-3180). Prices are copied
   // as-is but flagged needsReview because X-Calibre-specific pricing is not
   // yet published in the source file -- these are provisional placeholders.
+  // The series code stays "XC" (see compatibleSeriesFor above) -- only the
+  // product-code prefix is "X-", analogous to M/L-Series product codes not
+  // repeating their series code either.
   // XC is expected to reuse M-Series' options via compatibleSeries (every
   // M-sheet option already lists "XC"), not via a duplicated options list.
   const mSeries = series.find((s) => s.seriesCode === "M")!;
@@ -678,7 +681,7 @@ function main(): void {
     products: sortByCode(
       mSeries.products.map((prod) => ({
         ...prod,
-        code: `XC-${prod.code.replace(/^M/, "")}`,
+        code: `X-${prod.code.replace(/^M/, "")}`,
         needsReview: true,
       }))
     ),
