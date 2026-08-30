@@ -69,7 +69,11 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* Brand navy — every default focus ring in the app (shadcn components read
+     this token) is brand-colored per the Phase 5b design direction. Elements
+     that sit directly on the brand-dark sidebar/login background override
+     this locally (see .focus-ring-dark) since navy-on-navy isn't visible. */
+  --ring: #243478;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -130,5 +134,43 @@
   }
   html {
     @apply font-sans;
+    /* Explicitly off — Phase 5b design direction calls for no scroll-linked
+       motion beyond the standard micro-transitions on interactive elements. */
+    scroll-behavior: auto;
+  }
+  /* Belt-and-braces against iOS Safari zooming on focus: every form control
+     gets a 16px floor regardless of which component classes it does or
+     doesn't carry (ui-kit's fieldInputClass already sets text-base too). */
+  input,
+  select,
+  textarea {
+    font-size: 1rem;
+  }
+  ::selection {
+    background-color: var(--color-brand);
+    color: white;
+  }
+}
+
+@layer utilities {
+  /* Standard focus treatment for hand-rolled interactive elements (links,
+     ui-kit controls) on a light/white surface — shadcn components get their
+     brand-colored ring for free from the --ring token above. */
+  .focus-ring {
+    @apply outline-none transition-shadow duration-150 motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-white;
+  }
+  /* Same, but for interactive elements that sit directly on the brand-dark
+     surface (desktop/tablet sidebar, login background) — brand-accent reads
+     clearly against brand-dark where brand navy would not. */
+  .focus-ring-dark {
+    @apply outline-none transition-shadow duration-150 motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2 focus-visible:ring-offset-brand-dark;
+  }
+  /* Safe-area padding for elements pinned to a mobile viewport edge (bottom
+     nav, sticky action bars) so they clear the home-indicator/notch. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
   }
 }

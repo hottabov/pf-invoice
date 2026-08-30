@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { FieldRow, fieldInputClass } from "@/components/ui-kit";
 import { loginWithPassword, sendMagicLink } from "@/lib/actions/auth";
 
 type ActionResult = { error?: string; success?: string };
@@ -28,72 +29,53 @@ export function LoginForm({ callbackUrl = "/" }: LoginFormProps) {
     <div className="flex flex-col gap-6">
       <form action={passwordAction} className="flex flex-col gap-4">
         <input type="hidden" name="callbackUrl" value={callbackUrl} />
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="email" className="text-sm font-medium text-brand-dark">
-            Email
-          </label>
+        <FieldRow label="Email" htmlFor="email">
           <input
             id="email"
             name="email"
             type="email"
             autoComplete="email"
             required
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className={fieldInputClass}
           />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="password" className="text-sm font-medium text-brand-dark">
-            Password
-          </label>
+        </FieldRow>
+        <FieldRow label="Password" htmlFor="password" error={passwordState.error}>
           <input
             id="password"
             name="password"
             type="password"
             autoComplete="current-password"
             required
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className={fieldInputClass}
           />
-        </div>
-        {passwordState.error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {passwordState.error}
-          </p>
-        ) : null}
+        </FieldRow>
         <Button
           type="submit"
           disabled={passwordPending}
-          className="h-10 w-full bg-brand text-white hover:bg-brand/90"
+          className="h-12 w-full bg-brand text-base text-white hover:bg-brand/90"
         >
           {passwordPending ? "Signing in…" : "Sign in"}
         </Button>
       </form>
 
       <div className="flex items-center gap-3">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">or</span>
-        <div className="h-px flex-1 bg-border" />
+        <div className="h-px flex-1 bg-slate-200" />
+        <span className="text-xs font-medium tracking-wide text-slate-400 uppercase">or</span>
+        <div className="h-px flex-1 bg-slate-200" />
       </div>
 
       {mode === "magic-link" ? (
         <form action={magicLinkAction} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="magic-email" className="text-sm font-medium text-brand-dark">
-              Email
-            </label>
+          <FieldRow label="Email" htmlFor="magic-email" error={magicLinkState.error}>
             <input
               id="magic-email"
               name="email"
               type="email"
               autoComplete="email"
               required
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              className={fieldInputClass}
             />
-          </div>
-          {magicLinkState.error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {magicLinkState.error}
-            </p>
-          ) : null}
+          </FieldRow>
           {magicLinkState.success ? (
             <p role="status" className="text-sm text-brand-dark">
               {magicLinkState.success}
@@ -103,7 +85,7 @@ export function LoginForm({ callbackUrl = "/" }: LoginFormProps) {
               type="submit"
               variant="outline"
               disabled={magicLinkPending}
-              className="h-10 w-full border-brand-accent text-brand-accent hover:bg-brand-accent/10"
+              className="h-12 w-full border-brand-accent text-base text-brand-accent hover:bg-brand-accent/10"
             >
               {magicLinkPending ? "Sending…" : "Send magic link"}
             </Button>
@@ -114,7 +96,7 @@ export function LoginForm({ callbackUrl = "/" }: LoginFormProps) {
           type="button"
           variant="outline"
           onClick={() => setMode("magic-link")}
-          className="h-10 w-full border-brand-accent text-brand-accent hover:bg-brand-accent/10"
+          className="h-12 w-full border-brand-accent text-base text-brand-accent hover:bg-brand-accent/10"
         >
           Sign in with a magic link
         </Button>

@@ -36,3 +36,17 @@ export function formatDateAU(date: Date): string {
   const yyyy = date.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
 }
+
+/**
+ * Coarse "3 days ago" / "12 Jan 2026" relative display for list rows
+ * (dashboard recent-documents, documents list) — not meant for anything
+ * that needs precision down to the hour.
+ */
+export function relativeDate(date: Date): string {
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86_400_000);
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return date.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+}
