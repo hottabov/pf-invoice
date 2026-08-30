@@ -270,4 +270,37 @@ describe("companySchema - website validation", () => {
     const url200 = `https://example.com/${"a".repeat(177)}`; // 8 + 11 + 1 + 177 = 197
     expect(companySchema.safeParse({ ...base, website: url200 }).success).toBe(true);
   });
+
+  it("rejects javascript: protocol URLs (XSS protection)", () => {
+    expect(companySchema.safeParse({ ...base, website: "javascript:alert(1)" }).success).toBe(false);
+  });
+
+  it("rejects data: protocol URLs (XSS protection)", () => {
+    expect(companySchema.safeParse({ ...base, website: "data:text/html,x" }).success).toBe(false);
+  });
+
+  it("rejects protocol-relative URLs // (open redirect protection)", () => {
+    expect(companySchema.safeParse({ ...base, website: "//evil.com" }).success).toBe(false);
+  });
+
+  it("rejects javascript: protocol with leading space (XSS obfuscation)", () => {
+    expect(companySchema.safeParse({ ...base, website: " javascript:alert(1)" }).success).toBe(false);
+  });
+
+  it("rejects a bare domain that normalizes to > 200 characters", () => {
+    // 190 bare chars + 3 (.co) + 8 (https://) = 201 total (exceeds 200 limit)
+    const longDomain = `${"a".repeat(190)}.co`;
+    expect(companySchema.safeParse({ ...base, website: longDomain }).success).toBe(false);
+  });
+
+  it("accepts a bare domain that normalizes to exactly 200 characters", () => {
+    // 189 bare chars + 3 (.co) + 8 (https://) = 200 total (at limit)
+    const domainAt200 = `${"a".repeat(189)}.co`;
+    const result = companySchema.safeParse({ ...base, website: domainAt200 });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.website) {
+      expect(result.data.website).toBe(`https://${domainAt200}`);
+      expect(result.data.website.length).toBe(200);
+    }
+  });
 });

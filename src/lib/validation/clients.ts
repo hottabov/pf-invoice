@@ -40,7 +40,6 @@ const websiteSchema = z.preprocess(
   z
     .string()
     .trim()
-    .max(200, "Website must be at most 200 characters")
     .refine((value) => {
       // Match either https?://... OR bare domain
       const protocolRegex = /^https?:\/\/\S+/i;
@@ -54,6 +53,10 @@ const websiteSchema = z.preprocess(
       }
       return value;
     })
+    .refine(
+      (value) => value.length <= 200,
+      "Website must be at most 200 characters after normalization"
+    )
     .optional()
 );
 
