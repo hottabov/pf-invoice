@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileText, Settings2 } from "lucide-react";
+import { FileText, Settings2, Users } from "lucide-react";
 import { auth } from "@/auth";
 import { getRegionById } from "@/lib/queries/catalog";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE, EmptyState } from "@/components/ui-kit";
@@ -52,6 +52,18 @@ export default async function SettingsPage() {
           >
             <FileText className="size-4" data-icon="inline-start" aria-hidden="true" />
             Manage content blocks
+          </Link>
+        </SectionCard>
+      ) : null}
+
+      {session.user.role === "ADMIN" ? (
+        <SectionCard title="Users" description="Add teammates, set roles and regions, and manage sign-in access.">
+          <Link
+            href="/settings/users"
+            className={cn(buttonVariants({ variant: "outline" }), "h-11 w-full sm:w-auto")}
+          >
+            <Users className="size-4" data-icon="inline-start" aria-hidden="true" />
+            Manage users
           </Link>
         </SectionCard>
       ) : null}

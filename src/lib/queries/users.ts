@@ -1,0 +1,71 @@
+import { db } from "@/lib/db";
+
+export type UserListItem = {
+  id: string;
+  email: string;
+  name: string | null;
+  role: "ADMIN" | "MANAGER";
+  active: boolean;
+  regionCode: string | null;
+  /** True when the user has no `passwordHash` — they can only sign in via
+   * the magic-link (email) flow, not the credentials form. Drives the
+   * "Magic link only" indicator in the users list. */
+  magicLinkOnly: boolean;
+};
+
+/**
+ * Every user in the system, ordered by email — this page is ADMIN-only and
+ * unscoped (unlike clients/documents, there's no per-manager ownership
+ * concept for users), so there's no `ScopeUser` filter to apply here.
+ */
+export async function listUsers(): Promise<UserListItem[]> {
+  const users = await db.user.findMany({
+    orderBy: { email: "asc" },
+    include: { region: true },
+  });
+
+  return users.map((u) => ({
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    role: u.role,
+    active: u.active,
+    regionCode: u.region?.code ?? null,
+    magicLinkOnly: !u.passwordHash,
+  }));
+}
+
+export type UserDetail = {
+  id: string;
+  email: string;
+  name: string | null;
+  role: "ADMIN" | "MANAGER";
+  active: boolean;
+  regionCode: string | null;
+  magicLinkOnly: boolean;
+};
+
+/** A single user by id, or `null` if it doesn't exist — feeds the
+ * /settings/users/[userId] edit page. */
+export async function getUser(userId: string): Promise<UserDetail | null> {
+  const user = await db.user.findUnique({ where: { id: userId }, include: { region: true } });
+  if (!user) return null;
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    active: user.active,
+    regionCode: user.region?.code ?? null,
+    magicLinkOnly: !user.passwordHash,
+  };
+}
+
+/** Count of currently active ADMIN users — feeds the last-active-admin
+ * safeguard in `canModifyUser` (src/lib/validation/users.ts). Computed
+ * fresh on every mutating action rather than cached, since it gates a
+ * safety check. */
+export async function countActiveAdmins(): Promise<number> {
+  return db.user.count({ where: { role: "ADMIN", active: true } });
+}
