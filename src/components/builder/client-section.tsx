@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { inputClass } from "@/components/catalog/field";
+import { Building2, Search } from "lucide-react";
+import { SectionCard, fieldInputClass } from "@/components/ui-kit";
+import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
 import type { ClientPickerCompany } from "@/lib/queries/documents";
 
@@ -13,7 +15,9 @@ import type { ClientPickerCompany } from "@/lib/queries/documents";
  * contact select. Every change calls `setClientAction` directly (no
  * <form>, same pattern as the "make primary" star in
  * src/components/clients/contacts-section.tsx) so picking a client is a
- * single tap with no separate "save" step.
+ * single tap with no separate "save" step. Once a company is selected it
+ * collapses to a small summary card with a "Change" action, so the picker
+ * itself only reappears when actually switching clients.
  */
 export function ClientSection({
   documentId,
@@ -37,6 +41,7 @@ export function ClientSection({
   const [query, setQuery] = useState("");
   const [companyId, setCompanyId] = useState(initialCompanyId ?? "");
   const [contactId, setContactId] = useState(initialContactId ?? "");
+  const [picking, setPicking] = useState(!initialCompanyId);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -59,7 +64,11 @@ export function ClientSection({
   function handleCompanyChange(nextCompanyId: string) {
     setCompanyId(nextCompanyId);
     setContactId("");
-    if (nextCompanyId) runSetClient(nextCompanyId, "");
+    if (nextCompanyId) {
+      runSetClient(nextCompanyId, "");
+      setPicking(false);
+      setQuery("");
+    }
   }
 
   function handleContactChange(nextContactId: string) {
@@ -68,55 +77,90 @@ export function ClientSection({
   }
 
   return (
-    <section className="rounded-xl border border-border bg-white p-4 sm:p-6">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-brand-dark">Client</h2>
-        {!readOnly && (
+    <SectionCard
+      title="Client"
+      actions={
+        !readOnly ? (
           <a
             href="/clients/new"
             target="_blank"
             rel="noreferrer"
-            className="text-xs font-medium text-brand hover:underline"
+            className="focus-ring rounded-md text-xs font-medium text-brand hover:underline"
           >
             + New company
           </a>
-        )}
-      </div>
-
+        ) : undefined
+      }
+    >
       {readOnly ? (
-        <p className="mt-3 text-sm text-foreground">{selectedCompany?.name ?? "No client set"}</p>
+        <p className="text-sm text-slate-700">{selectedCompany?.name ?? "No client set"}</p>
       ) : (
-        <div className="mt-4 flex flex-col gap-3">
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search companies…"
-            className={inputClass}
-            disabled={pending}
-          />
+        <div className="flex flex-col gap-3">
+          {selectedCompany && !picking ? (
+            <div className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-start gap-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand">
+                  <Building2 className="size-5" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-brand-dark">{selectedCompany.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {selectedCompany.contacts.length === 0
+                      ? "No contacts on file"
+                      : `${selectedCompany.contacts.length} contact${selectedCompany.contacts.length === 1 ? "" : "s"}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPicking(true)}
+                disabled={pending}
+                className="focus-ring shrink-0 rounded-md text-xs font-medium text-brand hover:underline"
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
+                  aria-hidden="true"
+                />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search companies…"
+                  aria-label="Search companies"
+                  className={cn(fieldInputClass, "pl-9")}
+                  disabled={pending}
+                />
+              </div>
 
-          <select
-            aria-label="Company"
-            value={companyId}
-            onChange={(e) => handleCompanyChange(e.target.value)}
-            className={inputClass}
-            disabled={pending}
-          >
-            <option value="">Select a company…</option>
-            {filteredCompanies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+              <select
+                aria-label="Company"
+                value={companyId}
+                onChange={(e) => handleCompanyChange(e.target.value)}
+                className={fieldInputClass}
+                disabled={pending}
+              >
+                <option value="">Select a company…</option>
+                {filteredCompanies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          {selectedCompany && selectedCompany.contacts.length > 0 ? (
+          {selectedCompany && selectedCompany.contacts.length > 0 && !picking ? (
             <select
               aria-label="Contact"
               value={contactId}
               onChange={(e) => handleContactChange(e.target.value)}
-              className={inputClass}
+              className={fieldInputClass}
               disabled={pending}
             >
               <option value="">No contact selected</option>
@@ -136,6 +180,6 @@ export function ClientSection({
           ) : null}
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }

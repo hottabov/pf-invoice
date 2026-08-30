@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { inputClass } from "@/components/catalog/field";
+import { fieldInputClass } from "@/components/ui-kit";
+import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
 
 const initialState: ActionResult = {};
@@ -35,16 +36,16 @@ export function ItemDiscountField({
 
   if (readOnly) {
     return discountPct ? (
-      <span className="text-xs text-muted-foreground">Discount: {discountPct}%</span>
+      <span className="text-xs text-slate-500">Discount: {discountPct}%</span>
     ) : null;
   }
 
   return (
     <div className="flex flex-col gap-1">
-      <form action={formAction} className="flex flex-wrap items-center gap-1.5">
+      <form action={formAction} className="flex flex-wrap items-center gap-2">
         <label
           htmlFor={`${itemId}-item-discount`}
-          className="flex items-center gap-1 text-xs text-muted-foreground"
+          className="flex items-center gap-1.5 text-xs font-medium text-slate-500"
         >
           Discount
           <input
@@ -54,15 +55,15 @@ export function ItemDiscountField({
             inputMode="decimal"
             defaultValue={discountPct ?? ""}
             placeholder="0"
-            className={`${inputClass} h-8 w-16 text-right`}
+            className={cn(fieldInputClass, "h-9 w-16 text-right")}
           />
           %
         </label>
-        <Button type="submit" variant="outline" size="sm" disabled={pending}>
+        <Button type="submit" variant="outline" size="sm" disabled={pending} className="h-9">
           {pending ? "…" : "Save"}
         </Button>
         {maxDiscountPct ? (
-          <span className="text-[11px] text-muted-foreground">max {maxDiscountPct}%</span>
+          <span className="text-[11px] text-slate-400">max {maxDiscountPct}%</span>
         ) : null}
       </form>
       {state.error ? (

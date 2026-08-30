@@ -1,17 +1,74 @@
 import { FileText, Receipt } from "lucide-react";
 import type { DocumentStatus, DocumentType } from "@prisma/client";
 import { formatMoney } from "@/lib/format";
-import { DeleteButton } from "@/components/catalog/delete-button";
-import { cn } from "@/lib/utils";
+import { StatusBadge, STATUS_TONE } from "@/components/ui-kit";
+import { DeleteDraftButton } from "@/components/builder/delete-draft-button";
 import type { ActionResult } from "@/lib/actions/documents";
 
+type TotalsProps = {
+  taxName: string;
+  taxRate: string;
+  subtotal: string;
+  /** The document-level discount percentage, or `null` when none is set —
+   * the discount row below only renders when this is non-null. */
+  discountPct: string | null;
+  discountAmount: string;
+  taxAmount: string;
+  total: string;
+  currency: string;
+};
+
 /**
- * Sticky bottom bar for the builder: the document's type/status badge, a
- * live subtotal/tax/total breakdown (recalculated server-side by every
+ * Pure subtotal → total breakdown, shared by the mobile sticky bar
+ * (`StickyFooter`, below) and the desktop right-hand summary panel (see
+ * `[documentId]/page.tsx`) so the two only ever differ in their
+ * surrounding chrome, never in the numbers they show.
+ */
+export function DocumentTotals({
+  taxName,
+  taxRate,
+  subtotal,
+  discountPct,
+  discountAmount,
+  taxAmount,
+  total,
+  currency,
+}: TotalsProps) {
+  return (
+    <dl className="flex flex-col gap-1.5 text-sm">
+      <div className="flex justify-between">
+        <dt className="text-slate-500">Subtotal</dt>
+        <dd className="tabular-nums text-slate-700">{formatMoney(subtotal, currency)}</dd>
+      </div>
+      {discountPct !== null ? (
+        <div className="flex justify-between">
+          <dt className="text-slate-500">Discount ({discountPct}%)</dt>
+          <dd className="tabular-nums text-slate-700">-{formatMoney(discountAmount, currency)}</dd>
+        </div>
+      ) : null}
+      <div className="flex justify-between">
+        <dt className="text-slate-500">
+          {taxName} ({taxRate}%)
+        </dt>
+        <dd className="tabular-nums text-slate-700">{formatMoney(taxAmount, currency)}</dd>
+      </div>
+      <div className="flex justify-between border-t border-slate-200 pt-1.5 text-base font-semibold text-brand-dark">
+        <dt>Total</dt>
+        <dd className="tabular-nums">{formatMoney(total, currency)}</dd>
+      </div>
+    </dl>
+  );
+}
+
+/**
+ * Sticky bottom bar for the <lg builder layout: the document's type/status
+ * badge, the live totals breakdown (recalculated server-side by every
  * mutating action — see recalcDocument in src/lib/actions/documents.ts),
  * and — for a DRAFT — the delete-draft control. Stays visible while
  * scrolling the item list on a phone, which is the primary device this
- * builder targets.
+ * builder targets; `pb-safe` keeps it clear of the home-indicator on
+ * notched devices. Hidden at `lg+`, where the same totals live in the
+ * sticky right-hand summary panel instead (see `[documentId]/page.tsx`).
  */
 export function StickyFooter({
   type,
@@ -28,63 +85,34 @@ export function StickyFooter({
 }: {
   type: DocumentType;
   status: DocumentStatus;
-  taxName: string;
-  taxRate: string;
-  subtotal: string;
-  /** The document-level discount percentage, or `null` when none is set —
-   * the discount row below only renders when this is non-null. */
-  discountPct: string | null;
-  discountAmount: string;
-  taxAmount: string;
-  total: string;
-  currency: string;
   deleteAction?: () => Promise<ActionResult>;
-}) {
+} & TotalsProps) {
   return (
-    <div className="sticky bottom-0 -mx-4 mt-6 border-t border-border bg-white px-4 py-3 shadow-sm sm:mx-0 sm:rounded-xl sm:border sm:px-6">
+    <div className="pb-safe sticky bottom-0 -mx-4 border-t border-slate-200 bg-white px-4 py-3 sm:mx-0 sm:rounded-xl sm:border sm:px-6 lg:hidden">
       <div className="flex items-center justify-between gap-3">
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium",
-            status === "DRAFT"
-              ? "border-amber-300 text-amber-600"
-              : "border-emerald-300 bg-emerald-50 text-emerald-700"
+        <StatusBadge tone={STATUS_TONE[status]} className="gap-1.5">
+          {type === "QUOTE" ? (
+            <FileText className="size-3.5" aria-hidden="true" />
+          ) : (
+            <Receipt className="size-3.5" aria-hidden="true" />
           )}
-        >
-          {type === "QUOTE" ? <FileText className="size-3.5" /> : <Receipt className="size-3.5" />}
           {status === "DRAFT" ? "Draft" : "Final"}
-        </span>
-        {deleteAction ? (
-          <DeleteButton
-            action={deleteAction}
-            confirmMessage="Delete this draft? This can't be undone."
-            label="Delete draft"
-          />
-        ) : null}
+        </StatusBadge>
+        {deleteAction ? <DeleteDraftButton action={deleteAction} /> : null}
       </div>
 
-      <dl className="mt-2 flex flex-col gap-1 text-sm">
-        <div className="flex justify-between">
-          <dt className="text-muted-foreground">Subtotal</dt>
-          <dd className="text-foreground">{formatMoney(subtotal, currency)}</dd>
-        </div>
-        {discountPct !== null ? (
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Discount ({discountPct}%)</dt>
-            <dd className="text-foreground">-{formatMoney(discountAmount, currency)}</dd>
-          </div>
-        ) : null}
-        <div className="flex justify-between">
-          <dt className="text-muted-foreground">
-            {taxName} ({taxRate}%)
-          </dt>
-          <dd className="text-foreground">{formatMoney(taxAmount, currency)}</dd>
-        </div>
-        <div className="flex justify-between text-base font-semibold text-brand-dark">
-          <dt>Total</dt>
-          <dd>{formatMoney(total, currency)}</dd>
-        </div>
-      </dl>
+      <div className="mt-2">
+        <DocumentTotals
+          taxName={taxName}
+          taxRate={taxRate}
+          subtotal={subtotal}
+          discountPct={discountPct}
+          discountAmount={discountAmount}
+          taxAmount={taxAmount}
+          total={total}
+          currency={currency}
+        />
+      </div>
     </div>
   );
 }

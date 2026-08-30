@@ -4,10 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useConfirm, useToast } from "@/components/ui-kit";
 import type { UnfinalizeResult } from "@/lib/actions/finalize";
-
-const CONFIRM_MESSAGE =
-  "Unfinalize this document? It goes back to DRAFT and becomes editable again — its number is kept and will be reused if it's finalized again.";
 
 /**
  * ADMIN-only escape hatch for a FINAL document issued in error (see
@@ -28,11 +26,21 @@ export function UnfinalizeButton({
   unfinalizeAction: (documentId: string) => Promise<UnfinalizeResult>;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function handleClick() {
-    if (!window.confirm(CONFIRM_MESSAGE)) return;
+  async function handleClick() {
+    const confirmed = await confirm({
+      title: "Unfinalize this document?",
+      description:
+        "It goes back to DRAFT and becomes editable again — its number is kept and will be reused if it's finalized again.",
+      confirmLabel: "Unfinalize",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
     setError(null);
     startTransition(async () => {
       try {
@@ -41,6 +49,7 @@ export function UnfinalizeButton({
           setError(result.error);
           return;
         }
+        toast.success("Document unfinalized — back to draft");
         router.refresh();
       } catch {
         setError("Forbidden");
@@ -50,12 +59,18 @@ export function UnfinalizeButton({
 
   return (
     <div className="flex flex-col items-start gap-1.5">
-      <Button type="button" variant="outline" onClick={handleClick} disabled={pending}>
-        <RotateCcw className="size-4" data-icon="inline-start" />
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleClick}
+        disabled={pending}
+        className="h-11 w-full"
+      >
+        <RotateCcw className="size-4" data-icon="inline-start" aria-hidden="true" />
         {pending ? "Unfinalizing…" : "Unfinalize"}
       </Button>
       {error ? (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       ) : null}

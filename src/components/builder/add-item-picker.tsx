@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Plus, ChevronLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { StatusBadge, useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
 import type { ItemPickerSeries } from "@/lib/queries/documents";
@@ -11,7 +12,7 @@ import type { ItemPickerSeries } from "@/lib/queries/documents";
  * "Add item" for the builder: a two-step picker over the whole catalog tree
  * (preloaded server-side, see getItemPickerCatalog) — series list, then
  * that series' products. A product with no usable price in the document's
- * region is shown but disabled with a "price required" hint instead of
+ * region is shown but disabled with a "price required" badge instead of
  * being hidden, so a manager can see it exists and knows why it can't be
  * added yet. Collapses back to a single "+ Add item" button after a
  * successful add (or on cancel).
@@ -29,6 +30,7 @@ export function AddItemPicker({
   const [seriesCode, setSeriesCode] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const activeSeries = catalog.find((s) => s.code === seriesCode) ?? null;
 
@@ -38,7 +40,7 @@ export function AddItemPicker({
     setError(null);
   }
 
-  function handleAdd(productCode: string) {
+  function handleAdd(productCode: string, productName: string) {
     setError(null);
     startTransition(async () => {
       const result = await addItemAction(documentId, productCode);
@@ -46,36 +48,49 @@ export function AddItemPicker({
         setError(result.error);
         return;
       }
+      toast.success(`Added ${productName}`);
       close();
     });
   }
 
   if (!open) {
     return (
-      <Button type="button" variant="outline" onClick={() => setOpen(true)} className="w-fit">
-        <Plus className="size-4" data-icon="inline-start" />
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setOpen(true)}
+        className="h-11 w-full sm:w-fit"
+      >
+        <Plus className="size-4" data-icon="inline-start" aria-hidden="true" />
         Add item
       </Button>
     );
   }
 
   return (
-    <div className="rounded-lg border border-border bg-muted/40 p-3">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
       <div className="flex items-center justify-between gap-2">
         {activeSeries ? (
           <button
             type="button"
             onClick={() => setSeriesCode(null)}
-            className="flex items-center gap-1 text-sm font-medium text-brand-dark"
+            className="focus-ring flex min-h-11 items-center gap-1 rounded-md px-1 text-sm font-medium text-brand-dark"
           >
-            <ChevronLeft className="size-4" />
+            <ChevronLeft className="size-4" aria-hidden="true" />
             {activeSeries.name}
           </button>
         ) : (
           <span className="text-sm font-medium text-brand-dark">Choose a series</span>
         )}
-        <Button type="button" variant="ghost" size="icon-sm" onClick={close} aria-label="Cancel">
-          <X className="size-4" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={close}
+          aria-label="Cancel"
+          className="size-11"
+        >
+          <X className="size-4" aria-hidden="true" />
         </Button>
       </div>
 
@@ -86,10 +101,10 @@ export function AddItemPicker({
                 key={series.code}
                 type="button"
                 onClick={() => setSeriesCode(series.code)}
-                className="flex items-center justify-between rounded-md px-2 py-2 text-left text-sm hover:bg-white"
+                className="focus-ring flex min-h-11 items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-white"
               >
                 <span>{series.name}</span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-slate-500">
                   {series.products.length} {series.products.length === 1 ? "product" : "products"}
                 </span>
               </button>
@@ -99,9 +114,9 @@ export function AddItemPicker({
                 key={product.code}
                 type="button"
                 disabled={!product.priced || pending}
-                onClick={() => handleAdd(product.code)}
+                onClick={() => handleAdd(product.code, product.name)}
                 className={cn(
-                  "flex items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-white",
+                  "focus-ring flex min-h-11 items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-white",
                   "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
                 )}
               >
@@ -110,14 +125,14 @@ export function AddItemPicker({
                   <span className="truncate">{product.name}</span>
                 </span>
                 {!product.priced && (
-                  <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-600">
+                  <StatusBadge tone="rose" className="shrink-0">
                     price required
-                  </span>
+                  </StatusBadge>
                 )}
               </button>
             ))}
         {activeSeries && activeSeries.products.length === 0 ? (
-          <p className="px-2 py-2 text-sm text-muted-foreground">No products in this series.</p>
+          <p className="px-2 py-2 text-sm text-slate-500">No products in this series.</p>
         ) : null}
       </div>
 

@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { inputClass } from "@/components/catalog/field";
+import { fieldInputClass } from "@/components/ui-kit";
+import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
 
 const initialState: ActionResult = {};
@@ -10,8 +11,8 @@ const initialState: ActionResult = {};
 /**
  * The document-level "Discount %" field. Unlike an item's discount, there's
  * no series cap here — any 0..100 value (or empty, to clear) is accepted.
- * Lives in its own "Discounts" section on the builder page; the sticky
- * footer shows the resulting discount amount once one is set.
+ * Lives in its own "Discounts" section on the builder page; the totals
+ * breakdown shows the resulting discount amount once one is set.
  */
 export function DocumentDiscountField({
   documentId,
@@ -31,7 +32,7 @@ export function DocumentDiscountField({
 
   if (readOnly) {
     return (
-      <p className="text-sm text-foreground">
+      <p className="text-sm text-slate-700">
         {discountPct ? `${discountPct}% off the subtotal` : "No document discount applied."}
       </p>
     );
@@ -40,7 +41,7 @@ export function DocumentDiscountField({
   return (
     <div className="flex flex-col gap-1">
       <form action={formAction} className="flex flex-wrap items-center gap-2">
-        <label htmlFor="document-discount" className="text-sm text-muted-foreground">
+        <label htmlFor="document-discount" className="text-sm text-slate-500">
           Discount
         </label>
         <input
@@ -50,10 +51,10 @@ export function DocumentDiscountField({
           inputMode="decimal"
           defaultValue={discountPct ?? ""}
           placeholder="0"
-          className={`${inputClass} h-9 w-24`}
+          className={cn(fieldInputClass, "h-10 w-24")}
         />
-        <span className="text-sm text-muted-foreground">%</span>
-        <Button type="submit" variant="outline" size="sm" disabled={pending}>
+        <span className="text-sm text-slate-500">%</span>
+        <Button type="submit" variant="outline" size="sm" disabled={pending} className="h-10">
           {pending ? "Saving…" : "Save"}
         </Button>
       </form>

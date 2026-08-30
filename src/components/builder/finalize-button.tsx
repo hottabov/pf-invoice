@@ -4,20 +4,19 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useConfirm, useToast } from "@/components/ui-kit";
 import type { FinalizeResult } from "@/lib/actions/finalize";
-
-const CONFIRM_MESSAGE = "Assigns number, freezes prices and company details. Continue?";
 
 /**
  * Turns a DRAFT into a numbered FINAL document. Finalizing is a one-way
  * trip for a normal user (only an admin can undo it — see
  * UnfinalizeButton), so unlike the lightweight remove-item/delete-draft
  * buttons elsewhere in the builder this gets its own confirm dialog
- * spelling out exactly what happens, and an explicit `router.refresh()` on
- * success: the page's server component needs to re-read
- * `document.status`/`number` to flip the whole builder into its read-only
- * FINAL view (every section below switches `readOnly`), not just have one
- * row's data change underneath it.
+ * spelling out exactly what happens, a success toast naming the assigned
+ * number, and an explicit `router.refresh()`: the page's server component
+ * needs to re-read `document.status`/`number` to flip the whole builder
+ * into its read-only FINAL view (every section below switches `readOnly`),
+ * not just have one row's data change underneath it.
  */
 export function FinalizeButton({
   documentId,
@@ -27,12 +26,19 @@ export function FinalizeButton({
   finalizeAction: (documentId: string) => Promise<FinalizeResult>;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [number, setNumber] = useState<string | null>(null);
 
-  function handleClick() {
-    if (!window.confirm(CONFIRM_MESSAGE)) return;
+  async function handleClick() {
+    const confirmed = await confirm({
+      title: "Finalize this document?",
+      description: "Assigns a number and freezes prices and company details.",
+      confirmLabel: "Finalize",
+    });
+    if (!confirmed) return;
+
     setError(null);
     startTransition(async () => {
       const result = await finalizeAction(documentId);
@@ -40,7 +46,7 @@ export function FinalizeButton({
         setError(result.error);
         return;
       }
-      setNumber(result.number);
+      toast.success(`Finalized as ${result.number}`);
       router.refresh();
     });
   }
@@ -51,14 +57,13 @@ export function FinalizeButton({
         type="button"
         onClick={handleClick}
         disabled={pending}
-        className="bg-brand text-white hover:bg-brand/90"
+        className="h-11 w-full bg-brand text-white hover:bg-brand/90"
       >
-        <CheckCircle2 className="size-4" data-icon="inline-start" />
+        <CheckCircle2 className="size-4" data-icon="inline-start" aria-hidden="true" />
         {pending ? "Finalizing…" : "Finalize"}
       </Button>
-      {number ? <p className="text-xs font-medium text-emerald-700">Finalized as {number}</p> : null}
       {error ? (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       ) : null}

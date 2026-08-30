@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { inputClass } from "@/components/catalog/field";
+import { fieldInputClass } from "@/components/ui-kit";
 import { formatMoney } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
 import type { CompatibleOption } from "@/lib/queries/documents";
 import type { OptionSelectionInput } from "@/lib/validation/documents";
@@ -71,9 +72,11 @@ function selectionsFromLines(lines: CurrentLine[]): Map<string, SelectionState> 
  * selection; "Clear" resets the whole selection (not just the filtered
  * subset) — a full reset is one click away regardless of search state.
  * Selected options are pinned to the top of the (filtered) list so they
- * stay visible while browsing a long catalog; the list itself scrolls
- * internally (`max-h-80`) so "Save options" stays reachable on mobile even
- * when a series has many options.
+ * stay visible while browsing a long catalog. The panel itself is one
+ * scrolling column capped at 70dvh with the Save/Cancel bar pinned
+ * (`sticky bottom-0`) to its own bottom, so it stays reachable even when a
+ * series has many options — including on a phone, the primary device this
+ * builder targets.
  */
 export function ItemOptionsEditor({
   itemId,
@@ -207,145 +210,182 @@ export function ItemOptionsEditor({
   }
 
   return (
-    <div className="mt-2">
+    <div className="mt-3">
       <div className="flex flex-wrap items-center gap-1.5">
         {chips.map((line, index) => (
           <span
             key={`${line.code}-${index}`}
-            className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+            className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600"
           >
             {line.code} ×{line.qty}
           </span>
         ))}
         {chips.length === 0 && readOnly ? (
-          <span className="text-xs text-muted-foreground">No options</span>
+          <span className="text-xs text-slate-500">No options</span>
         ) : null}
         {!readOnly && (
           <button
             type="button"
             onClick={() => (open ? setOpen(false) : openPanel())}
-            className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+            className="focus-ring inline-flex min-h-8 items-center gap-1 rounded-md text-xs font-medium text-brand hover:underline"
           >
             Edit options
-            {open ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+            {open ? (
+              <ChevronUp className="size-3" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="size-3" aria-hidden="true" />
+            )}
           </button>
         )}
       </div>
 
       {open && !readOnly ? (
-        <div className="mt-2 rounded-lg border border-border bg-muted/40 p-3">
-          {compatibleOptions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No compatible options for this item.</p>
-          ) : (
-            <>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search options…"
-                  className={`${inputClass} h-8 flex-1 min-w-[10rem]`}
-                />
-                <Button type="button" variant="ghost" size="sm" onClick={selectAllFiltered}>
-                  Select all
-                </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
-                  Clear
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  {selected.size} of {compatibleOptions.length} selected
-                </span>
-              </div>
+        <div className="mt-2 flex max-h-[70dvh] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+          <div className="flex-1 overflow-y-auto p-3">
+            {compatibleOptions.length === 0 ? (
+              <p className="text-sm text-slate-500">No compatible options for this item.</p>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search options…"
+                    aria-label="Search options"
+                    className={cn(fieldInputClass, "h-9 min-w-[10rem] flex-1")}
+                  />
+                  <Button type="button" variant="ghost" size="sm" onClick={selectAllFiltered}>
+                    Select all
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
+                    Clear
+                  </Button>
+                  <span className="text-xs text-slate-500">
+                    {selected.size} of {compatibleOptions.length} selected
+                  </span>
+                </div>
 
-              {displayOptions.length === 0 ? (
-                <p className="mt-2 text-sm text-muted-foreground">No options match &ldquo;{search}&rdquo;.</p>
-              ) : (
-              <div className="mt-2 flex max-h-80 flex-col gap-2 overflow-y-auto">
-              {displayOptions.map((option) => {
-                const state = selected.get(option.code);
-                const checked = Boolean(state);
-                const priced = Boolean(option.price && !option.price.needsReview);
-                const attributeFields = parseAttributeFields(option.attributeSchema);
+                {displayOptions.length === 0 ? (
+                  <p className="mt-2 text-sm text-slate-500">No options match &ldquo;{search}&rdquo;.</p>
+                ) : (
+                  <div className="mt-2 flex flex-col gap-2">
+                    {displayOptions.map((option) => {
+                      const state = selected.get(option.code);
+                      const checked = Boolean(state);
+                      const priced = Boolean(option.price && !option.price.needsReview);
+                      const attributeFields = parseAttributeFields(option.attributeSchema);
 
-                return (
-                  <div key={option.id} className="rounded-md border border-border bg-white p-2">
-                    <label className="flex items-start gap-2">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={!priced}
-                        onChange={() => toggle(option.code)}
-                        className="mt-0.5 size-4 shrink-0 rounded border-border accent-brand"
-                      />
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="flex flex-wrap items-baseline gap-2">
-                          <span className="font-mono text-xs text-brand-dark">{option.code}</span>
-                          <span className="text-sm text-foreground">{option.name}</span>
-                        </span>
-                        {priced ? (
-                          <span className="text-xs text-muted-foreground">
-                            {formatMoney(option.price!.amount, currency)}
-                          </span>
-                        ) : (
-                          <span className="w-fit rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-600">
-                            price required
-                          </span>
-                        )}
-                      </span>
-                    </label>
-
-                    {checked ? (
-                      <div className="mt-2 flex flex-wrap gap-3 pl-6">
-                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                          Qty
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            min={1}
-                            max={999}
-                            value={state!.qty}
-                            onChange={(e) => setQty(option.code, Math.max(1, Number(e.target.value) || 1))}
-                            className={`${inputClass} h-8 w-20`}
-                          />
-                        </label>
-                        {attributeFields.map((field) => (
-                          <label
-                            key={field.key}
-                            className="flex items-center gap-2 text-xs text-muted-foreground"
-                          >
-                            {field.label}
+                      return (
+                        <div
+                          key={option.id}
+                          className="rounded-lg border border-slate-200 bg-white p-2.5"
+                        >
+                          <label className="flex min-h-12 items-start gap-2.5">
                             <input
-                              type={field.type === "number" ? "number" : "text"}
-                              inputMode={field.type === "number" ? "decimal" : undefined}
-                              value={state!.attributes[field.key] ?? ""}
-                              onChange={(e) => setAttribute(option.code, field.key, e.target.value)}
-                              className={`${inputClass} h-8 w-28`}
+                              type="checkbox"
+                              checked={checked}
+                              disabled={!priced}
+                              onChange={() => toggle(option.code)}
+                              className="mt-0.5 size-5 shrink-0 rounded border-slate-300 accent-brand"
                             />
+                            <span className="flex min-w-0 flex-1 flex-col justify-center">
+                              <span className="flex flex-wrap items-baseline gap-2">
+                                <span className="font-mono text-xs text-brand-dark">{option.code}</span>
+                                <span className="text-sm text-slate-700">{option.name}</span>
+                              </span>
+                              {priced ? (
+                                <span className="text-xs text-slate-500">
+                                  {formatMoney(option.price!.amount, currency)}
+                                </span>
+                              ) : (
+                                <span className="mt-0.5 w-fit rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                  price required
+                                </span>
+                              )}
+                            </span>
                           </label>
-                        ))}
-                      </div>
-                    ) : null}
+
+                          {checked ? (
+                            <div className="mt-2 flex flex-wrap items-center gap-3 pl-[1.875rem]">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-slate-500">Qty</span>
+                                <button
+                                  type="button"
+                                  aria-label={`Decrease ${option.name} quantity`}
+                                  disabled={state!.qty <= 1}
+                                  onClick={() => setQty(option.code, Math.max(1, state!.qty - 1))}
+                                  className="focus-ring flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors md:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                  <Minus className="size-3.5" aria-hidden="true" />
+                                </button>
+                                <input
+                                  type="number"
+                                  inputMode="numeric"
+                                  min={1}
+                                  max={999}
+                                  aria-label={`${option.name} quantity`}
+                                  value={state!.qty}
+                                  onChange={(e) =>
+                                    setQty(option.code, Math.max(1, Number(e.target.value) || 1))
+                                  }
+                                  className={cn(fieldInputClass, "h-9 w-14 text-center")}
+                                />
+                                <button
+                                  type="button"
+                                  aria-label={`Increase ${option.name} quantity`}
+                                  onClick={() => setQty(option.code, Math.min(999, state!.qty + 1))}
+                                  className="focus-ring flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors md:hover:bg-slate-50"
+                                >
+                                  <Plus className="size-3.5" aria-hidden="true" />
+                                </button>
+                              </div>
+                              {attributeFields.map((field) => (
+                                <label
+                                  key={field.key}
+                                  className="flex items-center gap-2 text-xs text-slate-500"
+                                >
+                                  {field.label}
+                                  <input
+                                    type={field.type === "number" ? "number" : "text"}
+                                    inputMode={field.type === "number" ? "decimal" : undefined}
+                                    value={state!.attributes[field.key] ?? ""}
+                                    onChange={(e) => setAttribute(option.code, field.key, e.target.value)}
+                                    className={cn(fieldInputClass, "h-9 w-28")}
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-              </div>
-              )}
-            </>
-          )}
+                )}
+              </>
+            )}
+          </div>
 
-          {error ? (
-            <p role="alert" className="mt-2 text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
-
-          <div className="mt-3 flex items-center gap-2">
-            <Button type="button" size="sm" onClick={save} disabled={pending}>
-              {pending ? "Saving…" : "Save options"}
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>
-              Cancel
-            </Button>
+          <div className="sticky bottom-0 flex flex-col gap-2 border-t border-slate-200 bg-white p-3">
+            {error ? (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
+            <div className="flex items-center gap-2">
+              <Button type="button" onClick={save} disabled={pending} className="h-10 bg-brand text-white hover:bg-brand/90">
+                {pending ? "Saving…" : "Save options"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setOpen(false)}
+                disabled={pending}
+                className="h-10"
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}

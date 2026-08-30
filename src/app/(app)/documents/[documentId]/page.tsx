@@ -9,6 +9,7 @@ import {
   listClientPickerCompanies,
   listCompatibleOptions,
   type CompatibleOption,
+  type DocumentForBuilder,
 } from "@/lib/queries/documents";
 import {
   addCustomLine,
@@ -22,13 +23,15 @@ import {
   setItemOptions,
 } from "@/lib/actions/documents";
 import { finalizeDocument, unfinalizeDocument } from "@/lib/actions/finalize";
+import { PageHeader, SectionCard, StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { ClientSection } from "@/components/builder/client-section";
 import { ItemsSection } from "@/components/builder/items-section";
 import { ExtraLinesSection } from "@/components/builder/extra-lines-section";
 import { DocumentDiscountField } from "@/components/builder/document-discount-field";
-import { StickyFooter } from "@/components/builder/sticky-footer";
+import { DocumentTotals, StickyFooter } from "@/components/builder/sticky-footer";
 import { FinalizeButton } from "@/components/builder/finalize-button";
 import { UnfinalizeButton } from "@/components/builder/unfinalize-button";
+import { DeleteDraftButton } from "@/components/builder/delete-draft-button";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +64,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
   if (!document) notFound();
 
   const isDraft = document.status === "DRAFT";
+  const isAdmin = session.user.role === "ADMIN";
 
   const [companies, catalog] = await Promise.all([
     listClientPickerCompanies(session.user),
@@ -91,102 +95,101 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
     compatibleOptionsEntries
   );
 
-  const isAdmin = session.user.role === "ADMIN";
+  const typeLabel = document.type === "QUOTE" ? "Quote" : "Invoice";
+  const title = document.company?.name ?? `New ${typeLabel.toLowerCase()}`;
+  const description = `${typeLabel} · ${document.number ?? "draft"}${!isDraft ? " — final and read-only" : ""}`;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            {document.type === "QUOTE" ? "Quote" : "Invoice"}
-            {document.number ? ` · ${document.number}` : " · draft"}
-          </p>
-          <h1 className="text-xl font-semibold text-brand-dark">
-            {document.company?.name ?? "New " + document.type.toLowerCase()}
-          </h1>
-          {!isDraft && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              This document is final and read-only.
-            </p>
-          )}
-        </div>
+    <div className="flex flex-col gap-6 pb-4">
+      <PageHeader backHref="/documents" title={title} description={description} />
 
-        <div className="flex flex-wrap items-start gap-2">
-          {document.number ? (
-            <span className="inline-flex h-8 items-center rounded-full border border-emerald-300 bg-emerald-50 px-3 text-sm font-medium text-emerald-700">
-              {document.number}
-            </span>
-          ) : null}
-
-          <Link
-            href={`/documents/${document.id}/preview`}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-sm font-medium text-foreground hover:bg-muted"
-          >
-            <Eye className="size-4" />
-            Preview
-          </Link>
-
-          {/* Available for DRAFT too — /api/documents/[id]/pdf renders a
-              watermarked PDF for drafts (see that route), it's not
-              FINAL-only. */}
-          <a
-            href={`/api/documents/${document.id}/pdf`}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-sm font-medium text-foreground hover:bg-muted"
-          >
-            <Download className="size-4" />
-            Download PDF
-          </a>
-
-          {isDraft ? (
-            <FinalizeButton documentId={document.id} finalizeAction={finalizeDocument} />
-          ) : isAdmin ? (
-            <UnfinalizeButton documentId={document.id} unfinalizeAction={unfinalizeDocument} />
-          ) : null}
-        </div>
-      </div>
-
-      <ClientSection
-        documentId={document.id}
-        companies={companies}
-        initialCompanyId={document.company?.id ?? null}
-        initialContactId={document.contactId}
-        setClientAction={setDocumentClient}
-        readOnly={!isDraft}
-      />
-
-      <ItemsSection
-        documentId={document.id}
-        items={document.items}
-        currency={document.currency}
-        catalog={catalog}
-        compatibleOptionsByItemKey={compatibleOptionsByItemKey}
-        removeItemAction={removeItem}
-        addItemAction={addItem}
-        setItemOptionsAction={setItemOptions}
-        setItemDiscountAction={setItemDiscount}
-        readOnly={!isDraft}
-      />
-
-      <ExtraLinesSection
-        documentId={document.id}
-        lines={document.extraLines}
-        currency={document.currency}
-        addCustomLineAction={addCustomLine}
-        removeLineAction={removeLine}
-        readOnly={!isDraft}
-      />
-
-      <section className="rounded-xl border border-border bg-white p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-brand-dark">Discounts</h2>
-        <div className="mt-3">
-          <DocumentDiscountField
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
+        <div className="flex flex-col gap-4 lg:col-span-2">
+          <ClientSection
             documentId={document.id}
-            discountPct={document.discountPct}
-            setDiscountAction={setDocumentDiscount}
+            companies={companies}
+            initialCompanyId={document.company?.id ?? null}
+            initialContactId={document.contactId}
+            setClientAction={setDocumentClient}
             readOnly={!isDraft}
           />
+
+          <ItemsSection
+            documentId={document.id}
+            items={document.items}
+            currency={document.currency}
+            catalog={catalog}
+            compatibleOptionsByItemKey={compatibleOptionsByItemKey}
+            removeItemAction={removeItem}
+            addItemAction={addItem}
+            setItemOptionsAction={setItemOptions}
+            setItemDiscountAction={setItemDiscount}
+            readOnly={!isDraft}
+          />
+
+          <ExtraLinesSection
+            documentId={document.id}
+            lines={document.extraLines}
+            currency={document.currency}
+            addCustomLineAction={addCustomLine}
+            removeLineAction={removeLine}
+            readOnly={!isDraft}
+          />
+
+          <SectionCard title="Discounts">
+            <DocumentDiscountField
+              documentId={document.id}
+              discountPct={document.discountPct}
+              setDiscountAction={setDocumentDiscount}
+              readOnly={!isDraft}
+            />
+          </SectionCard>
         </div>
-      </section>
+
+        {/* Desktop/tablet-lg summary: sticky so it stays visible while the
+            left column's sections scroll. Hidden below lg — the mobile
+            equivalent is the plain (non-sticky) block further down plus the
+            sticky totals bar at the very bottom of the viewport. */}
+        <aside className="hidden lg:sticky lg:top-6 lg:col-span-1 lg:block">
+          <SectionCard title="Summary">
+            <div className="flex flex-col gap-4">
+              <DocumentSummaryHeader document={document} />
+              <div className="border-t border-slate-100 pt-4">
+                <DocumentTotals
+                  taxName={document.taxName}
+                  taxRate={document.taxRate}
+                  subtotal={document.subtotal}
+                  discountPct={document.discountPct}
+                  discountAmount={document.discountAmount}
+                  taxAmount={document.taxAmount}
+                  total={document.total}
+                  currency={document.currency}
+                />
+              </div>
+              <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
+                <DocumentActions document={document} isDraft={isDraft} isAdmin={isAdmin} />
+              </div>
+              {isDraft ? (
+                <div className="border-t border-slate-100 pt-4">
+                  <DeleteDraftButton action={deleteDraft.bind(null, document.id)} />
+                </div>
+              ) : null}
+            </div>
+          </SectionCard>
+        </aside>
+      </div>
+
+      {/* Mobile/tablet: status, number and the same action stack as a plain
+          block (totals stay exclusively in the sticky bar below so they're
+          never shown twice on the same screen). */}
+      <div className="lg:hidden">
+        <SectionCard title="Status & actions">
+          <div className="flex flex-col gap-4">
+            <DocumentSummaryHeader document={document} />
+            <DocumentActions document={document} isDraft={isDraft} isAdmin={isAdmin} />
+          </div>
+        </SectionCard>
+      </div>
 
       <StickyFooter
         type={document.type}
@@ -201,6 +204,54 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
         currency={document.currency}
         deleteAction={isDraft ? deleteDraft.bind(null, document.id) : undefined}
       />
+    </div>
+  );
+}
+
+function DocumentSummaryHeader({ document }: { document: DocumentForBuilder }) {
+  const isDraft = document.status === "DRAFT";
+  return (
+    <div className="flex items-center gap-2">
+      <StatusBadge tone={STATUS_TONE[document.status]}>{isDraft ? "Draft" : "Final"}</StatusBadge>
+      {document.number ? (
+        <span className="font-mono text-sm text-slate-600">{document.number}</span>
+      ) : null}
+    </div>
+  );
+}
+
+const actionLinkClass =
+  "focus-ring flex h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-brand-dark transition-colors md:hover:bg-slate-50";
+
+function DocumentActions({
+  document,
+  isDraft,
+  isAdmin,
+}: {
+  document: DocumentForBuilder;
+  isDraft: boolean;
+  isAdmin: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      {isDraft ? (
+        <FinalizeButton documentId={document.id} finalizeAction={finalizeDocument} />
+      ) : isAdmin ? (
+        <UnfinalizeButton documentId={document.id} unfinalizeAction={unfinalizeDocument} />
+      ) : null}
+
+      <Link href={`/documents/${document.id}/preview`} className={actionLinkClass}>
+        <Eye className="size-4" aria-hidden="true" />
+        Preview
+      </Link>
+
+      {/* Available for DRAFT too — /api/documents/[id]/pdf renders a
+          watermarked PDF for drafts (see that route), it's not
+          FINAL-only. */}
+      <a href={`/api/documents/${document.id}/pdf`} className={actionLinkClass}>
+        <Download className="size-4" aria-hidden="true" />
+        Download PDF
+      </a>
     </div>
   );
 }

@@ -1,5 +1,7 @@
+import { Receipt } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { toCents, fromCents } from "@/lib/pricing";
+import { SectionCard, EmptyState } from "@/components/ui-kit";
 import { RemoveItemButton } from "@/components/builder/remove-item-button";
 import { AddCustomLineForm } from "@/components/builder/add-custom-line-form";
 import type { ActionResult } from "@/lib/actions/documents";
@@ -10,8 +12,8 @@ import type { BuilderLine } from "@/lib/queries/documents";
  * (delivery, install, etc. — never an item's OPTION lines, which live on
  * the item card instead), each with its qty × unit price and line total,
  * plus the add-line form. `RemoveItemButton` is reused as-is here: it's
- * already a generic "call this action, show its error" control with no
- * item-specific logic.
+ * already a generic "call this action, confirm, show its error" control
+ * with no item-specific logic.
  */
 export function ExtraLinesSection({
   documentId,
@@ -29,36 +31,31 @@ export function ExtraLinesSection({
   readOnly?: boolean;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-white p-4 sm:p-6">
-      <h2 className="text-sm font-semibold text-brand-dark">Extra lines</h2>
-
+    <SectionCard title="Extra lines">
       {lines.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">No extra lines yet.</p>
+        <EmptyState icon={Receipt} title="No extra lines yet" description="Add delivery, install, or other one-off charges below." />
       ) : (
-        <div className="mt-3 flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
           {lines.map((line) => (
             <div
               key={line.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+              className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"
             >
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-brand-dark">{line.name}</span>
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-sm font-medium text-brand-dark">{line.name}</span>
                 {line.description ? (
-                  <span className="text-xs text-muted-foreground">{line.description}</span>
+                  <span className="truncate text-xs text-slate-500">{line.description}</span>
                 ) : null}
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-slate-500">
                   {line.qty} × {formatMoney(line.unitPrice, currency)}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-brand-dark">
+              <div className="flex shrink-0 items-center gap-1">
+                <span className="text-sm font-medium tabular-nums text-brand-dark">
                   {formatMoney(fromCents(line.qty * toCents(line.unitPrice)), currency)}
                 </span>
                 {!readOnly && (
-                  <RemoveItemButton
-                    action={removeLineAction.bind(null, line.id)}
-                    label={`Remove ${line.name}`}
-                  />
+                  <RemoveItemButton action={removeLineAction.bind(null, line.id)} itemName={line.name} />
                 )}
               </div>
             </div>
@@ -71,6 +68,6 @@ export function ExtraLinesSection({
           <AddCustomLineForm documentId={documentId} addCustomLineAction={addCustomLineAction} />
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }

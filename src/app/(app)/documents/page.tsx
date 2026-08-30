@@ -2,10 +2,20 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { FileText, Receipt, Plus, Search } from "lucide-react";
 import { auth } from "@/auth";
-import { listDocuments } from "@/lib/queries/documents";
+import { listDocuments, type DocumentListItem } from "@/lib/queries/documents";
 import { createDraft } from "@/lib/actions/documents";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, relativeDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import {
+  PageHeader,
+  TableShell,
+  tableClassName,
+  tableHeadRowClassName,
+  tableRowClassName,
+  StatusBadge,
+  STATUS_TONE,
+  EmptyState,
+} from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Documents" };
@@ -18,17 +28,6 @@ const TABS: { type?: "QUOTE" | "INVOICE"; label: string }[] = [
   { type: "QUOTE", label: "Quotes" },
   { type: "INVOICE", label: "Invoices" },
 ];
-
-/** Coarse "3 days ago" / "12 Jan 2026" relative display — good enough for a
- * list row; the builder header shows the full timestamp if ever needed. */
-function relativeDate(date: Date): string {
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86_400_000);
-  if (diffDays <= 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  return date.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
-}
 
 function tabHref(type: "QUOTE" | "INVOICE" | undefined, q?: string): string {
   const params = new URLSearchParams();
@@ -52,43 +51,52 @@ export default async function DocumentsPage({
   const documents = await listDocuments(session.user, { type: activeType, q });
 
   return (
-    <div className="mx-auto w-full max-w-3xl">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-brand-dark">Documents</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {session.user.role === "ADMIN"
-              ? "Every quote and invoice across the business."
-              : "Quotes and invoices you've created."}
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <form action={createDraft.bind(null, "QUOTE")}>
-            <Button type="submit" variant="outline">
-              <Plus className="size-4" data-icon="inline-start" />
-              New quote
-            </Button>
-          </form>
-          <form action={createDraft.bind(null, "INVOICE")}>
-            <Button type="submit" className="bg-brand text-white hover:bg-brand/90">
-              <Plus className="size-4" data-icon="inline-start" />
-              New invoice
-            </Button>
-          </form>
-        </div>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Documents"
+        description={
+          session.user.role === "ADMIN"
+            ? "Every quote and invoice across the business."
+            : "Quotes and invoices you've created."
+        }
+        actions={
+          <>
+            <form action={createDraft.bind(null, "QUOTE")}>
+              <Button type="submit" variant="outline" className="h-11 w-full sm:w-auto">
+                <Plus className="size-4" data-icon="inline-start" aria-hidden="true" />
+                New quote
+              </Button>
+            </form>
+            <form action={createDraft.bind(null, "INVOICE")}>
+              <Button
+                type="submit"
+                className="h-11 w-full bg-brand text-white hover:bg-brand/90 sm:w-auto"
+              >
+                <Plus className="size-4" data-icon="inline-start" aria-hidden="true" />
+                New invoice
+              </Button>
+            </form>
+          </>
+        }
+      />
 
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="inline-flex w-fit rounded-lg border border-border bg-white p-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          role="tablist"
+          aria-label="Filter documents by type"
+          className="inline-flex w-fit rounded-lg border border-slate-200 bg-white p-1"
+        >
           {TABS.map((tab) => {
             const isActive = tab.type === activeType;
             return (
               <Link
                 key={tab.label}
                 href={tabHref(tab.type, q)}
+                role="tab"
+                aria-selected={isActive}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                  isActive ? "bg-brand text-white" : "text-muted-foreground hover:text-foreground"
+                  "focus-ring rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  isActive ? "bg-brand text-white" : "text-slate-500 hover:text-brand-dark"
                 )}
               >
                 {tab.label}
@@ -97,73 +105,146 @@ export default async function DocumentsPage({
           })}
         </div>
 
-        <form method="GET" className="sm:w-64">
+        <form method="GET" className="sm:w-72">
           {activeType ? <input type="hidden" name="type" value={activeType} /> : null}
           <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
+              aria-hidden="true"
+            />
             <input
               type="search"
               name="q"
               defaultValue={q ?? ""}
+              aria-label="Search by company"
               placeholder="Search by company…"
-              className="h-9 w-full rounded-lg border border-border bg-white pl-9 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="focus-ring h-11 w-full rounded-lg border border-slate-200 bg-white pr-3 pl-9 text-base text-brand-dark outline-none transition-colors placeholder:text-slate-400 focus-visible:border-brand"
             />
           </div>
         </form>
       </div>
 
       {documents.length === 0 ? (
-        <p className="mt-6 text-sm text-muted-foreground">
-          {q
-            ? "No documents match your search."
-            : "No documents yet — create your first quote or invoice above."}
-        </p>
+        <EmptyState
+          icon={FileText}
+          title={q ? "No documents match your search" : "No documents yet"}
+          description={
+            q ? "Try a different company name." : "Create your first quote or invoice above."
+          }
+        />
       ) : (
-        <div className="mt-6 flex flex-col gap-2 md:gap-0 md:rounded-xl md:border md:border-border md:bg-white">
-          {documents.map((d, i) => (
-            <Link
-              key={d.id}
-              href={`/documents/${d.id}`}
-              className={cn(
-                "flex flex-col gap-1.5 rounded-xl border border-border bg-white p-4 transition-colors hover:border-brand-accent hover:bg-muted active:bg-muted",
-                "md:flex-row md:items-center md:justify-between md:gap-4 md:rounded-none md:border-x-0 md:border-t-0 md:border-b md:last:border-b-0",
-                i === 0 && "md:rounded-t-xl",
-                i === documents.length - 1 && "md:rounded-b-xl md:border-b-0"
-              )}
-            >
-              <div className="flex items-center gap-3">
-                {d.type === "QUOTE" ? (
-                  <FileText className="size-5 shrink-0 text-brand" />
-                ) : (
-                  <Receipt className="size-5 shrink-0 text-brand" />
-                )}
-                <div className="flex flex-col">
-                  <span className="font-medium text-brand-dark">{d.companyName ?? "No client"}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {d.number ?? (d.type === "QUOTE" ? "Quote draft" : "Invoice draft")} &middot;{" "}
-                    {relativeDate(d.updatedAt)}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 pl-8 md:pl-0">
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-                    d.status === "DRAFT"
-                      ? "border-amber-300 text-amber-600"
-                      : "border-emerald-300 bg-emerald-50 text-emerald-700"
-                  )}
-                >
-                  {d.status === "DRAFT" ? "Draft" : "Final"}
-                </span>
-                <span className="text-sm font-medium text-brand-dark">
-                  {formatMoney(d.total, d.currency)}
-                </span>
-              </div>
-            </Link>
+        <TableShell
+          table={
+            <table className={tableClassName}>
+              <thead>
+                <tr className={tableHeadRowClassName}>
+                  <th scope="col" className="px-4 py-3">
+                    Number
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Type
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Company
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right">
+                    Total
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Status
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Updated
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {documents.map((d) => (
+                  <DocumentRow key={d.id} document={d} />
+                ))}
+              </tbody>
+            </table>
+          }
+          cards={documents.map((d) => (
+            <DocumentCard key={d.id} document={d} />
           ))}
-        </div>
+        />
       )}
     </div>
+  );
+}
+
+function DocumentRow({ document: d }: { document: DocumentListItem }) {
+  const typeLabel = d.type === "QUOTE" ? "Quote" : "Invoice";
+  const statusLabel = d.status === "DRAFT" ? "Draft" : "Final";
+  const numberLabel = d.number ?? `${typeLabel} draft`;
+
+  return (
+    <tr className={cn(tableRowClassName, "relative")}>
+      <td className="px-4 py-3 align-middle">
+        <Link
+          href={`/documents/${d.id}`}
+          className="absolute inset-0 focus-visible:z-10 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+        >
+          <span className="sr-only">Open {numberLabel}</span>
+        </Link>
+        <span aria-hidden="true" className="relative font-mono text-sm text-brand-dark">
+          {numberLabel}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-sm text-slate-600">
+        <span className="inline-flex items-center gap-1.5">
+          {d.type === "QUOTE" ? (
+            <FileText className="size-3.5 text-brand" aria-hidden="true" />
+          ) : (
+            <Receipt className="size-3.5 text-brand" aria-hidden="true" />
+          )}
+          {typeLabel}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-sm text-slate-700">{d.companyName ?? "No client"}</td>
+      <td className="px-4 py-3 text-right text-sm font-medium tabular-nums text-brand-dark">
+        {formatMoney(d.total, d.currency)}
+      </td>
+      <td className="px-4 py-3">
+        <StatusBadge tone={STATUS_TONE[d.status]}>{statusLabel}</StatusBadge>
+      </td>
+      <td className="px-4 py-3 text-sm text-slate-500">{relativeDate(d.updatedAt)}</td>
+    </tr>
+  );
+}
+
+function DocumentCard({ document: d }: { document: DocumentListItem }) {
+  const typeLabel = d.type === "QUOTE" ? "Quote" : "Invoice";
+  const statusLabel = d.status === "DRAFT" ? "Draft" : "Final";
+
+  return (
+    <Link
+      href={`/documents/${d.id}`}
+      className="focus-ring flex min-h-12 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-colors active:bg-slate-100"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+          {d.type === "QUOTE" ? (
+            <FileText className="size-3.5 text-brand" aria-hidden="true" />
+          ) : (
+            <Receipt className="size-3.5 text-brand" aria-hidden="true" />
+          )}
+          {typeLabel}
+        </span>
+        <StatusBadge tone={STATUS_TONE[d.status]}>{statusLabel}</StatusBadge>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-medium text-brand-dark">{d.companyName ?? "No client"}</p>
+          <p className="font-mono text-xs text-slate-500">
+            {d.number ?? `${typeLabel} draft`} · {relativeDate(d.updatedAt)}
+          </p>
+        </div>
+        <span className="shrink-0 text-sm font-medium tabular-nums text-brand-dark">
+          {formatMoney(d.total, d.currency)}
+        </span>
+      </div>
+    </Link>
   );
 }

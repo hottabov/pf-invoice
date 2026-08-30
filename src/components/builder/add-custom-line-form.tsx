@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Field, inputClass } from "@/components/catalog/field";
+import { FieldRow, fieldInputClass } from "@/components/ui-kit";
 import type { ActionResult } from "@/lib/actions/documents";
 
 const initialState: ActionResult = {};
@@ -39,20 +39,20 @@ export function AddCustomLineForm({
     <form
       ref={formRef}
       action={formAction}
-      className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-3"
+      className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4"
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr]">
-        <Field label="Name" htmlFor="custom-line-name">
+        <FieldRow label="Name" htmlFor="custom-line-name" required>
           <input
             id="custom-line-name"
             name="name"
             required
             maxLength={200}
             placeholder="e.g. Delivery"
-            className={inputClass}
+            className={fieldInputClass}
           />
-        </Field>
-        <Field label="Qty" htmlFor="custom-line-qty">
+        </FieldRow>
+        <FieldRow label="Qty" htmlFor="custom-line-qty" required>
           <input
             id="custom-line-qty"
             name="qty"
@@ -62,10 +62,10 @@ export function AddCustomLineForm({
             max={999}
             defaultValue={1}
             required
-            className={inputClass}
+            className={fieldInputClass}
           />
-        </Field>
-        <Field label="Unit price" htmlFor="custom-line-unit-price">
+        </FieldRow>
+        <FieldRow label="Unit price" htmlFor="custom-line-unit-price" required>
           <input
             id="custom-line-unit-price"
             name="unitPrice"
@@ -73,14 +73,14 @@ export function AddCustomLineForm({
             inputMode="decimal"
             placeholder="0.00"
             required
-            className={inputClass}
+            className={fieldInputClass}
           />
-        </Field>
+        </FieldRow>
       </div>
 
-      <Field label="Description (optional)" htmlFor="custom-line-description">
-        <input id="custom-line-description" name="description" maxLength={500} className={inputClass} />
-      </Field>
+      <FieldRow label="Description (optional)" htmlFor="custom-line-description">
+        <input id="custom-line-description" name="description" maxLength={500} className={fieldInputClass} />
+      </FieldRow>
 
       {state.error ? (
         <p role="alert" className="text-sm text-destructive">
@@ -88,7 +88,7 @@ export function AddCustomLineForm({
         </p>
       ) : null}
 
-      <Button type="submit" variant="outline" disabled={pending} className="w-fit">
+      <Button type="submit" variant="outline" disabled={pending} className="h-11 w-fit">
         {pending ? "Adding…" : "Add line"}
       </Button>
     </form>
