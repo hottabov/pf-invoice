@@ -25,12 +25,17 @@ export function ImageUpload({
   alt,
   onSave,
   readOnly = false,
+  previewHeightPx,
 }: {
   currentUrl: string | null;
   alt: string;
   onSave: (url: string | null) => Promise<ActionResult>;
   /** MANAGER view: show the image (if any) with no upload/remove controls. */
   readOnly?: boolean;
+  /** Fixed preview height in pixels, e.g. 120 for a region logo. Defaults to
+   * the catalog product/option preview size (~112px via `h-28`) when
+   * omitted. */
+  previewHeightPx?: number;
 }) {
   const [url, setUrl] = useState(currentUrl);
   const [uploading, setUploading] = useState(false);
@@ -111,7 +116,11 @@ export function ImageUpload({
           <img
             src={url}
             alt={alt}
-            className="h-28 w-auto max-w-full rounded-lg border border-slate-200 bg-white object-contain"
+            style={previewHeightPx ? { height: previewHeightPx } : undefined}
+            className={cn(
+              "w-auto max-w-full rounded-lg border border-slate-200 bg-white object-contain",
+              previewHeightPx ? undefined : "h-28"
+            )}
           />
         ) : (
           <>

@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileText, Settings2, Users } from "lucide-react";
+import { FileText, MapPin, Users } from "lucide-react";
 import { auth } from "@/auth";
 import { getRegionById } from "@/lib/queries/catalog";
-import { PageHeader, SectionCard, StatusBadge, STATUS_TONE, EmptyState } from "@/components/ui-kit";
+import { getQuoteValidityDays } from "@/lib/queries/settings";
+import { updateSetting } from "@/lib/actions/settings";
+import { QuoteValidityForm } from "@/components/settings/quote-validity-form";
+import { PageHeader, SectionCard, StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +17,11 @@ export default async function SettingsPage() {
   // AppLayout (src/app/(app)/layout.tsx) already calls requireSession and
   // redirects unauthenticated requests, so a session is always present here.
   const session = (await auth())!;
-  const region = await getRegionById(session.user.regionId);
+  const isAdmin = session.user.role === "ADMIN";
+  const [region, quoteValidityDays] = await Promise.all([
+    getRegionById(session.user.regionId),
+    getQuoteValidityDays(),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -41,7 +48,26 @@ export default async function SettingsPage() {
         </dl>
       </SectionCard>
 
-      {session.user.role === "ADMIN" ? (
+      <SectionCard
+        title="Preferences"
+        description="Defaults applied across the app."
+      >
+        {isAdmin ? (
+          <QuoteValidityForm
+            action={updateSetting.bind(null, "quote.validityDays")}
+            defaultValue={quoteValidityDays}
+          />
+        ) : (
+          <dl>
+            <div className="flex flex-col gap-1">
+              <dt className="text-sm text-slate-500">Quote validity (days)</dt>
+              <dd className="text-sm font-medium text-brand-dark">{quoteValidityDays}</dd>
+            </div>
+          </dl>
+        )}
+      </SectionCard>
+
+      {isAdmin ? (
         <SectionCard
           title="Content blocks"
           description="Manage reusable quote text — machine descriptions, options, terms, and conditions."
@@ -56,7 +82,7 @@ export default async function SettingsPage() {
         </SectionCard>
       ) : null}
 
-      {session.user.role === "ADMIN" ? (
+      {isAdmin ? (
         <SectionCard title="Users" description="Add teammates, set roles and regions, and manage sign-in access.">
           <Link
             href="/settings/users"
@@ -68,11 +94,20 @@ export default async function SettingsPage() {
         </SectionCard>
       ) : null}
 
-      <EmptyState
-        icon={Settings2}
-        title="More settings coming soon"
-        description="Preferences and notifications will land in a later phase."
-      />
+      {isAdmin ? (
+        <SectionCard
+          title="Regions"
+          description="Currency, tax, and legal-entity details used to build documents."
+        >
+          <Link
+            href="/settings/regions"
+            className={cn(buttonVariants({ variant: "outline" }), "h-11 w-full sm:w-auto")}
+          >
+            <MapPin className="size-4" data-icon="inline-start" aria-hidden="true" />
+            Manage regions
+          </Link>
+        </SectionCard>
+      ) : null}
     </div>
   );
 }

@@ -9,14 +9,9 @@ import { idSchema } from "@/lib/validation/documents";
 import { validateFinalizable, type FinalizableDocument } from "@/lib/validation/finalize";
 import { recalcDocument } from "@/lib/actions/documents";
 import { allocateNumber, formatDocNumber } from "@/lib/numbering";
+import { getQuoteValidityDays } from "@/lib/queries/settings";
 
 const NOT_FOUND_ERROR = "Not found";
-
-/** Fallback used when no `Setting` row exists for "quote.validityDays" (or
- * its value isn't a finite number) — quotes are valid for a week by
- * default. */
-const DEFAULT_QUOTE_VALIDITY_DAYS = 7;
-const QUOTE_VALIDITY_SETTING_KEY = "quote.validityDays";
 
 export type FinalizeResult = { ok: true; number: string } | { error: string };
 export type UnfinalizeResult = { ok: true } | { error: string };
@@ -77,15 +72,10 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
 
   // Only quotes carry a validity window; read the org-wide default once
   // (fallback applies both when the Setting row is missing and when its
-  // value isn't a finite number).
+  // value isn't a finite number — see getQuoteValidityDays).
   let validityDays: number | null = null;
   if (document.type === "QUOTE") {
-    const setting = await db.setting.findUnique({ where: { key: QUOTE_VALIDITY_SETTING_KEY } });
-    const rawValue = setting?.value;
-    validityDays =
-      typeof rawValue === "number" && Number.isFinite(rawValue)
-        ? rawValue
-        : DEFAULT_QUOTE_VALIDITY_DAYS;
+    validityDays = await getQuoteValidityDays();
   }
 
   const entitySnapshot = {

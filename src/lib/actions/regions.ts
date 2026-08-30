@@ -1,0 +1,183 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
+import type { z } from "zod";
+import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/authz";
+import { idSchema } from "@/lib/validation/documents";
+import { createRegionSchema, updateRegionSchema } from "@/lib/validation/regions";
+import { countActiveUsersInRegion } from "@/lib/queries/regions";
+import { IMAGE_URL_PATTERN } from "@/lib/uploads";
+
+export type ActionResult = { error?: string };
+
+const NOT_FOUND_ERROR = "Not found";
+const CODE_EXISTS_ERROR = "That code already exists — choose a different one.";
+
+/** Join every zod issue message (form-level + field-level) into one string
+ * for a plain `{ error }` result — mirrors src/lib/actions/users.ts and
+ * src/lib/actions/catalog.ts. */
+function flattenZodError(error: z.ZodError): string {
+  const flat = error.flatten();
+  const messages = [...flat.formErrors, ...Object.values(flat.fieldErrors).flat()].filter(
+    (m): m is string => Boolean(m)
+  );
+  return messages.length > 0 ? messages.join(" ") : "Invalid input";
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function readRegionForm(formData: FormData) {
+  return {
+    name: formData.get("name"),
+    currency: formData.get("currency"),
+    taxName: formData.get("taxName"),
+    taxRate: formData.get("taxRate"),
+    entityName: formData.get("entityName"),
+    entityLegalId: formData.get("entityLegalId"),
+    entityAddress: formData.get("entityAddress"),
+    footerText: formData.get("footerText"),
+    bankDetails: formData.get("bankDetails"),
+    active: formData.get("active"),
+  };
+}
+
+function revalidateRegionPaths(regionId: string) {
+  revalidatePath("/settings/regions");
+  revalidatePath(`/settings/regions/${regionId}`);
+}
+
+/** Builds the `bankDetails` write for a Prisma `create`/`update` call: `null`
+ * clears the column (via `Prisma.DbNull`, since Prisma rejects a literal
+ * JSON `null` for a Json field — see the same pattern for
+ * `Option.attributeSchema` in src/lib/actions/catalog.ts), otherwise the
+ * validated record is passed straight through. */
+function bankDetailsWrite(value: Record<string, string> | null): Prisma.InputJsonValue | typeof Prisma.DbNull {
+  return value === null ? Prisma.DbNull : (value as Prisma.InputJsonValue);
+}
+
+/**
+ * Creates a new region, active by default per the submitted toggle. `code`
+ * is only ever set here — there is no `code` field in `updateRegionSchema`,
+ * and the edit form renders it read-only, matching the "immutable after
+ * create" requirement.
+ */
+export async function createRegion(formData: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = createRegionSchema.safeParse({
+    code: formData.get("code"),
+    ...readRegionForm(formData),
+  });
+  if (!parsed.success) {
+    return { error: flattenZodError(parsed.error) };
+  }
+
+  let created;
+  try {
+    created = await db.region.create({
+      data: {
+        code: parsed.data.code,
+        name: parsed.data.name,
+        currency: parsed.data.currency,
+        taxName: parsed.data.taxName,
+        taxRate: new Prisma.Decimal(parsed.data.taxRate),
+        entityName: parsed.data.entityName,
+        entityLegalId: parsed.data.entityLegalId ?? null,
+        entityAddress: parsed.data.entityAddress ?? null,
+        footerText: parsed.data.footerText ?? null,
+        bankDetails: bankDetailsWrite(parsed.data.bankDetails),
+        active: parsed.data.active,
+      },
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) return { error: CODE_EXISTS_ERROR };
+    throw error;
+  }
+
+  revalidatePath("/settings/regions");
+  redirect(`/settings/regions/${created.id}`);
+}
+
+/**
+ * Updates every region field except `code` (immutable) and `logoUrl` (see
+ * `updateRegionLogo`). Deactivating a region that still has active users
+ * assigned is blocked — see `countActiveUsersInRegion`
+ * (src/lib/queries/regions.ts) — since those users would otherwise be left
+ * pointing at a region no longer meant to be used for new work.
+ */
+export async function updateRegion(regionId: string, formData: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const idParsed = idSchema.safeParse(regionId);
+  if (!idParsed.success) return { error: NOT_FOUND_ERROR };
+
+  const parsed = updateRegionSchema.safeParse(readRegionForm(formData));
+  if (!parsed.success) {
+    return { error: flattenZodError(parsed.error) };
+  }
+
+  const existing = await db.region.findUnique({ where: { id: regionId } });
+  if (!existing) return { error: NOT_FOUND_ERROR };
+
+  if (existing.active && !parsed.data.active) {
+    const activeUserCount = await countActiveUsersInRegion(regionId);
+    if (activeUserCount > 0) {
+      return {
+        error: `Can't deactivate this region — ${activeUserCount} active user${activeUserCount === 1 ? "" : "s"} ${activeUserCount === 1 ? "is" : "are"} still assigned to it.`,
+      };
+    }
+  }
+
+  // No try/catch for a P2002 here (unlike createRegion): `code` — the only
+  // unique column on Region — is never part of this update.
+  await db.region.update({
+    where: { id: regionId },
+    data: {
+      name: parsed.data.name,
+      currency: parsed.data.currency,
+      taxName: parsed.data.taxName,
+      taxRate: new Prisma.Decimal(parsed.data.taxRate),
+      entityName: parsed.data.entityName,
+      entityLegalId: parsed.data.entityLegalId ?? null,
+      entityAddress: parsed.data.entityAddress ?? null,
+      footerText: parsed.data.footerText ?? null,
+      bankDetails: bankDetailsWrite(parsed.data.bankDetails),
+      active: parsed.data.active,
+    },
+  });
+
+  revalidateRegionPaths(regionId);
+  return {};
+}
+
+/** Validates that a submitted logo URL is either `null` (clear the logo) or
+ * exactly the `/api/files/<uuid>.<ext>` shape `saveUpload` produces — mirrors
+ * `parseImageUrl` in src/lib/actions/catalog.ts. */
+function parseImageUrl(url: string | null): { ok: true; value: string | null } | { ok: false } {
+  if (url === null) return { ok: true, value: null };
+  if (!IMAGE_URL_PATTERN.test(url)) return { ok: false };
+  return { ok: true, value: url };
+}
+
+export async function updateRegionLogo(regionId: string, url: string | null): Promise<ActionResult> {
+  await requireAdmin();
+
+  const idParsed = idSchema.safeParse(regionId);
+  if (!idParsed.success) return { error: NOT_FOUND_ERROR };
+
+  const parsed = parseImageUrl(url);
+  if (!parsed.ok) return { error: "Invalid image URL" };
+
+  const existing = await db.region.findUnique({ where: { id: regionId } });
+  if (!existing) return { error: NOT_FOUND_ERROR };
+
+  await db.region.update({ where: { id: regionId }, data: { logoUrl: parsed.value } });
+
+  revalidateRegionPaths(regionId);
+  return {};
+}
