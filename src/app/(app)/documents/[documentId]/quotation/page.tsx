@@ -4,8 +4,9 @@ import type { Metadata } from "next";
 import { ChevronLeft, Download } from "lucide-react";
 import { auth } from "@/auth";
 import { getDocumentForBuilder } from "@/lib/queries/documents";
-import { toSheetData } from "@/lib/sheet-data";
-import { DocumentSheet } from "@/components/sheet/document-sheet";
+import { getContentBlocksForRegion } from "@/lib/queries/content";
+import { buildQuotationData } from "@/lib/quotation-data";
+import { QuotationSheet } from "@/components/sheet/quotation-sheet";
 import { buttonVariants } from "@/components/ui/button";
 import { StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
@@ -20,45 +21,42 @@ export async function generateMetadata({
   params: Promise<Params>;
 }): Promise<Metadata> {
   const { documentId } = await params;
-  // Metadata runs before the page body — re-check scope here too so a
-  // manager browsing to a foreign document's preview URL never even sees
-  // its number/type in the tab title.
+  // Metadata runs before the page body — re-check scope (and type) here too
+  // so a manager browsing to a foreign or non-QUOTE document's quotation URL
+  // never even sees its number in the tab title.
   const session = (await auth())!;
   const document = await getDocumentForBuilder(session.user, documentId);
-  if (!document) return { title: "Preview" };
-  return { title: document.number ? `${document.number} — preview` : "Preview" };
+  if (!document || document.type !== "QUOTE") return { title: "Quotation" };
+  return { title: document.number ? `${document.number} — quotation` : "Quotation" };
 }
 
 /**
- * Read-only render of the same `DocumentSheet` the PDF route (Task C) posts
- * to Gotenberg — lets an author sanity-check layout/content in the browser
- * before downloading. Images are passed straight through as their stored
- * `/api/files/<name>` URL (the default `toSheetData` resolver): unlike the
- * PDF pipeline, this page runs in an already-authenticated browser tab, so
- * the auth-gated file route just works.
- *
- * The chrome around the sheet (this file) is restyled per phase 5b; the
- * sheet itself (`DocumentSheet`) is print-critical and untouched.
+ * Read-only render of the extended, content-block-driven quotation sheet —
+ * the same `QuotationSheet` the quotation PDF route (`/api/documents/
+ * [documentId]/quotation-pdf`) posts to Gotenberg — lets an author sanity-
+ * check the full equipment write-up, terms, conditions and RSP detail
+ * before downloading. QUOTE documents only; an INVOICE (which has no
+ * content-block-driven detail) 404s here, same as a foreign/nonexistent
+ * document. Images are passed straight through as their stored
+ * `/api/files/<name>` URL (the default resolver) since this page runs in an
+ * already-authenticated browser tab.
  */
-export default async function DocumentPreviewPage({ params }: { params: Promise<Params> }) {
+export default async function QuotationPreviewPage({ params }: { params: Promise<Params> }) {
   const { documentId } = await params;
   // AppLayout (src/app/(app)/layout.tsx) already calls requireSession and
   // redirects unauthenticated requests, so a session is always present here.
   const session = (await auth())!;
 
   const document = await getDocumentForBuilder(session.user, documentId);
-  // A foreign document (belongs to another manager) resolves to the same
-  // `null` as a nonexistent one — never leak which case it was.
-  if (!document) notFound();
+  // A foreign document, a nonexistent one, and an INVOICE (no quotation
+  // renderer) all 404 here — never distinguish which case it was.
+  if (!document || document.type !== "QUOTE") notFound();
 
-  const sheetData = toSheetData(document);
+  const blocks = await getContentBlocksForRegion(document.regionId);
+  const quotationData = buildQuotationData(document, blocks);
+
   const statusLabel = document.status === "DRAFT" ? "Draft" : "Final";
-  const numberLabel = document.number ?? `${document.type === "QUOTE" ? "Quote" : "Invoice"} draft`;
-  // A QUOTE also has the Phase 6 content-block-driven "Quotation" renderer
-  // — this page is its plain line-item counterpart, so its own PDF button
-  // is relabeled "Summary" and a link to the full quotation is added
-  // alongside it. An INVOICE has no quotation renderer, so it's unchanged.
-  const isQuote = document.type === "QUOTE";
+  const numberLabel = document.number ?? "Quote draft";
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 pb-8">
@@ -78,27 +76,25 @@ export default async function DocumentPreviewPage({ params }: { params: Promise<
           </StatusBadge>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          {isQuote ? (
-            <Link
-              href={`/documents/${document.id}/quotation`}
-              className="focus-ring inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-brand-dark transition-colors hover:bg-slate-50 sm:flex-none"
-            >
-              View full quotation
-            </Link>
-          ) : null}
+          <Link
+            href={`/documents/${document.id}/preview`}
+            className="focus-ring inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-brand-dark transition-colors hover:bg-slate-50 sm:flex-none"
+          >
+            View summary
+          </Link>
           <a
-            href={`/api/documents/${document.id}/pdf`}
+            href={`/api/documents/${document.id}/quotation-pdf`}
             className={cn(buttonVariants(), "h-11 flex-1 bg-brand text-white hover:bg-brand/90 sm:flex-none")}
           >
             <Download className="size-4" data-icon="inline-start" aria-hidden="true" />
-            {isQuote ? "Download Summary PDF" : "Download PDF"}
+            Download Quotation PDF
           </a>
         </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl bg-slate-100 p-4 sm:p-8">
         <div className="mx-auto w-fit shadow-lg">
-          <DocumentSheet data={sheetData} />
+          <QuotationSheet data={quotationData} />
         </div>
       </div>
     </div>

@@ -125,11 +125,25 @@ export type BuilderItem = {
    * (shouldn't happen: deleting a referenced product is blocked — see
    * `deleteProduct` in actions/catalog.ts). */
   seriesId: string | null;
+  /** The item's product's series *code* (e.g. "M", "XC", "EL") — distinct
+   * from `seriesId`, needed by `productBlockKey` (src/lib/quotation-data.ts)
+   * to map an item to its `machine.*`/`equipment.*`/`software.*` content
+   * block. `null` in the same defensive case as `seriesId`. */
+  seriesCode: string | null;
   /** The item's own product id — options can be compatible at the
    * product level as well as the series level (see `OptionCompatibility`),
    * so callers need both ids to look up the full compatible-options set.
    * `null` only in the same defensive case as `seriesId`. */
   productId: string | null;
+  /** `Product.specs` exactly as stored (opaque `Json?`, e.g.
+   * `{ cutHeightCm, cutWidthCm }`) — carried through unvalidated for
+   * `buildQuotationData`'s placeholder substitution, which validates its
+   * shape defensively at runtime. `null` for an item with no resolving
+   * product or no specs recorded. */
+  specs: unknown;
+  /** `DocumentItem.serialNumber` — set post-installation, used as-is in the
+   * quotation's RSP coverage table. */
+  serialNumber: string | null;
   imageUrl: string | null;
   /** Whether the item's thumbnail should actually be shown on a rendered
    * document (the sheet renderer/PDF) — distinct from `imageUrl` being
@@ -349,7 +363,10 @@ export async function getDocumentForBuilder(
       discountPct: item.discountPct?.toString() ?? null,
       maxDiscountPct: item.product?.series.maxDiscountPct?.toString() ?? null,
       seriesId: item.product?.seriesId ?? null,
+      seriesCode: item.product?.series.code ?? null,
       productId: item.product?.id ?? null,
+      specs: item.product?.specs ?? null,
+      serialNumber: item.serialNumber,
       imageUrl: item.imageUrl,
       showImage: item.showImage,
       sortOrder: item.sortOrder,

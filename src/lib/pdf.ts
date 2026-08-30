@@ -15,8 +15,10 @@
 // call, from this route's own server bundle.
 import { readFileSync } from "fs";
 import { DocumentSheet } from "@/components/sheet/document-sheet";
+import { QuotationSheet } from "@/components/sheet/quotation-sheet";
 import { resolveUploadPath } from "@/lib/uploads";
 import type { DocSheetData, ImageResolver } from "@/lib/sheet-data";
+import type { QuotationData } from "@/lib/quotation-data";
 
 // --- HTML rendering -----------------------------------------------------
 
@@ -33,6 +35,18 @@ import type { DocSheetData, ImageResolver } from "@/lib/sheet-data";
 export async function renderDocumentHtml(data: DocSheetData): Promise<string> {
   const { renderToStaticMarkup } = await import("react-dom/server");
   const body = renderToStaticMarkup(DocumentSheet({ data }));
+  return `<!doctype html><html><head><meta charSet="utf-8"><style>@page{size:A4;margin:15mm} body{margin:0}</style></head><body>${body}</body></html>`;
+}
+
+/**
+ * Same contract as `renderDocumentHtml` but for the extended quotation sheet
+ * (`QuotationSheet` — Phase 6's content-block-driven QUOTE renderer) used by
+ * `/api/documents/[documentId]/quotation-pdf`. `data` must already have
+ * every image resolved the same way (see `fileImageResolver`).
+ */
+export async function renderQuotationHtml(data: QuotationData): Promise<string> {
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const body = renderToStaticMarkup(QuotationSheet({ data }));
   return `<!doctype html><html><head><meta charSet="utf-8"><style>@page{size:A4;margin:15mm} body{margin:0}</style></head><body>${body}</body></html>`;
 }
 
@@ -133,6 +147,20 @@ export const fileImageResolver: ImageResolver = (url) => {
  */
 export function pdfFilename(number: string | null, id: string): string {
   const raw = number ?? `draft-${id}`;
+  const sanitized = raw.replace(/[^\w.-]+/g, "_");
+  return `${sanitized}.pdf`;
+}
+
+/**
+ * The quotation PDF's downloaded filename: `<number>-quotation.pdf` for a
+ * finalized quote, `draft-quotation.pdf` for one still in draft — distinct
+ * from `pdfFilename` (which uses `draft-<id>` for a draft) since this name
+ * doesn't need to disambiguate between drafts the way the plain summary PDF
+ * does; it's always downloaded from a single already-open document. Same
+ * defensive character stripping as `pdfFilename`.
+ */
+export function quotationPdfFilename(number: string | null): string {
+  const raw = `${number ?? "draft"}-quotation`;
   const sanitized = raw.replace(/[^\w.-]+/g, "_");
   return `${sanitized}.pdf`;
 }

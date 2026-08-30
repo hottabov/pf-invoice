@@ -233,6 +233,14 @@ function DocumentActions({
   isDraft: boolean;
   isAdmin: boolean;
 }) {
+  // QUOTE documents get a second, content-block-driven "Quotation"
+  // renderer (Phase 6) alongside the plain line-item sheet every document
+  // type has always had — so on a QUOTE, that original pair is relabeled
+  // "Summary" to distinguish it from the new "Quotation" pair. An INVOICE
+  // has no quotation renderer at all, so its links stay exactly as they
+  // were.
+  const isQuote = document.type === "QUOTE";
+
   return (
     <div className="flex flex-col gap-2">
       {isDraft ? (
@@ -243,7 +251,7 @@ function DocumentActions({
 
       <Link href={`/documents/${document.id}/preview`} className={actionLinkClass}>
         <Eye className="size-4" aria-hidden="true" />
-        Preview
+        {isQuote ? "Summary preview" : "Preview"}
       </Link>
 
       {/* Available for DRAFT too — /api/documents/[id]/pdf renders a
@@ -251,8 +259,22 @@ function DocumentActions({
           FINAL-only. */}
       <a href={`/api/documents/${document.id}/pdf`} className={actionLinkClass}>
         <Download className="size-4" aria-hidden="true" />
-        Download PDF
+        {isQuote ? "Summary PDF" : "Download PDF"}
       </a>
+
+      {isQuote ? (
+        <>
+          <Link href={`/documents/${document.id}/quotation`} className={actionLinkClass}>
+            <Eye className="size-4" aria-hidden="true" />
+            Quotation preview
+          </Link>
+
+          <a href={`/api/documents/${document.id}/quotation-pdf`} className={actionLinkClass}>
+            <Download className="size-4" aria-hidden="true" />
+            Quotation PDF
+          </a>
+        </>
+      ) : null}
     </div>
   );
 }

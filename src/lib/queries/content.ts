@@ -117,3 +117,35 @@ export async function getContentBlock(key: string): Promise<ContentBlockDetail |
     activeRegions: activeRegions.map((r) => ({ id: r.id, code: r.code, name: r.name })),
   };
 }
+
+// --- quotation rendering ---------------------------------------------------
+
+export type QuotationContentBlockRow = {
+  key: string;
+  regionId: string | null;
+  title: string | null;
+  body: string;
+  sortOrder: number;
+};
+
+/**
+ * Every `ContentBlock` row visible when rendering a document in `regionId`
+ * — every global default (`regionId: null`) plus every override that
+ * belongs to this specific region (a different region's override is never
+ * included). Feeds `resolveBlocks` in src/lib/quotation-data.ts, which
+ * reduces this flat list down to one row per key (region override wins over
+ * default).
+ */
+export async function getContentBlocksForRegion(regionId: string): Promise<QuotationContentBlockRow[]> {
+  const rows = await db.contentBlock.findMany({
+    where: { OR: [{ regionId: null }, { regionId }] },
+  });
+
+  return rows.map((row) => ({
+    key: row.key,
+    regionId: row.regionId,
+    title: row.title,
+    body: row.body,
+    sortOrder: row.sortOrder,
+  }));
+}

@@ -1,0 +1,274 @@
+import { describe, it, expect } from "vitest";
+import {
+  buildQuotationData,
+  optionBlockKey,
+  productBlockKey,
+  resolveBlocks,
+  substitutePlaceholders,
+  type ContentBlockRow,
+  type QuotationDataDoc,
+  type QuotationItemInput,
+} from "../src/lib/quotation-data";
+
+// Pure module — no @/lib/db import (see quotation-data.ts's header comment),
+// so this never needs DATABASE_URL set, same as tests/sheet-data.test.ts.
+
+describe("resolveBlocks — precedence", () => {
+  const blocks: ContentBlockRow[] = [
+    { key: "terms.delivery", regionId: null, title: "Delivery", body: "Default delivery body", sortOrder: 1 },
+    { key: "terms.delivery", regionId: "region-us", title: "Delivery (US)", body: "US delivery body", sortOrder: 1 },
+    { key: "terms.warranty", regionId: null, title: "Warranty", body: "Default warranty body", sortOrder: 2 },
+  ];
+
+  it("uses the default (regionId: null) row when the region has no override", () => {
+    const resolved = resolveBlocks(blocks, "region-au");
+    expect(resolved.get("terms.delivery")?.body).toBe("Default delivery body");
+    expect(resolved.get("terms.warranty")?.body).toBe("Default warranty body");
+  });
+
+  it("prefers a region-specific override over the default for the same key", () => {
+    const resolved = resolveBlocks(blocks, "region-us");
+    expect(resolved.get("terms.delivery")?.body).toBe("US delivery body");
+    // Unrelated key still falls back to its default.
+    expect(resolved.get("terms.warranty")?.body).toBe("Default warranty body");
+  });
+
+  it("ignores a different region's override entirely", () => {
+    const resolved = resolveBlocks(blocks, "region-uk");
+    expect(resolved.get("terms.delivery")?.body).toBe("Default delivery body");
+  });
+});
+
+describe("optionBlockKey — fallback", () => {
+  it("returns the exact key first for a code with no series suffix", () => {
+    expect(optionBlockKey("MTS")).toEqual(["option.MTS"]);
+  });
+
+  it("tries the exact code, then the series-suffix-stripped code", () => {
+    expect(optionBlockKey("ABR-M")).toEqual(["option.ABR-M", "option.ABR"]);
+  });
+
+  it("strips only the trailing segment after the last dash", () => {
+    expect(optionBlockKey("ABR-FP")).toEqual(["option.ABR-FP", "option.ABR"]);
+  });
+
+  it("does not duplicate a candidate when stripping yields the same key", () => {
+    // A dash at position 0 (lastIndexOf > 0 guard) never strips.
+    expect(optionBlockKey("-M")).toEqual(["option.-M"]);
+  });
+});
+
+describe("productBlockKey", () => {
+  it("maps M and XC series to machine.m-series", () => {
+    expect(productBlockKey("M5180", "M")).toBe("machine.m-series");
+    expect(productBlockKey("XC450", "XC")).toBe("machine.m-series");
+  });
+
+  it("maps EL to equipment.easy-loader and FP to equipment.fabric-pro", () => {
+    expect(productBlockKey("EL-2020", "EL")).toBe("equipment.easy-loader");
+    expect(productBlockKey("FP-180", "FP")).toBe("equipment.fabric-pro");
+  });
+
+  it("maps P to equipment.punchline", () => {
+    expect(productBlockKey("P-180", "P")).toBe("equipment.punchline");
+  });
+
+  it("maps SW by (S)/(I) suffix, else null", () => {
+    expect(productBlockKey("PTW(S)", "SW")).toBe("software.pathworks-s");
+    expect(productBlockKey("PTW(I)", "SW")).toBe("software.pathworks-i");
+    expect(productBlockKey("PTW", "SW")).toBeNull();
+  });
+
+  it("returns null for EF (no matching block) and unknown series", () => {
+    expect(productBlockKey("EF-100", "EF")).toBeNull();
+    expect(productBlockKey("X-1", null)).toBeNull();
+  });
+});
+
+describe("substitutePlaceholders", () => {
+  it("replaces a known token", () => {
+    expect(substitutePlaceholders("Model M{{model}}", { model: "450" })).toBe("Model M450");
+  });
+
+  it("replaces an unresolved token with the blank marker", () => {
+    expect(substitutePlaceholders("Cost: {{rspUnitCost}}", {})).toBe("Cost: ____");
+  });
+
+  it("treats an empty-string value as unresolved too", () => {
+    expect(substitutePlaceholders("Cost: {{rspUnitCost}}", { rspUnitCost: "" })).toBe("Cost: ____");
+  });
+
+  it("replaces multiple distinct tokens in one body", () => {
+    expect(substitutePlaceholders("{{a}} and {{b}}", { a: "1", b: "2" })).toBe("1 and 2");
+  });
+});
+
+// --- buildQuotationData: light integration coverage -------------------------
+
+function baseItem(overrides: Partial<QuotationItemInput> = {}): QuotationItemInput {
+  return {
+    id: "item-1",
+    code: "M5180",
+    name: "M5180 Cutting System",
+    description: null,
+    unitPrice: "175000.00",
+    discountPct: null,
+    total: "175000.00",
+    imageUrl: null,
+    showImage: false,
+    serialNumber: null,
+    seriesCode: "M",
+    specs: { cutHeightCm: 18, cutWidthCm: 180 },
+    lines: [],
+    ...overrides,
+  };
+}
+
+function baseDoc(overrides: Partial<QuotationDataDoc> = {}): QuotationDataDoc {
+  return {
+    type: "QUOTE",
+    status: "DRAFT",
+    number: null,
+    issueDate: new Date("2026-08-30T00:00:00.000Z"),
+    validityDays: 30,
+    currency: "AUD",
+    taxName: "GST",
+    taxRate: "10",
+    entitySnapshot: null,
+    entityName: "Pathfinder Australia Pty Ltd",
+    entityLegalId: "ABN 64 072 458 667",
+    entityAddress: "12 Did Ct, Tullamarine Vic. 3043, Australia",
+    bankDetails: { bank: "ANZ Westfield", bsb: "013 442", accountNo: "4405 63886" },
+    logoUrl: null,
+    footerText: null,
+    discountPct: null,
+    subtotal: "175000.00",
+    discountAmount: "0.00",
+    taxAmount: "17500.00",
+    total: "192500.00",
+    company: null,
+    contact: null,
+    extraLines: [],
+    regionId: "region-au",
+    items: [baseItem()],
+    ...overrides,
+  };
+}
+
+const machineBlock: ContentBlockRow = {
+  key: "machine.m-series",
+  regionId: null,
+  title: "M-Series",
+  body: "Model M{{model}}. Height {{cutHeightCm}}cm, width {{cutWidthCm}}cm. Price {{price}}.",
+  sortOrder: 1,
+};
+
+const mtsBlock: ContentBlockRow = {
+  key: "option.MTS",
+  regionId: null,
+  title: "MTS",
+  body: "Travel {{metres}}m over {{tables}} tables.",
+  sortOrder: 2,
+};
+
+const termsBlock: ContentBlockRow = {
+  key: "terms.payment",
+  regionId: null,
+  title: "Payment",
+  body: "EFT details:\n\n{{bankDetails}}",
+  sortOrder: 3,
+};
+
+const conditionsBlock: ContentBlockRow = {
+  key: "conditions.1",
+  regionId: null,
+  title: "Sales Price",
+  body: "Prices are ex-works.",
+  sortOrder: 4,
+};
+
+const rspAgreementBlock: ContentBlockRow = {
+  key: "rsp.agreement",
+  regionId: null,
+  title: "RSP",
+  body: "Remote support program.",
+  sortOrder: 5,
+};
+
+describe("buildQuotationData", () => {
+  it("resolves a machine title block with substituted vars", () => {
+    // Per the spec, `model` is substituted with the raw `item.code` — the
+    // real machine.m-series seed template hardcodes a literal "M" before
+    // "{{model}}" (see prisma/seed-data/content-blocks.json), so it expects
+    // `model` to be just the numeric suffix (e.g. "450"), not a full
+    // "M"-prefixed product code. Using "450" here (matching the
+    // placeholder hint's documented example) rather than a code like
+    // "M5180" avoids asserting on the resulting double-"M" — see this
+    // module's final report for that as a flagged content-authoring
+    // concern rather than a bug in `buildQuotationData` itself.
+    const data = buildQuotationData(baseDoc({ items: [baseItem({ code: "450" })] }), [machineBlock]);
+    expect(data.machineSections).toHaveLength(1);
+    expect(data.machineSections[0].titleBlockHtml).toContain("Model M450");
+    expect(data.machineSections[0].titleBlockHtml).toContain("Height 18cm, width 180cm");
+  });
+
+  it("leaves titleBlockHtml null when no block matches the product", () => {
+    const doc = baseDoc({ items: [baseItem({ seriesCode: "EF", code: "EF-100" })] });
+    const data = buildQuotationData(doc, [machineBlock]);
+    expect(data.machineSections[0].titleBlockHtml).toBeNull();
+  });
+
+  it("resolves OPTION lines to option blocks using line attributes, skips lines with no match", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({
+          lines: [
+            {
+              id: "line-1",
+              kind: "OPTION",
+              code: "MTS",
+              name: "Machine Transfer System",
+              description: null,
+              qty: 1,
+              unitPrice: "5000.00",
+              attributes: { metres: 4, tables: 2 },
+            },
+            {
+              id: "line-2",
+              kind: "OPTION",
+              code: "ZZZ-NOPE",
+              name: "Unknown option",
+              description: null,
+              qty: 1,
+              unitPrice: "0.00",
+              attributes: null,
+            },
+          ],
+        }),
+      ],
+    });
+    const data = buildQuotationData(doc, [machineBlock, mtsBlock]);
+    expect(data.machineSections[0].optionBlocksHtml).toHaveLength(1);
+    expect(data.machineSections[0].optionBlocksHtml[0].bodyHtml).toContain("Travel 4m over 2 tables");
+  });
+
+  it("substitutes bankDetails into terms blocks and sorts terms/conditions by sortOrder", () => {
+    const data = buildQuotationData(baseDoc(), [termsBlock, conditionsBlock]);
+    expect(data.termsSections).toHaveLength(1);
+    expect(data.termsSections[0].bodyHtml).toContain("ANZ Westfield");
+    expect(data.conditionsSections).toHaveLength(1);
+    expect(data.conditionsSections[0].key).toBe("conditions.1");
+  });
+
+  it("builds an RSP coverage row per item with unresolved unit cost", () => {
+    const doc = baseDoc({ items: [baseItem({ name: "M5180 Cutting System", serialNumber: "SN-001" })] });
+    const data = buildQuotationData(doc, [rspAgreementBlock]);
+    expect(data.rsp.agreementHtml).toContain("Remote support program");
+    expect(data.rsp.coverageRows).toEqual([{ name: "M5180 Cutting System", serialNumber: "SN-001", rspUnitCost: "____" }]);
+  });
+
+  it("blanks serialNumber when unset rather than rendering null", () => {
+    const data = buildQuotationData(baseDoc(), []);
+    expect(data.rsp.coverageRows[0].serialNumber).toBe("");
+  });
+});
