@@ -108,6 +108,15 @@ export type BuilderLine = {
    * editor into storage and back. */
   attributes: Record<string, string | number> | null;
   sortOrder: number;
+  /** `Option.imageUrl` for an OPTION line, resolved by `refId` against the
+   * catalog (see `getDocumentForBuilder`'s `optionImageMap`) — not a
+   * snapshot column on `DocumentLine` itself (there isn't one), so this
+   * always reflects the option's *current* catalog image, same live-lookup
+   * treatment `listCompatibleOptions` gives the options editor's own icons.
+   * `null` for a PRODUCT/CUSTOM line, an OPTION with no `refId`, or an
+   * OPTION whose catalog image isn't set. Feeds `QuotationLineInput.imageUrl`
+   * (src/lib/quotation-data.ts) for the quotation's unified options table. */
+  imageUrl: string | null;
 };
 
 export type BuilderItem = {
@@ -234,17 +243,27 @@ export type DocumentForBuilder = {
   updatedAt: Date;
 };
 
-function toBuilderLine(line: {
-  id: string;
-  kind: LineKind;
-  code: string | null;
-  name: string;
-  description: string | null;
-  qty: number;
-  unitPrice: { toString(): string };
-  attributes: unknown;
-  sortOrder: number;
-}): BuilderLine {
+/**
+ * `optionImageMap` (optionId -> Option.imageUrl, built once per
+ * `getDocumentForBuilder` call from every OPTION line's `refId` — see
+ * below) resolves `imageUrl` for an OPTION line; a PRODUCT/CUSTOM line, or
+ * an OPTION with no `refId`/no matching catalog image, always gets `null`.
+ */
+function toBuilderLine(
+  line: {
+    id: string;
+    kind: LineKind;
+    code: string | null;
+    name: string;
+    description: string | null;
+    qty: number;
+    unitPrice: { toString(): string };
+    attributes: unknown;
+    sortOrder: number;
+    refId: string | null;
+  },
+  optionImageMap: Map<string, string>
+): BuilderLine {
   return {
     id: line.id,
     kind: line.kind,
@@ -258,6 +277,7 @@ function toBuilderLine(line: {
         ? (line.attributes as Record<string, string | number>)
         : null,
     sortOrder: line.sortOrder,
+    imageUrl: line.kind === "OPTION" && line.refId ? (optionImageMap.get(line.refId) ?? null) : null,
   };
 }
 
@@ -320,6 +340,29 @@ export async function getDocumentForBuilder(
     },
   });
   if (!document) return null;
+
+  // Every OPTION line's icon in the quotation's unified options table (see
+  // src/lib/quotation-data.ts's QuotationOptionRow) comes from the option's
+  // *current* catalog `imageUrl`, not a snapshot on the line — `DocumentLine`
+  // has no `imageUrl` column, only `refId` (the optionId). One query up
+  // front for every distinct refId referenced anywhere in the document
+  // (item lines + document-level extra lines) beats a per-line round trip.
+  const optionRefIds = Array.from(
+    new Set(
+      document.items
+        .flatMap((item) => item.lines)
+        .concat(document.lines)
+        .filter((line): line is (typeof document.lines)[number] & { refId: string } => line.kind === "OPTION" && line.refId !== null)
+        .map((line) => line.refId)
+    )
+  );
+  const optionImages =
+    optionRefIds.length > 0
+      ? await db.option.findMany({ where: { id: { in: optionRefIds } }, select: { id: true, imageUrl: true } })
+      : [];
+  const optionImageMap = new Map(
+    optionImages.filter((o): o is { id: string; imageUrl: string } => o.imageUrl !== null).map((o) => [o.id, o.imageUrl])
+  );
 
   // Item totals and the document discount amount aren't persisted per row
   // (recalcDocument only writes the document-level subtotal/tax/total) —
@@ -399,10 +442,10 @@ export async function getDocumentForBuilder(
       showImage: item.showImage,
       productHasImage: item.imageUrl !== null,
       sortOrder: item.sortOrder,
-      lines: item.lines.map(toBuilderLine),
+      lines: item.lines.map((line) => toBuilderLine(line, optionImageMap)),
       total: totals.itemTotals[index].toString(),
     })),
-    extraLines: document.lines.map(toBuilderLine),
+    extraLines: document.lines.map((line) => toBuilderLine(line, optionImageMap)),
     showItemPrices: document.showItemPrices,
     showOptionPrices: document.showOptionPrices,
     sourceQuoteId: document.sourceQuoteId,

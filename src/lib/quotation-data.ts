@@ -15,6 +15,7 @@ import { formatMoney } from "./format";
 import { machineSpecSentence, parseMachineSpecs, extraSpecVars } from "./machine-specs";
 import { renderMarkdown } from "./markdown";
 import {
+  dedupeDescription,
   formatBankDetails,
   toSheetData,
   type DocSheetClient,
@@ -41,6 +42,14 @@ export type QuotationLineInput = ToSheetLineInput & {
    * `substitutePlaceholders` for option blocks like `option.MTS` whose body
    * references `{{metres}}`/`{{tables}}`. */
   attributes: Record<string, string | number> | null;
+  /** The line's option's `Option.imageUrl` (resolved by `refId` — see
+   * `getDocumentForBuilder`'s `optionImageMap`), snapshotted from the
+   * catalog at read time rather than frozen on the line itself (an option's
+   * icon can be added/changed in the catalog after the line was added, same
+   * treatment as an item's own `imageUrl`). `null` for a PRODUCT/CUSTOM line
+   * or an OPTION with no catalog image — the unified options table (see
+   * `QuotationOptionRow.icon`) simply renders no icon cell content then. */
+  imageUrl: string | null;
 };
 
 export type QuotationItemInput = ToSheetItemInput & {
@@ -264,47 +273,81 @@ export function substitutePlaceholders(body: string, vars: PlaceholderVars): str
 
 // --- buildQuotationData ----------------------------------------------------
 
-export type QuotationOptionBlock = {
-  key: string;
-  /** This option line's qty (from `DocSheetLine.qty`, matched by line id) —
-   * the sheet renders a "×N" badge next to a block-rendered option when this
-   * is >1, mirroring the qty display a fallback entry (see
-   * `QuotationFallbackOption`) always gets. */
-  qty: number;
-  bodyHtml: string;
-};
-
-/** One selected OPTION line whose code matched no `option.*` content block
- * (see `optionBlockKey`) — rendered as a compact fallback entry instead of
- * being silently dropped, per the owner's rule that no selected option may
- * ever go missing from the rendered quotation. */
-export type QuotationFallbackOption = {
+/**
+ * One row of the machine section's unified options table (owner: "table
+ * with small icons — більше контролю ніж списком" — replaces the old
+ * two-tier optionBlocksHtml-paragraphs + fallbackOptions-bullets split,
+ * which rendered inconsistently — prose for a matched `option.*` block,
+ * bold indented lines for an unmatched one — and drifted visually against
+ * each other). EVERY selected OPTION line produces exactly one row here,
+ * whether or not its code matched a content block, so no selected option is
+ * ever silently omitted (same owner rule the old fallback list enforced).
+ */
+export type QuotationOptionRow = {
   id: string;
+  /** Resolved via the same `ImageResolver` `buildQuotationData` uses for
+   * item thumbnails/logo (identity for the in-app preview, `fileImageResolver`
+   * for the PDF pipeline) — `null` when the option has no catalog image
+   * (`QuotationLineInput.imageUrl`) or resolution failed, in which case the
+   * sheet renders a blank icon cell rather than a broken image. */
+  icon: string | null;
+  /** `null` when redundant with `name` — equal to it, or one contains the
+   * other (see `dedupeOptionCode`) — so the sheet never prints duplicate
+   * text like "1.0mm dia punch — 1.0mm dia punch" or "Drills included
+   * 2301071-7-10 — 2301071-7-10". Non-null renders as a mono prefix before
+   * `name`. */
   code: string | null;
   name: string;
+  /** Rendered HTML for the description under the option's name: the matched
+   * `option.*` content block's body (placeholders substituted from
+   * `line.attributes`) when one exists, else the line's own snapshot
+   * `description`, deduped against `name` via `dedupeDescription` the same
+   * way an item/extra-line description is — `null` when neither is
+   * present. */
+  descriptionHtml: string | null;
+  /** Flattened `line.attributes` as one small line, e.g. "metres: 4 ·
+   * tables: 2" — `null` when the line carries no attributes. */
+  attributesLine: string | null;
   qty: number;
-  /** `formatMoney`-formatted line total, gated by `showOptionPrices` (same
-   * toggle an option row in the investment summary uses) — `null` hides the
-   * price entirely rather than showing a blank/zero figure. */
+  /** `formatMoney`-formatted line total, gated by `showOptionPrices` — the
+   * sheet hides the whole price column when this toggle is off rather than
+   * rendering blank cells (see `QuotationSheet`). */
   price: string | null;
-  /** `line.attributes` flattened to display pairs (e.g. `{ metres: 4 }` ->
-   * `[{ key: "metres", value: "4" }]`) — empty when the line carries no
-   * attributes. */
-  attributes: { key: string; value: string }[];
 };
+
+/**
+ * `code` when it's genuinely distinct information from `name`, else `null`
+ * — an option is frequently catalogued with its code doubling as (or fully
+ * embedded in) its name (e.g. code "2301071-7-10", name "Drills included
+ * 2301071-7-10"), and printing both verbatim renders a visible duplicate.
+ * Broader than a plain equality check (equal either way, or either string
+ * containing the other) so it also catches the "name embeds the code as a
+ * suffix" shape those two owner-reported examples both are, not just an
+ * exact code===name match.
+ */
+export function dedupeOptionCode(code: string | null, name: string): string | null {
+  if (!code) return null;
+  const c = code.trim();
+  const n = name.trim();
+  if (c === "" || c === n || n.includes(c) || c.includes(n)) return null;
+  return code;
+}
 
 export type QuotationMachineSection = {
   itemId: string;
   /** The section's heading text — ALWAYS present, one consistent tier
    * (`.pq-product-title` in quotation-sheet.tsx) for every machine/
    * equipment/software/service item, whether or not a content block matched.
-   * Prefers the matched content block's own `title` (placeholders
-   * substituted, e.g. "Pathfinder {{model}} Cutting System" ->
-   * "Pathfinder X-5180 Cutting System"), falling back to the item's own
-   * `name` when there's no block, the block has no title, or the title's
-   * only content was an unresolved placeholder (line-stripped to ""). The
-   * item's code renders alongside this separately, as a muted mono suffix —
-   * see quotation-sheet.tsx. */
+   * Only trusts the matched content block's own `title` when it's DYNAMIC —
+   * i.e. its raw text contains a `{{` placeholder, like "Pathfinder {{model}}
+   * Cutting System" -> "Pathfinder X-5180 Cutting System" — substituting it
+   * the same way the body is; a STATIC block title (no placeholder at all,
+   * e.g. the generic "Easy-Loader #1" a content-block title used to carry)
+   * is never used as the heading, full stop — this is always the item's own
+   * `name` instead, same as when there's no block, no title, or a dynamic
+   * title's only content was an unresolved placeholder (line-stripped to
+   * ""). The item's code renders alongside this separately, as a muted mono
+   * suffix — see quotation-sheet.tsx. */
   sectionTitle: string;
   /** Rendered `machine.*`/`equipment.*`/`software.*` block BODY for this
    * item's product, with `{{model}}`/`{{price}}`/`{{cutHeightCm}}`/
@@ -323,15 +366,11 @@ export type QuotationMachineSection = {
    * `null` when the series/code isn't one `parseMachineSpecs` recognises
    * (most non-cutting-machine products, or a malformed code). */
   specSentence: string | null;
-  /** One rendered `option.*` block per OPTION line whose code resolves to a
-   * block (see `optionBlockKey`) — a line with no matching block instead
-   * lands in `fallbackOptions` below; no selected option is ever omitted
-   * from both lists. */
-  optionBlocksHtml: QuotationOptionBlock[];
-  /** OPTION lines whose code resolved to no `option.*` content block (or
-   * that carried no code at all) — one compact fallback entry per line, so
-   * every selected option still appears somewhere in the section. */
-  fallbackOptions: QuotationFallbackOption[];
+  /** One row per selected OPTION line on this item, in a single unified
+   * table (see `QuotationOptionRow`) — replaces the old optionBlocksHtml/
+   * fallbackOptions two-tier split; every OPTION line lands here whether or
+   * not its code resolved to an `option.*` content block. */
+  optionRows: QuotationOptionRow[];
   /** This item's own row from `DocSheetData.items` (name/price/lines/total)
    * — reused as-is for the investment-summary table rather than
    * recomputed. */
@@ -408,12 +447,17 @@ function attributeVars(attributes: Record<string, string | number> | null): Plac
   return vars;
 }
 
-/** Flattens a line's `attributes` to display pairs for a
- * `QuotationFallbackOption` — same source data as `attributeVars`, just
- * shaped for direct rendering instead of `{{token}}` substitution. */
-function attributeEntries(attributes: Record<string, string | number> | null): { key: string; value: string }[] {
-  if (!attributes) return [];
-  return Object.entries(attributes).map(([key, value]) => ({ key, value: String(value) }));
+/** Flattens a line's `attributes` to a single small display line, e.g.
+ * "metres: 4 · tables: 2" — same source data as `attributeVars`, just
+ * shaped for direct rendering (see `QuotationOptionRow.attributesLine`)
+ * instead of `{{token}}` substitution. `null` when the line carries no
+ * attributes at all, so the sheet's "attributes ? <div>…</div> : null"
+ * check stays a clean on/off switch, same pattern as `dedupeDescription`. */
+function attributesLine(attributes: Record<string, string | number> | null): string | null {
+  if (!attributes) return null;
+  const entries = Object.entries(attributes);
+  if (entries.length === 0) return null;
+  return entries.map(([key, value]) => `${key}: ${value}`).join(" · ");
 }
 
 function collectByPrefix(
@@ -515,45 +559,51 @@ export function buildQuotationData(
     // machine.m-series's body happened to carry its own inline "##" heading;
     // equipment.easy-loader/fabric-pro, software.pathworks-*, and
     // equipment.punchline never did, so those sections rendered their body
-    // with no heading at all). Prefers the matched block's own `title` with
-    // the same placeholders substituted as the body; a title with only an
-    // unresolved token line-strips to "" (see substitutePlaceholders), which
-    // — like no block at all — falls back to the item's own name.
-    const sectionTitle = (block?.title ? substitutePlaceholders(block.title, vars).trim() : "") || item.name;
+    // with no heading at all). Only trusts the matched block's own `title`
+    // when it's DYNAMIC (raw text contains "{{", e.g. "Pathfinder {{model}}
+    // Cutting System") — a STATIC title (no placeholder, e.g. a generic
+    // "Easy-Loader #1" a block title used to carry) leaked the wrong name
+    // straight onto the sheet, so it's never used at all any more; this is
+    // always the item's own `name` instead. A dynamic title still falls back
+    // to `name` when substitution leaves it empty (its only content was an
+    // unresolved token — see substitutePlaceholders).
+    const rawTitle = block?.title ?? null;
+    const sectionTitle =
+      rawTitle && rawTitle.includes("{{") ? substitutePlaceholders(rawTitle, vars).trim() || item.name : item.name;
 
-    const optionBlocksHtml: QuotationOptionBlock[] = [];
-    const fallbackOptions: QuotationFallbackOption[] = [];
+    // Unified options table (owner: "table with small icons") — one row per
+    // selected OPTION line, whether or not its code resolved to an
+    // `option.*` content block, replacing the old prose-paragraphs (matched)
+    // vs. bold-bullets (unmatched) split that rendered inconsistently.
+    const optionRows: QuotationOptionRow[] = [];
     const docLinesById = new Map(lineSummary.lines.map((docLine) => [docLine.id, docLine]));
     for (const line of item.lines) {
       if (line.kind !== "OPTION") continue;
       const docLine = docLinesById.get(line.id);
+      const name = docLine?.name ?? line.name;
       const candidates = line.code ? optionBlockKey(line.code) : [];
       const found = candidates.map((key) => resolved.get(key)).find((b) => b !== undefined);
 
-      if (found) {
-        optionBlocksHtml.push({
-          key: found.key,
-          qty: docLine?.qty ?? line.qty,
-          bodyHtml: renderMarkdown(substitutePlaceholders(found.body, attributeVars(line.attributes))),
-        });
-        continue;
-      }
+      const descriptionHtml = found
+        ? renderMarkdown(substitutePlaceholders(found.body, attributeVars(line.attributes)))
+        : (() => {
+            const raw = dedupeDescription(name, docLine?.description ?? line.description);
+            return raw ? renderMarkdown(raw) : null;
+          })();
 
-      // No `option.*` content block covers this line (unmatched code, or no
-      // code at all) — the owner's rule is that no selected option may ever
-      // be silently omitted, so it still renders as a compact fallback entry
-      // rather than simply being skipped.
-      fallbackOptions.push({
+      optionRows.push({
         id: line.id,
-        code: line.code,
-        name: docLine?.name ?? line.name,
+        icon: line.imageUrl ? (resolveImage(line.imageUrl) ?? null) : null,
+        code: dedupeOptionCode(line.code, name),
+        name,
+        descriptionHtml,
+        attributesLine: attributesLine(line.attributes),
         qty: docLine?.qty ?? line.qty,
         price: doc.showOptionPrices ? formatMoney(docLine?.lineTotal ?? "0", sheet.totals.currency) : null,
-        attributes: attributeEntries(line.attributes),
       });
     }
 
-    return { itemId: item.id, sectionTitle, titleBlockHtml, specSentence, optionBlocksHtml, fallbackOptions, lineSummary };
+    return { itemId: item.id, sectionTitle, titleBlockHtml, specSentence, optionRows, lineSummary };
   });
 
   // `terms.*` blocks reference these standard-terms figures — auto-filled

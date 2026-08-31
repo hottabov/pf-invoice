@@ -127,10 +127,11 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
               <div className="pq-machine-section" key={section.itemId}>
                 {/* Title/spec + product photo are one page-break-avoidance
                     unit (owner: images normally run full width right after
-                    the product title) — the option write-ups that follow
-                    are outside this group since a long option list can
+                    the product title) — the options table that follows is
+                    outside this group since a long options table can
                     legitimately spill onto the next page even when the
-                    title+image pair itself must not split. */}
+                    title+image pair itself must not split (each row still
+                    avoids splitting on its own — see .pq-options-table td). */}
                 <div className="pq-title-image-group">
                   {/* Section heading — ALWAYS rendered, one consistent tier
                       for every machine/equipment/software item, whether or
@@ -173,36 +174,54 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                     />
                   ) : null}
                 </div>
-                {section.optionBlocksHtml.length > 0 || section.fallbackOptions.length > 0 ? (
-                  <div className="pq-options">
-                    {section.optionBlocksHtml.map((option) => (
-                      <div className="pq-option-block" key={option.key}>
-                        {option.qty > 1 ? <div className="pq-option-qty-badge">× {option.qty}</div> : null}
-                        <div className="pq-block-body" dangerouslySetInnerHTML={{ __html: option.bodyHtml }} />
-                      </div>
-                    ))}
-                    {section.fallbackOptions.length > 0 ? (
-                      <ul className="pq-fallback-options">
-                        {section.fallbackOptions.map((option) => (
-                          <li className="pq-fallback-option" key={option.id}>
-                            <span className="pq-fallback-option-name">
-                              {option.code ? `${option.code} — ${option.name}` : option.name}
-                            </span>
-                            {option.qty > 1 ? (
-                              <span className="pq-fallback-option-qty"> × {option.qty}</span>
+                {section.optionRows.length > 0 ? (
+                  <table className="pq-options-table">
+                    <colgroup>
+                      <col className="pq-opt-col-icon" />
+                      <col className="pq-opt-col-option" />
+                      <col className="pq-opt-col-qty" />
+                      {optionPriceVisible ? <col className="pq-opt-col-price" /> : null}
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th className="pq-opt-col-icon" aria-hidden="true" />
+                        <th className="pq-opt-col-option">Included options</th>
+                        <th className="pq-opt-col-qty">Qty</th>
+                        {optionPriceVisible ? <th className="pq-opt-col-price">Price</th> : null}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {section.optionRows.map((option) => (
+                        <tr className="pq-option-row" key={option.id}>
+                          <td className="pq-opt-col-icon">
+                            {option.icon ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={option.icon} alt="" className="pq-option-icon" />
                             ) : null}
-                            {option.attributes.length > 0 ? (
-                              <span className="pq-fallback-option-attrs">
-                                {" "}
-                                ({option.attributes.map((a) => `${a.key}: ${a.value}`).join(", ")})
-                              </span>
+                          </td>
+                          <td className="pq-opt-col-option">
+                            <div className="pq-option-name">
+                              {option.code ? <span className="pq-option-code">{option.code} — </span> : null}
+                              {option.name}
+                            </div>
+                            {option.descriptionHtml ? (
+                              <div
+                                className="pq-option-desc pq-block-body"
+                                dangerouslySetInnerHTML={{ __html: option.descriptionHtml }}
+                              />
                             ) : null}
-                            {option.price ? <span className="pq-fallback-option-price"> — {option.price}</span> : null}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
+                            {option.attributesLine ? (
+                              <div className="pq-option-attrs">{option.attributesLine}</div>
+                            ) : null}
+                          </td>
+                          <td className="pq-opt-col-qty">× {option.qty}</td>
+                          {optionPriceVisible ? (
+                            <td className="pq-opt-col-price">{option.price}</td>
+                          ) : null}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 ) : null}
               </div>
             ))}
@@ -600,31 +619,94 @@ const SHEET_CSS = `
     object-fit: contain;
     margin-top: 10px;
   }
-  .pq-options {
+  /* Unified options table (owner: "table with small icons — more control
+     than a list") — one row per selected OPTION line, whether or not its
+     code matched an option.* content block (see QuotationOptionRow), so a
+     block-rendered option and an unmatched one finally share one consistent
+     look instead of drifting (prose paragraphs vs. bold indented bullets). */
+  .pq-options-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
     margin-top: 10px;
-    padding-left: 14px;
-    border-left: 2px solid #e4e4e4;
   }
-  .pq-option-block {
-    margin-top: 8px;
+  .pq-opt-col-icon {
+    width: 34px;
   }
-  .pq-option-block:first-child {
-    margin-top: 0;
+  .pq-opt-col-option {
+    width: auto;
   }
-  /* "×N" badge on a block-rendered option whose qty is >1 — the option.*
-     block body itself has no way to know the selected qty (it's purely a
-     rendered content-block template), so the sheet stamps it on separately,
-     matching the qty a fallback entry (.pq-fallback-option-qty) always
-     shows. */
-  .pq-option-qty-badge {
-    display: inline-block;
-    font-size: 9.5px;
+  .pq-opt-col-qty {
+    width: 50px;
+    text-align: center;
+  }
+  .pq-opt-col-price {
+    width: 70px;
+    text-align: right;
+  }
+  .pq-options-table thead th {
+    text-align: left;
+    font-size: 8.5px;
     font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888888;
+    border-bottom: 1px solid #d8dcec;
+    padding: 4px;
+  }
+  .pq-options-table thead th.pq-opt-col-qty {
+    text-align: center;
+  }
+  .pq-options-table thead th.pq-opt-col-price {
+    text-align: right;
+  }
+  .pq-options-table td {
+    padding: 5px 4px;
+    vertical-align: top;
+    border-bottom: 1px solid #eeeeee;
+    /* One option row is a page-break-avoidance unit of its own (a table row
+       can't itself declare avoid in all print engines, but Chromium honours
+       it on the row) — a short icon+name+description group should never
+       split across a page boundary. */
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .pq-options-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .pq-option-icon {
+    display: block;
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+  }
+  .pq-option-name {
+    font-weight: 700;
+    color: #2b304f;
+  }
+  .pq-option-code {
+    font-family: "Courier New", Courier, monospace;
+    font-weight: 400;
+    color: #888888;
+  }
+  .pq-option-desc {
+    margin-top: 2px;
+    color: #666666;
+    font-size: 9.5px;
+  }
+  .pq-option-desc.pq-block-body p {
+    margin: 0 0 4px 0;
+  }
+  .pq-option-desc.pq-block-body p:last-child {
+    margin-bottom: 0;
+  }
+  .pq-option-attrs {
+    margin-top: 2px;
+    color: #888888;
+    font-size: 9px;
+  }
+  .pq-opt-col-qty {
     color: #555555;
-    background: #eef0f7;
-    border-radius: 3px;
-    padding: 1px 6px;
-    margin-bottom: 4px;
   }
   .pq-block-missing {
     color: #333333;
@@ -653,33 +735,6 @@ const SHEET_CSS = `
   }
   .pq-auto-summary-price {
     margin-top: 6px;
-    color: #243478;
-    font-weight: 700;
-  }
-  /* Compact fallback entries for selected options with no matching
-     option.* content block (owner: "no selected option may be silently
-     omitted") — one bullet per option, visually consistent with the rest of
-     the sheet's list styling (.pq-block-body ul) but distinct enough to read
-     as auto-generated rather than admin-authored prose. */
-  .pq-fallback-options {
-    margin: 8px 0 0 0;
-    padding-left: 18px;
-  }
-  .pq-fallback-option {
-    margin-bottom: 4px;
-    color: #333333;
-  }
-  .pq-fallback-option-name {
-    font-weight: 700;
-    color: #2b304f;
-  }
-  .pq-fallback-option-qty {
-    color: #555555;
-  }
-  .pq-fallback-option-attrs {
-    color: #666666;
-  }
-  .pq-fallback-option-price {
     color: #243478;
     font-weight: 700;
   }

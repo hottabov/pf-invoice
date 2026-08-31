@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildQuotationData,
+  dedupeOptionCode,
   OMIT,
   optionBlockKey,
   productBlockKey,
@@ -370,6 +371,7 @@ describe("buildQuotationData", () => {
               qty: 1,
               unitPrice: "5000.00",
               attributes: { metres: 4, tables: 2 },
+              imageUrl: null,
             },
             {
               id: "line-2",
@@ -380,26 +382,29 @@ describe("buildQuotationData", () => {
               qty: 1,
               unitPrice: "0.00",
               attributes: null,
+              imageUrl: null,
             },
           ],
         }),
       ],
     });
     const data = buildQuotationData(doc, [machineBlock, mtsBlock]);
-    expect(data.machineSections[0].optionBlocksHtml).toHaveLength(1);
-    expect(data.machineSections[0].optionBlocksHtml[0].bodyHtml).toContain("Travel 4m over 2 tables");
+    const rows = data.machineSections[0].optionRows;
+    // Both lines land as rows in the ONE unified table — a matched block and
+    // an unmatched code no longer render through two different code paths.
+    expect(rows).toHaveLength(2);
+    expect(rows[0].descriptionHtml).toContain("Travel 4m over 2 tables");
     // A line whose code matches no option.* block is never silently
-    // dropped — it lands in fallbackOptions instead (owner: "no selected
-    // option may be silently omitted").
-    expect(data.machineSections[0].fallbackOptions).toHaveLength(1);
-    expect(data.machineSections[0].fallbackOptions[0]).toMatchObject({
+    // dropped — it still gets its own row in the same table (owner: "no
+    // selected option may be silently omitted").
+    expect(rows[1]).toMatchObject({
       code: "ZZZ-NOPE",
       name: "Unknown option",
       qty: 1,
     });
   });
 
-  it("no selected option is ever omitted: 3 options (1 with a block, 2 without) all appear across the two lists", () => {
+  it("no selected option is ever omitted: 3 options (1 with a block, 2 without) all appear in the one unified table", () => {
     const doc = baseDoc({
       showOptionPrices: true,
       items: [
@@ -414,6 +419,7 @@ describe("buildQuotationData", () => {
               qty: 1,
               unitPrice: "5000.00",
               attributes: { metres: 4, tables: 2 },
+              imageUrl: null,
             },
             {
               id: "line-2",
@@ -424,6 +430,7 @@ describe("buildQuotationData", () => {
               qty: 2,
               unitPrice: "570.00",
               attributes: null,
+              imageUrl: null,
             },
             {
               id: "line-3",
@@ -434,32 +441,42 @@ describe("buildQuotationData", () => {
               qty: 1,
               unitPrice: "100.00",
               attributes: { colour: "Blue" },
+              imageUrl: null,
             },
           ],
         }),
       ],
     });
     const data = buildQuotationData(doc, [machineBlock, mtsBlock]);
-    const section = data.machineSections[0];
+    const rows = data.machineSections[0].optionRows;
 
-    expect(section.optionBlocksHtml.map((b) => b.key)).toEqual(["option.MTS"]);
-    expect(section.fallbackOptions.map((o) => o.name)).toEqual([
+    // All 3 selected options are accounted for, in line order, in the one
+    // unified table — none silently dropped just because its code didn't
+    // resolve to an option.* content block.
+    expect(rows.map((r) => r.name)).toEqual([
+      "Machine Transfer System",
       "First unmatched option",
       "Second unmatched option",
     ]);
-    // All 3 selected options are accounted for, across both lists.
-    expect(section.optionBlocksHtml.length + section.fallbackOptions.length).toBe(3);
+    expect(rows).toHaveLength(3);
 
-    // qty >1 and price (gated by showOptionPrices) both surface on the
-    // fallback entry.
-    expect(section.fallbackOptions[0].qty).toBe(2);
-    expect(section.fallbackOptions[0].price).toBe("$1,140");
-    // Attribute values surface too, when present.
-    expect(section.fallbackOptions[1].attributes).toEqual([{ key: "colour", value: "Blue" }]);
-    expect(section.fallbackOptions[1].code).toBeNull();
+    // The matched-block row still renders its block body as descriptionHtml,
+    // and — unlike the old optionBlocksHtml, which never showed a price at
+    // all — now gets the same price column every row gets (gated by
+    // showOptionPrices, same as before).
+    expect(rows[0].descriptionHtml).toContain("Travel 4m over 2 tables");
+    expect(rows[0].price).toBe("$5,000");
+
+    // qty >1 and price (gated by showOptionPrices) both surface on an
+    // unmatched row.
+    expect(rows[1].qty).toBe(2);
+    expect(rows[1].price).toBe("$1,140");
+    // Attribute values surface too, when present, as one flattened line.
+    expect(rows[2].attributesLine).toBe("colour: Blue");
+    expect(rows[2].code).toBeNull();
   });
 
-  it("hides fallback option prices when showOptionPrices is off", () => {
+  it("hides option row prices when showOptionPrices is off", () => {
     const doc = baseDoc({
       showOptionPrices: false,
       items: [
@@ -474,16 +491,17 @@ describe("buildQuotationData", () => {
               qty: 1,
               unitPrice: "100.00",
               attributes: null,
+              imageUrl: null,
             },
           ],
         }),
       ],
     });
     const data = buildQuotationData(doc, []);
-    expect(data.machineSections[0].fallbackOptions[0].price).toBeNull();
+    expect(data.machineSections[0].optionRows[0].price).toBeNull();
   });
 
-  it("carries qty onto a block-rendered option (for the sheet's ×N badge)", () => {
+  it("carries qty onto a matched-block option row (for the table's qty column)", () => {
     const doc = baseDoc({
       items: [
         baseItem({
@@ -497,13 +515,14 @@ describe("buildQuotationData", () => {
               qty: 3,
               unitPrice: "5000.00",
               attributes: { metres: 4, tables: 2 },
+              imageUrl: null,
             },
           ],
         }),
       ],
     });
     const data = buildQuotationData(doc, [machineBlock, mtsBlock]);
-    expect(data.machineSections[0].optionBlocksHtml[0].qty).toBe(3);
+    expect(data.machineSections[0].optionRows[0].qty).toBe(3);
   });
 
   it("substitutes bankDetails into terms blocks and sorts terms/conditions by sortOrder", () => {
@@ -621,9 +640,16 @@ describe("buildQuotationData", () => {
 // fallback path. `sectionTitle` replaces all of that with one computation
 // that always runs, for every section, block or no block.
 describe("buildQuotationData — sectionTitle", () => {
-  it("uses the matched content block's title, unchanged, when it has no placeholder", () => {
+  // Owner rule change: a matched block's STATIC title (no {{placeholder}} at
+  // all, like machineBlock's plain "M-Series") is never trusted as the
+  // heading any more, even though a block matched — this is what let a
+  // generic content-block title (e.g. "Easy-Loader #1") leak onto the sheet
+  // as if it were that specific item's name. Only a DYNAMIC title (one that
+  // references a placeholder, e.g. "Pathfinder {{model}} Cutting System" —
+  // see the next test) still gets used, substituted.
+  it("ignores a matched content block's static title, always uses the item's own name instead", () => {
     const data = buildQuotationData(baseDoc({ items: [baseItem({ code: "M450" })] }), [machineBlock]);
-    expect(data.machineSections[0].sectionTitle).toBe("M-Series");
+    expect(data.machineSections[0].sectionTitle).toBe("M5180 Cutting System");
   });
 
   it("substitutes placeholders in the block's title (e.g. {{model}}), same vars as the body", () => {
@@ -676,5 +702,222 @@ describe("buildQuotationData — sectionTitle", () => {
     const doc = baseDoc({ items: [baseItem({ name: "M5180 Cutting System" })] });
     const data = buildQuotationData(doc, [unresolvedTitleBlock]);
     expect(data.machineSections[0].sectionTitle).toBe("M5180 Cutting System");
+  });
+});
+
+// --- dedupeOptionCode — the unified options table's duplicate-label fix ----
+//
+// Owner-reported duplicates in the old rendering: "1.0mm dia punch — 1.0mm
+// dia punch" (code === name) and "Drills included 2301071-7-10 —
+// 2301071-7-10" (code embedded as a suffix of name) — both are option rows
+// whose code carries no information the name doesn't already show.
+describe("dedupeOptionCode", () => {
+  it("returns null when code and name are identical", () => {
+    expect(dedupeOptionCode("1.0mm dia punch", "1.0mm dia punch")).toBeNull();
+  });
+
+  it("returns null when name embeds code as a suffix (owner repro: drills)", () => {
+    expect(dedupeOptionCode("2301071-7-10", "Drills included 2301071-7-10")).toBeNull();
+  });
+
+  it("returns null when code embeds name (the reverse containment)", () => {
+    expect(dedupeOptionCode("ABR-M Full Name", "ABR-M")).toBeNull();
+  });
+
+  it("returns the code unchanged when it's genuinely distinct from the name", () => {
+    expect(dedupeOptionCode("MTS", "Machine Transfer System")).toBe("MTS");
+  });
+
+  it("returns null for a null code", () => {
+    expect(dedupeOptionCode(null, "Some option")).toBeNull();
+  });
+});
+
+// --- buildQuotationData: unified options table ------------------------------
+
+describe("buildQuotationData — unified options table (QuotationOptionRow)", () => {
+  it("resolves a matched option's imageUrl through the same resolver as item images (icon flow: query -> data -> sheet)", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({
+          lines: [
+            {
+              id: "line-1",
+              kind: "OPTION",
+              code: "MTS",
+              name: "Machine Transfer System",
+              description: null,
+              qty: 1,
+              unitPrice: "5000.00",
+              attributes: null,
+              imageUrl: "/api/files/mts-icon.png",
+            },
+          ],
+        }),
+      ],
+    });
+    const data = buildQuotationData(doc, [machineBlock, mtsBlock], {
+      resolveImage: (url) => `resolved:${url}`,
+    });
+    expect(data.machineSections[0].optionRows[0].icon).toBe("resolved:/api/files/mts-icon.png");
+  });
+
+  it("leaves icon null when the line carries no imageUrl", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({
+          lines: [
+            {
+              id: "line-1",
+              kind: "OPTION",
+              code: "MTS",
+              name: "Machine Transfer System",
+              description: null,
+              qty: 1,
+              unitPrice: "5000.00",
+              attributes: null,
+              imageUrl: null,
+            },
+          ],
+        }),
+      ],
+    });
+    const data = buildQuotationData(doc, [machineBlock, mtsBlock]);
+    expect(data.machineSections[0].optionRows[0].icon).toBeNull();
+  });
+
+  it("dedupes the row's own code when it's redundant with its name", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({
+          lines: [
+            {
+              id: "line-1",
+              kind: "OPTION",
+              code: "ZZZ-NOPE", // no option.* block matches (see mtsBlock's key)
+              name: "ZZZ-NOPE",
+              description: null,
+              qty: 1,
+              unitPrice: "0.00",
+              attributes: null,
+              imageUrl: null,
+            },
+          ],
+        }),
+      ],
+    });
+    const data = buildQuotationData(doc, []);
+    expect(data.machineSections[0].optionRows[0]).toMatchObject({ code: null, name: "ZZZ-NOPE" });
+  });
+
+  it("falls back to the line's own (deduped) description when no option.* block matches", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({
+          lines: [
+            {
+              id: "line-1",
+              kind: "OPTION",
+              code: "UNMATCHED",
+              name: "Unmatched option",
+              description: "A short freeform description",
+              qty: 1,
+              unitPrice: "0.00",
+              attributes: null,
+              imageUrl: null,
+            },
+          ],
+        }),
+      ],
+    });
+    const data = buildQuotationData(doc, []);
+    expect(data.machineSections[0].optionRows[0].descriptionHtml).toContain("A short freeform description");
+  });
+
+  it("descriptionHtml is null when there's no block AND the line's description is redundant with its name", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({
+          lines: [
+            {
+              id: "line-1",
+              kind: "OPTION",
+              code: "UNMATCHED",
+              name: "Unmatched option",
+              description: "Unmatched option", // identical to name -> deduped away
+              qty: 1,
+              unitPrice: "0.00",
+              attributes: null,
+              imageUrl: null,
+            },
+          ],
+        }),
+      ],
+    });
+    const data = buildQuotationData(doc, []);
+    expect(data.machineSections[0].optionRows[0].descriptionHtml).toBeNull();
+  });
+
+  it("flattens attributes to one 'key: value · key: value' line, null when there are none", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({
+          lines: [
+            {
+              id: "line-1",
+              kind: "OPTION",
+              code: "MTS",
+              name: "Machine Transfer System",
+              description: null,
+              qty: 1,
+              unitPrice: "5000.00",
+              attributes: { metres: 4, tables: 2 },
+              imageUrl: null,
+            },
+            {
+              id: "line-2",
+              kind: "OPTION",
+              code: "UNMATCHED",
+              name: "Unmatched option",
+              description: null,
+              qty: 1,
+              unitPrice: "0.00",
+              attributes: null,
+              imageUrl: null,
+            },
+          ],
+        }),
+      ],
+    });
+    const data = buildQuotationData(doc, [machineBlock, mtsBlock]);
+    const rows = data.machineSections[0].optionRows;
+    expect(rows[0].attributesLine).toBe("metres: 4 · tables: 2");
+    expect(rows[1].attributesLine).toBeNull();
+  });
+
+  it("gates every row's price on showOptionPrices, including a matched-block row (previously never priced)", () => {
+    const line: QuotationItemInput["lines"][number] = {
+      id: "line-1",
+      kind: "OPTION",
+      code: "MTS",
+      name: "Machine Transfer System",
+      description: null,
+      qty: 2,
+      unitPrice: "500.00",
+      attributes: null,
+      imageUrl: null,
+    };
+
+    const off = buildQuotationData(baseDoc({ showOptionPrices: false, items: [baseItem({ lines: [line] })] }), [
+      machineBlock,
+      mtsBlock,
+    ]);
+    expect(off.machineSections[0].optionRows[0].price).toBeNull();
+
+    const on = buildQuotationData(baseDoc({ showOptionPrices: true, items: [baseItem({ lines: [line] })] }), [
+      machineBlock,
+      mtsBlock,
+    ]);
+    expect(on.machineSections[0].optionRows[0].price).toBe("$1,000");
   });
 });
