@@ -23,6 +23,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # Same uploads volume as `app`: image-import scripts write product photos,
+    # option icons and region logos here, and `app` serves them from /api/files.
+    # Without this mount the files land inside the throwaway tools container.
+    volumes:
+      - uploads:/data/uploads
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
