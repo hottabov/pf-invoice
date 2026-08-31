@@ -90,8 +90,9 @@ installed.
    end up on the command line (`history -d <line>` or `history -c`).
 
 7. Verify: `curl -fsS http://127.0.0.1:3010/api/health` should return
-   `{"ok":true}`, and `https://q.pathfindercut.com/login` should load once
-   Nginx and TLS are configured (section 3).
+   `{"ok":true,"db":true,"schemaOk":true}`, and
+   `https://q.pathfindercut.com/login` should load once Nginx and TLS are
+   configured (section 3).
 
 ## 2. GitHub repository secrets
 
@@ -276,10 +277,26 @@ docker compose logs -f gotenberg              # tail Gotenberg logs
 ```
 
 The `/api/health` route runs `SELECT 1` against Postgres on every request
-(it is never cached), so a `503` there almost always means the database is
-unreachable or `DATABASE_URL` in `.env` is wrong — check `docker compose
-logs postgres` and confirm the app's `.env` matches the Postgres container's
-credentials.
+(it is never cached), so a `503` with `"db":false` almost always means the
+database is unreachable or `DATABASE_URL` in `.env` is wrong — check
+`docker compose logs postgres` and confirm the app's `.env` matches the
+Postgres container's credentials.
+
+The route also reports `"schemaOk"`, a separate probe (`findFirst` on
+`User.phone`, `Document.showItemPrices`, and `Region.maxDiscountPct` — the
+newest migrated columns) distinct from plain connectivity. `"db":true` with
+`"schemaOk":false` means Postgres answers fine but the schema is stale —
+migrations weren't applied for the code currently running. This is the
+`{"ok":true}`-that-actually-means-broken failure mode from the 2026-08-31
+incident, where migrations 4-7 never ran and every login failed with
+"Invalid credentials" even though `SELECT 1` succeeded the whole time.
+
+**If all logins fail with "Invalid credentials"** → don't assume bad
+passwords. Check `docker compose logs app | grep -i prisma` for a `P2022`
+(missing column) or other `P1xxx`/`P2xxx` error first — `src/auth.ts` logs
+these loudly (`[auth] infrastructure error ...`) instead of masking them as
+a failed login. Then check `curl -fsS http://127.0.0.1:3010/api/health` for
+`"schemaOk":false` and run the manual recovery command below.
 
 **Migrations out of sync**
 
@@ -305,13 +322,31 @@ do not re-run `migrate deploy` blindly against a half-applied migration.
   `git pull --ff-only` (`git status` on the VPS).
 
 **Deploy workflow fails at `docker compose run --rm tools npx prisma migrate
-deploy` or the final `curl` health check**
+deploy` or the final health check**
+
+The deploy job (`.github/workflows/deploy.yml`) runs, in order: `git pull`,
+`docker compose build` (images only, nothing started yet), `docker compose
+up -d postgres`, `docker compose run --rm tools npx prisma migrate deploy`,
+then `docker compose up -d --build` to start/update `app` and `gotenberg`,
+then polls `/api/health` (up to 10 tries, 3s apart) until it sees both
+`"ok":true` and `"schemaOk":true`. Migrations always run against the new
+code's Postgres *before* the new app code is started, and the whole script
+is `set -euo pipefail`, so a failed `migrate deploy` or a schema that still
+doesn't check out after the app starts stops the job — it will never report
+green while `schemaOk` is `false`.
 
 - SSH in and repeat the same commands manually (`docker compose run --rm
   tools npx prisma migrate deploy`, then `curl -fsS
   http://127.0.0.1:3010/api/health`) to see the actual error before deciding
   whether to roll back.
 - `docker compose logs app` for the stack trace.
+- Manual recovery once the actual migration problem is fixed (e.g. after
+  resolving a failed migration per the "Migrations out of sync" section
+  above):
+
+  ```bash
+  docker compose run --rm tools npx prisma migrate deploy && docker compose restart app
+  ```
 
 **Rolling back a bad deploy**
 

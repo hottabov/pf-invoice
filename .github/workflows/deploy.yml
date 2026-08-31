@@ -127,9 +127,47 @@ jobs:
           # Falls back to 22 when the secret is unset.
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
-            set -e
+            set -euo pipefail
             cd /opt/pathquote
             git pull --ff-only
-            docker compose up -d --build
+
+            # Build the new images without starting anything yet — the old
+            # app container (old schema-compatible code) keeps serving
+            # traffic while this happens.
+            docker compose build
+
+            # Bring up postgres (if not already) and apply migrations
+            # BEFORE the new app code starts. Migrating after `up -d --build`
+            # lets the new code run against the old schema for however long
+            # the migrate step takes — and if that step fails silently or
+            # is misconfigured, it can run against the old schema
+            # indefinitely. `docker compose run` exits non-zero on failure
+            # and `set -euo pipefail` above stops the deploy right here.
+            docker compose up -d postgres
             docker compose run --rm tools npx prisma migrate deploy
-            curl -fsS http://127.0.0.1:3010/api/health
+
+            # Only now start/update the app (and gotenberg) — schema is
+            # guaranteed to match the code that's about to run.
+            docker compose up -d --build
+
+            # Health check: verify both DB connectivity AND schema, with
+            # retries for the brief window while the new container boots.
+            # A plain `curl -fsS` only proves Postgres answers `SELECT 1`,
+            # which succeeds even against a stale schema (see 2026-08-31
+            # incident) — schemaOk catches exactly that failure mode.
+            ok=false
+            for i in $(seq 1 10); do
+              response=$(curl -fsS http://127.0.0.1:3010/api/health || true)
+              if echo "$response" | grep -q '"ok":true' && echo "$response" | grep -q '"schemaOk":true'; then
+                ok=true
+                break
+              fi
+              echo "health check attempt $i failed: ${response:-<no response>}"
+              sleep 3
+            done
+            if [ "$ok" != "true" ]; then
+              echo "deploy health check failed after retries"
+              docker compose logs --tail=100 app
+              exit 1
+            fi
+            echo "deploy healthy: $response"

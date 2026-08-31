@@ -3,7 +3,22 @@ import Credentials from "next-auth/providers/credentials";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { verify } from "@node-rs/argon2";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+
+// P1xxx (connectivity/engine) and P2xxx (schema/query, e.g. P2022 "column
+// does not exist") Prisma error codes indicate an infrastructure problem —
+// not a bad login. Letting these fall into the same "no user found" path as
+// a wrong password produces a confusing "Invalid credentials" UX for what is
+// actually a broken deploy (see 2026-08-31 incident: migrations 4-7 not
+// applied, User.phone missing, every login failed with P2022 silently
+// swallowed here). Loudly logging and re-throwing lets it surface as a 500
+// instead, and keeps it out of the timing-safe "no such user" branch below.
+function isPrismaInfraError(e: unknown): e is Prisma.PrismaClientKnownRequestError {
+  return (
+    e instanceof Prisma.PrismaClientKnownRequestError && /^P[12]/.test(e.code)
+  );
+}
 
 // A pre-computed, valid argon2id hash of a random, unused password. When no
 // user is found (or the user has no passwordHash), we still run `verify`
@@ -41,7 +56,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = String(credentials?.password ?? "");
         if (!email || !password) return null;
 
-        const user = await db.user.findUnique({ where: { email } });
+        let user;
+        try {
+          user = await db.user.findUnique({ where: { email } });
+        } catch (e) {
+          if (isPrismaInfraError(e)) {
+            console.error("[auth] infrastructure error in authorize() user lookup", e);
+          }
+          throw e;
+        }
         const hashToVerify =
           user?.active && user.passwordHash ? user.passwordHash : DUMMY_PASSWORD_HASH;
 
@@ -93,7 +116,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // authoritative role/region from the database at that point and
       // carry it in the token for subsequent requests.
       if (user?.email) {
-        const dbUser = await db.user.findUnique({ where: { email: user.email } });
+        let dbUser;
+        try {
+          dbUser = await db.user.findUnique({ where: { email: user.email } });
+        } catch (e) {
+          if (isPrismaInfraError(e)) {
+            console.error("[auth] infrastructure error in jwt() initial sign-in lookup", e);
+          }
+          // No existing token to fall back to on a fresh sign-in — nothing
+          // safe to return but a failure.
+          throw e;
+        }
         if (!dbUser || !dbUser.active) return null;
         token.uid = dbUser.id;
         token.role = dbUser.role;
@@ -115,7 +148,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
 
       if (!token.uid) return null;
-      const dbUser = await db.user.findUnique({ where: { id: token.uid } });
+
+      let dbUser;
+      try {
+        dbUser = await db.user.findUnique({ where: { id: token.uid } });
+      } catch (e) {
+        if (isPrismaInfraError(e)) {
+          // A DB/schema hiccup here must not silently log every active
+          // session out — that's what turned the 2026-08-31 migration
+          // incident into a total outage. Log loudly and keep the existing
+          // token valid; `revalidatedAt` is deliberately left unchanged so
+          // the very next request retries the DB lookup instead of waiting
+          // out the full interval, so it recovers as soon as the
+          // infrastructure problem is fixed.
+          console.error("[auth] infrastructure error in jwt() revalidation lookup", e);
+          return token;
+        }
+        throw e;
+      }
       if (!dbUser || !dbUser.active) return null;
 
       token.role = dbUser.role;
