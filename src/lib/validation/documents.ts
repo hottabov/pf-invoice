@@ -137,6 +137,27 @@ export const priceDisplaySchema = z.object({
 });
 export type PriceDisplayInput = z.infer<typeof priceDisplaySchema>;
 
+// --- notes (free-text, markdown) --------------------------------------------
+
+/** `setDocumentNotes`'s input: `Document.notes` — free-text markdown edited
+ * from the builder's Notes section (see `NotesSection`,
+ * src/components/builder/notes-section.tsx). Missing/blank collapses to
+ * `null` (clears the field) rather than `undefined`, since — unlike
+ * `userNameSchema`'s optional-field pattern — this schema feeds a Prisma
+ * write directly and `Document.notes` is nullable, not omittable. 5000 chars
+ * — a generous freeform-remarks ceiling, well above the 500-char
+ * `customLineDescriptionSchema` bound but still short of the 20000-char
+ * content-block body limit (this is quote-specific remarks, not a reusable
+ * template). */
+export const notesSchema = z.preprocess(
+  (value) =>
+    value === null || value === undefined || (typeof value === "string" && value.trim() === "")
+      ? null
+      : value,
+  z.union([z.null(), z.string().trim().max(5000, "Notes must be at most 5000 characters")])
+);
+export type NotesInput = z.infer<typeof notesSchema>;
+
 /**
  * Pure set-equality check used to validate a proposed reorder: `proposed`
  * must contain exactly the same ids as `actual` — same set, no duplicates,

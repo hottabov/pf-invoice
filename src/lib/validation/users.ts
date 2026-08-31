@@ -30,6 +30,21 @@ export const userNameSchema = z.preprocess(
   z.string().trim().max(120, "Name must be at most 120 characters").optional()
 );
 
+/** Optional phone number, ≤40 chars (matches the reference Word template's
+ * "Prepared by: <manager name / phone>, <email>" block — see
+ * DocSheetPreparedBy in src/lib/sheet-data.ts). Missing/blank collapses to
+ * `undefined` (stored as `null`), same preprocess pattern as
+ * `userNameSchema`. Not validated against a phone-number format — like
+ * `Contact.phone` elsewhere in this app, it's free text (country-specific
+ * formatting, extensions, etc.). */
+export const userPhoneSchema = z.preprocess(
+  (value) =>
+    value === null || value === undefined || (typeof value === "string" && value.trim() === "")
+      ? undefined
+      : value,
+  z.string().trim().max(40, "Phone must be at most 40 characters").optional()
+);
+
 /** Mirrors Prisma's `Role` enum (prisma/schema.prisma) without importing
  * `@prisma/client` here — see the file header for why. */
 export const userRoleSchema = z.enum(["ADMIN", "MANAGER"]);
@@ -84,6 +99,7 @@ export const requiredPasswordSchema = z
 export const createUserSchema = z.object({
   email: userEmailSchema,
   name: userNameSchema,
+  phone: userPhoneSchema,
   role: userRoleSchema,
   regionCode: userRegionCodeSchema,
   password: userPasswordSchema,
@@ -92,6 +108,7 @@ export type CreateUserInput = z.infer<typeof createUserSchema>;
 
 export const updateUserSchema = z.object({
   name: userNameSchema,
+  phone: userPhoneSchema,
   role: userRoleSchema,
   regionCode: userRegionCodeSchema,
   active: z.preprocess(

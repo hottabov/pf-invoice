@@ -100,6 +100,15 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
           </div>
         ) : null}
 
+        {/* Compact "Prepared by" line (owner reference doc) — minimal on
+            the plain invoice/summary sheet, unlike the quotation sheet's
+            full two-column header (see quotation-sheet.tsx): just a name/
+            email under BILL TO, no phone, no separate box. */}
+        <div className="pq-prepared-by">
+          Prepared by: {data.preparedBy.name ?? data.preparedBy.email}
+          {data.preparedBy.name ? ` · ${data.preparedBy.email}` : ""}
+        </div>
+
         <table className="pq-items">
           <colgroup>
             <col className="pq-col-item" />
@@ -192,6 +201,15 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
             </span>
           </div>
         </div>
+
+        {/* Free-text notes (Document.notes) — small, before bank details;
+            never shown at all when the author left it blank. */}
+        {data.notes ? (
+          <div className="pq-notes">
+            <div className="pq-notes-title">Notes</div>
+            <div className="pq-notes-text">{data.notes}</div>
+          </div>
+        ) : null}
 
         {data.entity.bankDetails.length > 0 || data.entity.footerText ? (
           <div className="pq-footer">
@@ -349,6 +367,31 @@ const SHEET_CSS = `
   }
   .pq-client-contact {
     margin-top: 4px;
+  }
+  /* Compact "Prepared by" line (owner reference doc) — minimal, unlike the
+     quotation sheet's own full two-column header. */
+  .pq-prepared-by {
+    margin-top: 6px;
+    color: #777777;
+    font-size: 10px;
+  }
+  .pq-notes {
+    margin-top: 24px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .pq-notes-title {
+    font-weight: 700;
+    color: #2b304f;
+    margin-bottom: 3px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pq-notes-text {
+    color: #555555;
+    font-size: 10px;
+    white-space: pre-line;
   }
   .pq-items {
     width: 100%;

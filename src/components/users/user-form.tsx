@@ -48,6 +48,10 @@ export function UserForm({
           <input id="user-name" name="name" maxLength={120} className={fieldInputClass} />
         </FieldRow>
 
+        <FieldRow label="Phone" htmlFor="user-phone" hint="Shown on a quotation's Prepared by block.">
+          <input id="user-phone" name="phone" type="tel" maxLength={40} className={fieldInputClass} />
+        </FieldRow>
+
         <FieldRow label="Role" htmlFor="user-role" required>
           <select id="user-role" name="role" defaultValue="MANAGER" required className={fieldInputClass}>
             <option value="MANAGER">Manager</option>

@@ -65,6 +65,16 @@ export type ToSheetContactInput = {
   phone: string | null;
 };
 
+/** The document's author (`Document.author`), as much as the "Prepared by"
+ * block needs (owner reference doc: "Prepared by: <manager name / phone>,
+ * <email>") — `email` is always set (required on `User`), `name`/`phone`
+ * are both optional profile fields an admin may not have filled in. */
+export type ToSheetAuthorInput = {
+  name: string | null;
+  email: string;
+  phone: string | null;
+};
+
 /** The minimal shape `toSheetData` needs. `entitySnapshot`/`bankDetails` are
  * `unknown` because they're opaque Prisma `Json` columns with no
  * compile-time guarantee about their contents — this module validates their
@@ -95,6 +105,17 @@ export type ToSheetDataDoc = {
   contact: ToSheetContactInput | null;
   items: ToSheetItemInput[];
   extraLines: ToSheetLineInput[];
+  /** The document's author — feeds the "Prepared by" block (see
+   * `DocSheetPreparedBy`). Always present: `Document.authorId` is a required
+   * field. */
+  author: ToSheetAuthorInput;
+  /** `Document.notes` exactly as stored — free-text, admin-authored markdown
+   * (see the builder's Notes section), rendered by the quotation sheet via
+   * `renderMarkdown` (src/lib/quotation-data.ts's `notesHtml`) and by the
+   * plain document sheet as-is (`DocumentSheet` has no markdown renderer of
+   * its own — see its own doc comment on why it stays dependency-light).
+   * `null` when the author hasn't written any. */
+  notes: string | null;
 };
 
 /** Resolves a stored image URL (e.g. `/api/files/<uuid>.jpg`) to whatever
@@ -158,6 +179,17 @@ export type DocSheetClient = {
   contactPhone: string | null;
 };
 
+/** Resolved "Prepared by" block — same shape as `ToSheetAuthorInput`, kept
+ * as a distinct output type (rather than reusing the input type directly)
+ * so a future mapper-side transform (e.g. a display fallback) has somewhere
+ * to live without touching the input contract. Today it's a straight
+ * passthrough — see `toSheetData`. */
+export type DocSheetPreparedBy = {
+  name: string | null;
+  email: string;
+  phone: string | null;
+};
+
 export type DocSheetTotals = {
   currency: string;
   subtotal: string;
@@ -189,6 +221,11 @@ export type DocSheetData = {
   totals: DocSheetTotals;
   /** Quotes only — an invoice never shows a signature area. */
   showSignature: boolean;
+  /** The document's author, for the "Prepared by" block — see
+   * `DocSheetPreparedBy`. */
+  preparedBy: DocSheetPreparedBy;
+  /** `Document.notes` passthrough — see `ToSheetDataDoc.notes`. */
+  notes: string | null;
 };
 
 // --- helpers ---------------------------------------------------------------
@@ -409,6 +446,8 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     client,
     items,
     extraLines: doc.extraLines.map(toDocSheetLine),
+    preparedBy: { name: doc.author.name, email: doc.author.email, phone: doc.author.phone },
+    notes: doc.notes,
     totals: {
       currency: doc.currency,
       subtotal: doc.subtotal,

@@ -199,6 +199,8 @@ function baseDoc(overrides: Partial<QuotationDataDoc> = {}): QuotationDataDoc {
     items: [baseItem()],
     showItemPrices: false,
     showOptionPrices: false,
+    author: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" },
+    notes: null,
     ...overrides,
   };
 }
@@ -919,5 +921,85 @@ describe("buildQuotationData — unified options table (QuotationOptionRow)", ()
       mtsBlock,
     ]);
     expect(on.machineSections[0].optionRows[0].price).toBe("$1,000");
+  });
+});
+
+// --- buildQuotationData: structural section price (owner: every item
+// section must show its price) ---------------------------------------------
+//
+// Root cause of the owner-reported missing prices: EL-2020/PTW(I)/FP-180's
+// content blocks never carried a "Price: {{price}}" line the way
+// machine.m-series's did, so those sections showed no price at all.
+// `sectionPrice`/`hasInlinePrice` make the price structural for every
+// section, while still avoiding a double print for a block (like
+// machine.m-series) that already inlines its own price line.
+describe("buildQuotationData — sectionPrice / hasInlinePrice", () => {
+  it("exposes sectionPrice (item total incl. options) when a price toggle is on", () => {
+    const doc = baseDoc({ showItemPrices: true, items: [baseItem({ total: "180000.00" })] });
+    const data = buildQuotationData(doc, []);
+    expect(data.machineSections[0].sectionPrice).toBe("$180,000");
+  });
+
+  it("is null when both price-display toggles are off", () => {
+    const doc = baseDoc({ showItemPrices: false, showOptionPrices: false });
+    const data = buildQuotationData(doc, []);
+    expect(data.machineSections[0].sectionPrice).toBeNull();
+  });
+
+  it("is visible when only showOptionPrices is on (implies item totals visible)", () => {
+    const doc = baseDoc({ showItemPrices: false, showOptionPrices: true, items: [baseItem({ total: "175000.00" })] });
+    const data = buildQuotationData(doc, []);
+    expect(data.machineSections[0].sectionPrice).toBe("$175,000");
+  });
+
+  it("hasInlinePrice is true for a matched block whose raw body references {{price}} (machine.m-series)", () => {
+    const doc = baseDoc({ items: [baseItem({ code: "M450" })] });
+    const data = buildQuotationData(doc, [machineBlock]);
+    expect(data.machineSections[0].hasInlinePrice).toBe(true);
+  });
+
+  it("hasInlinePrice is false for a matched block with no {{price}} token (e.g. equipment.easy-loader)", () => {
+    const elBlock: ContentBlockRow = {
+      key: "equipment.easy-loader",
+      regionId: null,
+      title: "Easy-Loader",
+      body: "Automates fabric loading.",
+      sortOrder: 1,
+    };
+    const doc = baseDoc({ items: [baseItem({ code: "EL-2020", seriesCode: "EL" })] });
+    const data = buildQuotationData(doc, [elBlock]);
+    expect(data.machineSections[0].hasInlinePrice).toBe(false);
+    // sectionPrice is still exposed structurally even though showItemPrices
+    // is off in this fixture's baseDoc default — hasInlinePrice is
+    // independent of whether the price is actually visible.
+  });
+
+  it("hasInlinePrice is false for a blockless section (e.g. L-Series)", () => {
+    const doc = baseDoc({ items: [baseItem({ code: "L-320", seriesCode: "L" })] });
+    const data = buildQuotationData(doc, []);
+    expect(data.machineSections[0].hasInlinePrice).toBe(false);
+    expect(data.machineSections[0].titleBlockHtml).toBeNull();
+  });
+});
+
+// --- buildQuotationData: preparedBy / notesHtml -----------------------------
+
+describe("buildQuotationData — preparedBy / notesHtml", () => {
+  it("passes the document author through as preparedBy", () => {
+    const doc = baseDoc({ author: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" } });
+    const data = buildQuotationData(doc, []);
+    expect(data.preparedBy).toEqual({ name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" });
+  });
+
+  it("renders notes to HTML via renderMarkdown when present", () => {
+    const doc = baseDoc({ notes: "**Important:** handle with care." });
+    const data = buildQuotationData(doc, []);
+    expect(data.notesHtml).toContain("<strong>Important:</strong>");
+  });
+
+  it("is null when there are no notes", () => {
+    const doc = baseDoc({ notes: null });
+    const data = buildQuotationData(doc, []);
+    expect(data.notesHtml).toBeNull();
   });
 });

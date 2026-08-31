@@ -57,6 +57,7 @@ export default async function EditUserPage({ params }: { params: Promise<Params>
           action={updateUser.bind(null, user.id)}
           defaultValues={{
             name: user.name ?? "",
+            phone: user.phone ?? "",
             role: user.role,
             regionCode: user.regionCode ?? "",
             active: user.active,

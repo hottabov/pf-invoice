@@ -40,6 +40,7 @@ function readCreateUserForm(formData: FormData) {
   return {
     email: formData.get("email"),
     name: formData.get("name"),
+    phone: formData.get("phone"),
     role: formData.get("role"),
     regionCode: formData.get("regionCode"),
     password: formData.get("password"),
@@ -49,6 +50,7 @@ function readCreateUserForm(formData: FormData) {
 function readUpdateUserForm(formData: FormData) {
   return {
     name: formData.get("name"),
+    phone: formData.get("phone"),
     role: formData.get("role"),
     regionCode: formData.get("regionCode"),
     active: formData.get("active"),
@@ -98,6 +100,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
       data: {
         email: parsed.data.email,
         name: parsed.data.name ?? null,
+        phone: parsed.data.phone ?? null,
         role: parsed.data.role,
         regionId: resolved.regionId,
         passwordHash,
@@ -150,6 +153,7 @@ export async function updateUser(userId: string, formData: FormData): Promise<Ac
     where: { id: userId },
     data: {
       name: parsed.data.name ?? null,
+      phone: parsed.data.phone ?? null,
       role: parsed.data.role,
       regionId: resolved.regionId,
       active: parsed.data.active,

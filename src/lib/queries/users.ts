@@ -39,6 +39,7 @@ export type UserDetail = {
   id: string;
   email: string;
   name: string | null;
+  phone: string | null;
   role: "ADMIN" | "MANAGER";
   active: boolean;
   regionCode: string | null;
@@ -55,6 +56,7 @@ export async function getUser(userId: string): Promise<UserDetail | null> {
     id: user.id,
     email: user.email,
     name: user.name,
+    phone: user.phone,
     role: user.role,
     active: user.active,
     regionCode: user.region?.code ?? null,

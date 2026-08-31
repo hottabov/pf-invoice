@@ -8,6 +8,7 @@ import type { RegionOption } from "./user-form";
 
 export type EditUserFormValues = {
   name: string;
+  phone: string;
   role: "ADMIN" | "MANAGER";
   regionCode: string;
   active: boolean;
@@ -66,6 +67,17 @@ export function EditUserForm({
             name="name"
             defaultValue={defaultValues.name}
             maxLength={120}
+            className={fieldInputClass}
+          />
+        </FieldRow>
+
+        <FieldRow label="Phone" htmlFor="edit-user-phone" hint="Shown on a quotation's Prepared by block.">
+          <input
+            id="edit-user-phone"
+            name="phone"
+            type="tel"
+            defaultValue={defaultValues.phone}
+            maxLength={40}
             className={fieldInputClass}
           />
         </FieldRow>

@@ -15,6 +15,7 @@ import {
   documentTypeSchema,
   idSchema,
   isPermutation,
+  notesSchema,
   optionSelectionSchema,
   optionalIdSchema,
   priceDisplaySchema,
@@ -795,6 +796,42 @@ export async function setPriceDisplay(documentId: string, input: unknown): Promi
       showItemPrices: parsedInput.data.showItemPrices,
       showOptionPrices: parsedInput.data.showOptionPrices,
     },
+  });
+
+  revalidatePath(`/documents/${document.id}`);
+  return {};
+}
+
+// --- notes (Task: free-text notes) ------------------------------------------
+
+/**
+ * Sets (or, given a blank body, clears) `Document.notes` — the builder's
+ * freeform Notes section (markdown, rendered on both the quotation sheet via
+ * `renderMarkdown` and the plain document/invoice sheet as plain text — see
+ * `QuotationData.notesHtml`/`DocSheetData.notes`). DRAFT-only and scoped like
+ * every other document mutation in this file; purely a display field, so
+ * unlike `setItemDiscount`/`setDocumentDiscount` there's no `recalcDocument`
+ * call here (mirrors `setItemShowImage`/`setPriceDisplay`). Applies to both
+ * QUOTE and INVOICE documents — the builder renders this SectionCard for
+ * either type.
+ */
+export async function setDocumentNotes(documentId: string, formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedDocumentId = idSchema.safeParse(documentId);
+  if (!parsedDocumentId.success) return { error: NOT_FOUND_ERROR };
+
+  const parsedNotes = notesSchema.safeParse(formData.get("notes"));
+  if (!parsedNotes.success) return { error: flattenZodError(parsedNotes.error) };
+
+  const document = await db.document.findFirst({
+    where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
+  });
+  if (!document) return { error: NOT_FOUND_ERROR };
+
+  await db.document.update({
+    where: { id: document.id },
+    data: { notes: parsedNotes.data },
   });
 
   revalidatePath(`/documents/${document.id}`);

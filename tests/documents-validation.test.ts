@@ -5,6 +5,7 @@ import {
   documentTypeSchema,
   idSchema,
   isPermutation,
+  notesSchema,
   optionSelectionSchema,
   optionalIdSchema,
   priceDisplaySchema,
@@ -348,5 +349,29 @@ describe("priceDisplaySchema", () => {
 
   it("rejects a non-object input", () => {
     expect(priceDisplaySchema.safeParse(null).success).toBe(false);
+  });
+});
+
+describe("notesSchema", () => {
+  it("collapses a missing/blank body to null (clears notes)", () => {
+    for (const value of [undefined, null, "", "   "]) {
+      const result = notesSchema.safeParse(value);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data).toBeNull();
+    }
+  });
+
+  it("accepts and trims a normal markdown body", () => {
+    const result = notesSchema.safeParse("  **Important:** handle with care.  ");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe("**Important:** handle with care.");
+  });
+
+  it("rejects a body over 5000 characters", () => {
+    expect(notesSchema.safeParse("a".repeat(5001)).success).toBe(false);
+  });
+
+  it("accepts a body at exactly the 5000 character bound", () => {
+    expect(notesSchema.safeParse("a".repeat(5000)).success).toBe(true);
   });
 });

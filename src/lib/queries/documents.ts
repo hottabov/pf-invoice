@@ -224,6 +224,15 @@ export type DocumentForBuilder = {
   contact: BuilderContact | null;
   items: BuilderItem[];
   extraLines: BuilderLine[];
+  /** `Document.notes` — free-text, admin-authored markdown edited from the
+   * builder's Notes section (see `setDocumentNotes`) and rendered on both
+   * the quotation and plain document sheets (see `ToSheetDataDoc.notes`).
+   * `null` when nothing's been written. */
+  notes: string | null;
+  /** The document's author — feeds the "Prepared by" block (see
+   * `ToSheetAuthorInput`/`DocSheetPreparedBy` in src/lib/sheet-data.ts).
+   * Always present: `Document.authorId` is a required field. */
+  author: { name: string | null; email: string; phone: string | null };
   /** Quotation-first pricing display toggles (see `setPriceDisplay` in
    * src/lib/actions/documents.ts) — the builder only ever surfaces its
    * toggle card for a QUOTE, but both flags are read straight through into
@@ -319,6 +328,7 @@ export async function getDocumentForBuilder(
     where: { id, ...documentWhereForUser(user) },
     include: {
       region: true,
+      author: { select: { name: true, email: true, phone: true } },
       company: {
         include: {
           contacts: { orderBy: [{ isPrimary: "desc" }, { firstName: "asc" }] },
@@ -446,6 +456,8 @@ export async function getDocumentForBuilder(
       total: totals.itemTotals[index].toString(),
     })),
     extraLines: document.lines.map((line) => toBuilderLine(line, optionImageMap)),
+    notes: document.notes,
+    author: { name: document.author.name, email: document.author.email, phone: document.author.phone },
     showItemPrices: document.showItemPrices,
     showOptionPrices: document.showOptionPrices,
     sourceQuoteId: document.sourceQuoteId,

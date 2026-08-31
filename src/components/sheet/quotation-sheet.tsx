@@ -88,23 +88,38 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
           </div>
         </div>
 
-        {data.client ? (
+        {/* Header client block (owner reference doc: "Prepared for: <contact,
+            company, address>" / "Prepared by: <manager name / phone>,
+            <email>") — two columns, the client's own info relabeled
+            "Prepared for" alongside a new "Prepared by" column for the
+            document's author. `preparedBy` is always present (every
+            document has an author), so the row always renders even for a
+            not-yet-client-assigned draft. */}
+        <div className="pq-prepared-row">
+          {data.client ? (
+            <div className="pq-client">
+              <div className="pq-client-label">Prepared for</div>
+              <div className="pq-client-name">{data.client.companyName}</div>
+              {data.client.addressLines.map((line, i) => (
+                <div className="pq-client-line" key={i}>
+                  {line}
+                </div>
+              ))}
+              {data.client.website ? <div className="pq-client-line">{data.client.website}</div> : null}
+              {data.client.contactName ? (
+                <div className="pq-client-line pq-client-contact">Attn: {data.client.contactName}</div>
+              ) : null}
+              {data.client.contactEmail ? <div className="pq-client-line">{data.client.contactEmail}</div> : null}
+              {data.client.contactPhone ? <div className="pq-client-line">{data.client.contactPhone}</div> : null}
+            </div>
+          ) : null}
           <div className="pq-client">
-            <div className="pq-client-label">Bill To</div>
-            <div className="pq-client-name">{data.client.companyName}</div>
-            {data.client.addressLines.map((line, i) => (
-              <div className="pq-client-line" key={i}>
-                {line}
-              </div>
-            ))}
-            {data.client.website ? <div className="pq-client-line">{data.client.website}</div> : null}
-            {data.client.contactName ? (
-              <div className="pq-client-line pq-client-contact">Attn: {data.client.contactName}</div>
-            ) : null}
-            {data.client.contactEmail ? <div className="pq-client-line">{data.client.contactEmail}</div> : null}
-            {data.client.contactPhone ? <div className="pq-client-line">{data.client.contactPhone}</div> : null}
+            <div className="pq-client-label">Prepared by</div>
+            <div className="pq-client-name">{data.preparedBy.name ?? data.preparedBy.email}</div>
+            {data.preparedBy.phone ? <div className="pq-client-line">{data.preparedBy.phone}</div> : null}
+            {data.preparedBy.name ? <div className="pq-client-line">{data.preparedBy.email}</div> : null}
           </div>
-        ) : null}
+        </div>
 
         {/* Total investment banner (owner: "client must see it immediately"
             — the grand total for everything, always shown up top regardless
@@ -146,22 +161,28 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                   <h2 className="pq-product-title">
                     {section.sectionTitle} <span className="pq-item-code">{section.lineSummary.code}</span>
                   </h2>
+                  {/* Structural section price (owner: EL-2020/PTW(I)/FP-180
+                      sections showed no price at all because their content
+                      blocks never carried an inline "Price: {{price}}" line
+                      the way machine.m-series's did) — printed for EVERY
+                      section, blocked or not, EXCEPT one whose matched block
+                      already prints its own inline price line
+                      (`hasInlinePrice`), which would otherwise double up. */}
+                  {section.sectionPrice && !section.hasInlinePrice ? (
+                    <div className="pq-section-price">Price: {section.sectionPrice}</div>
+                  ) : null}
                   {section.titleBlockHtml ? (
                     <div className="pq-block-body" dangerouslySetInnerHTML={{ __html: section.titleBlockHtml }} />
                   ) : (
                     // No admin-authored content block matched this item's
                     // product (e.g. L-Series has none — see
                     // src/lib/quotation-data.ts's `productBlockKey`) — render
-                    // a minimal auto-generated spec/price line underneath the
-                    // heading above instead of just leaving the section bare.
+                    // a minimal auto-generated spec line underneath the
+                    // heading/price above instead of just leaving the
+                    // section bare.
                     <div className="pq-block-missing pq-auto-summary">
                       {section.specSentence ? (
                         <div className="pq-auto-summary-spec">{section.specSentence}</div>
-                      ) : null}
-                      {itemPriceVisible ? (
-                        <div className="pq-auto-summary-price">
-                          {formatMoney(section.lineSummary.total, totals.currency)}
-                        </div>
                       ) : null}
                     </div>
                   )}
@@ -228,6 +249,17 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
           </section>
         ) : null}
 
+        {/* Free-text notes (Document.notes, admin-authored markdown — see
+            the builder's Notes section / setDocumentNotes) — after the
+            equipment write-up, before the Investment Summary, same
+            placement the reference template gives freeform quote remarks. */}
+        {data.notesHtml ? (
+          <section className="pq-section">
+            <h1 className="pq-section-title">Notes</h1>
+            <div className="pq-flow-block pq-block-body" dangerouslySetInnerHTML={{ __html: data.notesHtml }} />
+          </section>
+        ) : null}
+
         <section className="pq-section pq-summary-section">
           <h1 className="pq-section-title">Investment Summary</h1>
           <table className="pq-items">
@@ -254,7 +286,13 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                   </td>
                   <td className="pq-col-qty" />
                   <td className="pq-col-amount pq-amount">
-                    {itemPriceVisible ? formatMoney(item.total, totals.currency) : null}
+                    {/* BASE unit price (the item's own snapshot price, no
+                        options folded in) — owner: the old lump-sum total
+                        here (base + every option) read as one confusing
+                        number; options now list their own price directly
+                        below, with the combined figure moved to its own
+                        "subtotal" row underneath them instead. */}
+                    {itemPriceVisible ? formatMoney(item.unitPrice, totals.currency) : null}
                   </td>
                 </tr>
                 {item.lines.map((line) => (
@@ -265,6 +303,18 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                     <td className="pq-col-item pq-option-indent">Item discount</td>
                     <td className="pq-col-qty" />
                     <td className="pq-col-amount pq-amount">-{item.discountPct}%</td>
+                  </tr>
+                ) : null}
+                {/* Per-item subtotal (base + every option, less the item
+                    discount above — the pricing engine's own `item.total`,
+                    never recomputed here) — only worth a line when the item
+                    actually has options to fold in; a bare item with no
+                    options would just repeat its own base-price row above. */}
+                {itemPriceVisible && item.lines.length > 0 ? (
+                  <tr className="pq-item-subtotal-row">
+                    <td className="pq-col-item pq-option-indent">{item.code} subtotal</td>
+                    <td className="pq-col-qty" />
+                    <td className="pq-col-amount pq-amount">{formatMoney(item.total, totals.currency)}</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -517,8 +567,17 @@ const SHEET_CSS = `
   .pq-meta-label {
     color: #777777;
   }
-  .pq-client {
+  /* "Prepared for" / "Prepared by" header row (owner reference doc) — two
+     columns sharing the same box styling .pq-client always had; the row
+     wrapper now carries the top margin that single box used to. */
+  .pq-prepared-row {
+    display: flex;
+    gap: 16px;
     margin-top: 18px;
+  }
+  .pq-client {
+    flex: 1;
+    min-width: 0;
     padding: 10px 12px;
     border-left: 3px solid #00b8e2;
     background: #f7fbfd;
@@ -728,15 +787,19 @@ const SHEET_CSS = `
     page-break-after: avoid;
     break-after: avoid;
   }
+  /* Structural section price row (owner: every item section must show its
+     price) — same tier every section gets, right under the heading,
+     regardless of whether a content block matched (see
+     src/lib/quotation-data.ts's sectionPrice/hasInlinePrice). */
+  .pq-section-price {
+    margin: 0 0 6px 0;
+    color: #243478;
+    font-weight: 700;
+  }
   .pq-auto-summary-spec {
     margin-top: 4px;
     color: #444444;
     font-weight: 400;
-  }
-  .pq-auto-summary-price {
-    margin-top: 6px;
-    color: #243478;
-    font-weight: 700;
   }
   .pq-flow-block {
     margin-bottom: 16px;
@@ -888,6 +951,19 @@ const SHEET_CSS = `
     padding-bottom: 8px;
     color: #b45309;
     font-style: italic;
+    font-size: 10px;
+  }
+  /* Per-item subtotal row (base + options, less the item discount — owner:
+     "base price per item + options listed, totals at bottom" replacing the
+     old lump-sum item-row amount) — small and muted, distinct from both the
+     plain option rows above it and the document-level totals block below
+     the table. */
+  .pq-item-subtotal-row td {
+    border-bottom: none;
+    padding-top: 2px;
+    padding-bottom: 8px;
+    color: #555555;
+    font-weight: 700;
     font-size: 10px;
   }
   .pq-amount {

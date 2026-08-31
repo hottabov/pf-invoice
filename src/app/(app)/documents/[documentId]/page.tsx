@@ -22,6 +22,7 @@ import {
   reorderItems,
   setDocumentClient,
   setDocumentDiscount,
+  setDocumentNotes,
   setItemDiscount,
   setItemOptions,
   setItemShowImage,
@@ -33,6 +34,7 @@ import { ItemsSection } from "@/components/builder/items-section";
 import { ExtraLinesSection } from "@/components/builder/extra-lines-section";
 import { DocumentDiscountField } from "@/components/builder/document-discount-field";
 import { PriceDisplayToggles } from "@/components/builder/price-display-toggles";
+import { NotesSection } from "@/components/builder/notes-section";
 import { DocumentTotals, StickyFooter } from "@/components/builder/sticky-footer";
 import { FinalizeButton } from "@/components/builder/finalize-button";
 import { UnfinalizeButton } from "@/components/builder/unfinalize-button";
@@ -151,6 +153,18 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
               documentId={document.id}
               discountPct={document.discountPct}
               setDiscountAction={setDocumentDiscount}
+              readOnly={!isDraft}
+            />
+          </SectionCard>
+
+          {/* Both QUOTE and INVOICE — freeform remarks carried through to
+              whichever renderer the document uses (see NotesSection's doc
+              comment). */}
+          <SectionCard title="Notes">
+            <NotesSection
+              documentId={document.id}
+              notes={document.notes}
+              setNotesAction={setDocumentNotes}
               readOnly={!isDraft}
             />
           </SectionCard>

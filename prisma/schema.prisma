@@ -54,6 +54,7 @@ model User {
   email          String     @unique
   emailVerified  DateTime?
   name           String?
+  phone          String?
   image          String?
   passwordHash   String?
   role           Role       @default(MANAGER)

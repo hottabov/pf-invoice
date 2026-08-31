@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   userEmailSchema,
   userNameSchema,
+  userPhoneSchema,
   userRoleSchema,
   userRegionCodeSchema,
   userPasswordSchema,
@@ -51,6 +52,30 @@ describe("userNameSchema", () => {
 
   it("accepts a name at exactly the 120 character bound", () => {
     expect(userNameSchema.safeParse("A".repeat(120)).success).toBe(true);
+  });
+});
+
+describe("userPhoneSchema", () => {
+  it("collapses a missing/blank phone to undefined", () => {
+    for (const phone of [undefined, null, "", "   "]) {
+      const result = userPhoneSchema.safeParse(phone);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data).toBeUndefined();
+    }
+  });
+
+  it("accepts and trims a normal phone number", () => {
+    const result = userPhoneSchema.safeParse("  0400 000 000  ");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe("0400 000 000");
+  });
+
+  it("rejects a phone over 40 characters", () => {
+    expect(userPhoneSchema.safeParse("1".repeat(41)).success).toBe(false);
+  });
+
+  it("accepts a phone at exactly the 40 character bound", () => {
+    expect(userPhoneSchema.safeParse("1".repeat(40)).success).toBe(true);
   });
 });
 
@@ -139,13 +164,26 @@ describe("createUserSchema", () => {
   const base = {
     email: "new.user@example.com",
     name: "New User",
+    phone: "0400 000 000",
     role: "MANAGER",
     regionCode: "AU",
     password: "a-valid-password",
   };
 
   it("accepts a fully populated valid submission", () => {
-    expect(createUserSchema.safeParse(base).success).toBe(true);
+    const result = createUserSchema.safeParse(base);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.phone).toBe("0400 000 000");
+  });
+
+  it("accepts an omitted phone", () => {
+    const result = createUserSchema.safeParse({ ...base, phone: "" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.phone).toBeUndefined();
+  });
+
+  it("rejects a too-long phone", () => {
+    expect(createUserSchema.safeParse({ ...base, phone: "1".repeat(41) }).success).toBe(false);
   });
 
   it("accepts an omitted password and region (magic-link-only, no region)", () => {
@@ -177,12 +215,15 @@ describe("createUserSchema", () => {
 });
 
 describe("updateUserSchema", () => {
-  const base = { name: "Jane", role: "ADMIN", regionCode: "US", active: "on" };
+  const base = { name: "Jane", phone: "0400 000 000", role: "ADMIN", regionCode: "US", active: "on" };
 
   it("accepts a fully populated valid submission and coerces active", () => {
     const result = updateUserSchema.safeParse(base);
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.active).toBe(true);
+    if (result.success) {
+      expect(result.data.active).toBe(true);
+      expect(result.data.phone).toBe("0400 000 000");
+    }
   });
 
   it("treats a missing active checkbox as false", () => {

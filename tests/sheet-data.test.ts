@@ -53,6 +53,8 @@ function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
     contact: null,
     items: [],
     extraLines: [],
+    author: { name: "Jane Author", email: "jane@example.com", phone: null },
+    notes: null,
     ...overrides,
   };
 }
@@ -318,6 +320,25 @@ describe("toSheetData — totals passthrough", () => {
       taxAmount: "90.00",
       total: "990.00",
     });
+  });
+});
+
+describe("toSheetData — preparedBy / notes", () => {
+  it("maps the document author straight through to preparedBy", () => {
+    const doc = baseDoc({ author: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" } });
+    const sheet = toSheetData(doc);
+    expect(sheet.preparedBy).toEqual({ name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" });
+  });
+
+  it("carries a null author name/phone through untouched", () => {
+    const doc = baseDoc({ author: { name: null, email: "noname@example.com", phone: null } });
+    const sheet = toSheetData(doc);
+    expect(sheet.preparedBy).toEqual({ name: null, email: "noname@example.com", phone: null });
+  });
+
+  it("passes notes through untouched, null when unset", () => {
+    expect(toSheetData(baseDoc({ notes: "Freeform remarks" })).notes).toBe("Freeform remarks");
+    expect(toSheetData(baseDoc({ notes: null })).notes).toBeNull();
   });
 });
 

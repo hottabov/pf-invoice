@@ -23,6 +23,7 @@ import {
   type DocSheetEntity,
   type DocSheetItem,
   type DocSheetLine,
+  type DocSheetPreparedBy,
   type DocSheetTotals,
   type ImageResolver,
   type ToSheetCompanyInput,
@@ -366,6 +367,25 @@ export type QuotationMachineSection = {
    * `null` when the series/code isn't one `parseMachineSpecs` recognises
    * (most non-cutting-machine products, or a malformed code). */
   specSentence: string | null;
+  /** The item's total (incl. options), currency-formatted — same figure as
+   * the `{{price}}` token substituted into `titleBlockHtml`, but exposed
+   * structurally so the sheet can print it under the section heading for
+   * EVERY section, not just one whose matched block happens to reference
+   * `{{price}}` inline (owner: several sections — EL-2020, PTW(I), FP-180 —
+   * showed no price at all, because their content blocks simply never
+   * carried a "Price: {{price}}" line the way machine.m-series's did).
+   * `null` when neither price-display toggle is on. See `hasInlinePrice`
+   * for when the sheet should print this vs. rely on the block's own inline
+   * line instead. */
+  sectionPrice: string | null;
+  /** `true` when the matched content block's own (pre-substitution) body
+   * text already contains a literal `{{price}}` token — i.e. it prints its
+   * own price line as part of `titleBlockHtml` (machine.m-series's "**Price:
+   * {{price}}**"). The sheet uses this to avoid printing `sectionPrice` a
+   * second time for that one section, while every other section (whose
+   * block has no such line, or has no block at all) gets it structurally.
+   * Always `false` for a blockless section. */
+  hasInlinePrice: boolean;
   /** One row per selected OPTION line on this item, in a single unified
    * table (see `QuotationOptionRow`) — replaces the old optionBlocksHtml/
    * fallbackOptions two-tier split; every OPTION line lands here whether or
@@ -397,6 +417,14 @@ export type QuotationData = {
   logo: string | null;
   entity: DocSheetEntity;
   client: DocSheetClient | null;
+  /** The document's author, for the header's "Prepared by" column — see
+   * `DocSheetPreparedBy`. Relabels the existing `client` block "Prepared
+   * for" alongside it (see quotation-sheet.tsx). */
+  preparedBy: DocSheetPreparedBy;
+  /** `Document.notes`, rendered to HTML via `renderMarkdown` — `null` when
+   * there's nothing to show, in which case the sheet renders no Notes
+   * section at all. */
+  notesHtml: string | null;
   machineSections: QuotationMachineSection[];
   items: DocSheetItem[];
   extraLines: DocSheetLine[];
@@ -554,6 +582,17 @@ export function buildQuotationData(
     const block = blockKey ? resolved.get(blockKey) : undefined;
     const titleBlockHtml = block ? renderMarkdown(substitutePlaceholders(block.body, vars)) : null;
 
+    // Structural section price (see `QuotationMachineSection.sectionPrice`'s
+    // doc comment) — the same figure substituted into `vars.price` above,
+    // exposed separately so the sheet can print it under the heading for
+    // EVERY section rather than depending on the matched block happening to
+    // reference `{{price}}` inline itself. `hasInlinePrice` checks the RAW
+    // (pre-substitution) block body text, not `titleBlockHtml`, so it's
+    // never fooled by e.g. a literal "{{price}}" appearing inside an
+    // unrelated placeholder's substituted value.
+    const sectionPrice = itemPriceVisible ? formatMoney(lineSummary.total, sheet.totals.currency) : null;
+    const hasInlinePrice = Boolean(block?.body.includes("{{price}}"));
+
     // The section heading — ALWAYS computed, never conditional on a block
     // matching (root cause of the owner-reported missing headings: only
     // machine.m-series's body happened to carry its own inline "##" heading;
@@ -603,7 +642,16 @@ export function buildQuotationData(
       });
     }
 
-    return { itemId: item.id, sectionTitle, titleBlockHtml, specSentence, optionRows, lineSummary };
+    return {
+      itemId: item.id,
+      sectionTitle,
+      titleBlockHtml,
+      specSentence,
+      sectionPrice,
+      hasInlinePrice,
+      optionRows,
+      lineSummary,
+    };
   });
 
   // `terms.*` blocks reference these standard-terms figures — auto-filled
@@ -638,6 +686,8 @@ export function buildQuotationData(
       rspUnitCost: "TBA",
     }));
 
+  const notesHtml = doc.notes ? renderMarkdown(doc.notes) : null;
+
   return {
     isDraft: sheet.isDraft,
     number: sheet.number,
@@ -646,6 +696,8 @@ export function buildQuotationData(
     logo: sheet.logo,
     entity: sheet.entity,
     client: sheet.client,
+    preparedBy: sheet.preparedBy,
+    notesHtml,
     machineSections,
     items: sheet.items,
     extraLines: sheet.extraLines,

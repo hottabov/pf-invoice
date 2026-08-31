@@ -1,19 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
-import { Bold, Italic, Heading1, Heading2, Heading3, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldRow, fieldInputClass, useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 import { renderMarkdown } from "@/lib/markdown";
-import {
-  applyMarkdownEdit,
-  wrapSelection,
-  insertHeading,
-  insertBulletList,
-  insertPlaceholderToken,
-  type MarkdownEdit,
-} from "@/lib/markdown-editor";
+import { applyMarkdownEdit, insertPlaceholderToken, type MarkdownEdit } from "@/lib/markdown-editor";
+import { MarkdownToolbar } from "./markdown-toolbar";
 import type { ActionResult } from "@/lib/actions/content";
 
 const PLACEHOLDER_TOKEN_REGEX = /\{\{(\w+)\}\}/g;
@@ -32,35 +25,6 @@ export type ContentBlockFormValues = {
   body: string;
   sortOrder: number;
 };
-
-type ToolbarButtonProps = {
-  label: string;
-  icon: typeof Bold;
-  onAction: () => void;
-  disabled?: boolean;
-};
-
-/**
- * One toolbar icon button. `onMouseDown` calls `preventDefault()` so
- * clicking it never steals focus (and thus the live selection) away from the
- * textarea — the standard trick for a "format the selected text" toolbar,
- * used instead of tracking the last-known selection in a ref.
- */
-function ToolbarButton({ label, icon: Icon, onAction, disabled }: ToolbarButtonProps) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      disabled={disabled}
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={onAction}
-      className="focus-ring flex size-11 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-white hover:text-brand-dark disabled:pointer-events-none disabled:opacity-50"
-    >
-      <Icon className="size-4" aria-hidden="true" />
-    </button>
-  );
-}
 
 /** Tailwind arbitrary-variant styling for the rendered-markdown preview pane,
  * targeting exactly the tags `renderMarkdown` can produce (h1-h3, p, ul/li,
@@ -226,49 +190,7 @@ export function ContentBlockForm({
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <div className={cn("flex min-w-0 flex-col", mobileTab === "preview" && "hidden lg:flex")}>
-              <div
-                role="toolbar"
-                aria-label="Formatting"
-                aria-controls={`${idPrefix}-body`}
-                className="flex flex-wrap gap-0.5 rounded-t-lg border border-b-0 border-slate-200 bg-slate-50 p-1"
-              >
-                <ToolbarButton
-                  label="Bold"
-                  icon={Bold}
-                  disabled={pending}
-                  onAction={() => withSelection((value, start, end) => wrapSelection(value, start, end, "**"))}
-                />
-                <ToolbarButton
-                  label="Italic"
-                  icon={Italic}
-                  disabled={pending}
-                  onAction={() => withSelection((value, start, end) => wrapSelection(value, start, end, "*"))}
-                />
-                <ToolbarButton
-                  label="Heading 1"
-                  icon={Heading1}
-                  disabled={pending}
-                  onAction={() => withSelection((value, start, end) => insertHeading(value, start, end, 1))}
-                />
-                <ToolbarButton
-                  label="Heading 2"
-                  icon={Heading2}
-                  disabled={pending}
-                  onAction={() => withSelection((value, start, end) => insertHeading(value, start, end, 2))}
-                />
-                <ToolbarButton
-                  label="Heading 3"
-                  icon={Heading3}
-                  disabled={pending}
-                  onAction={() => withSelection((value, start, end) => insertHeading(value, start, end, 3))}
-                />
-                <ToolbarButton
-                  label="Bullet list"
-                  icon={List}
-                  disabled={pending}
-                  onAction={() => withSelection(insertBulletList)}
-                />
-              </div>
+              <MarkdownToolbar idPrefix={idPrefix} disabled={pending} withSelection={withSelection} />
               <textarea
                 ref={textareaRef}
                 id={`${idPrefix}-body`}
