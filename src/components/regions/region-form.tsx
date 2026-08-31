@@ -18,6 +18,9 @@ export type RegionFormValues = {
   entityAddress: string;
   footerText: string;
   bankDetails: Record<string, string> | null;
+  /** String form of the region's discount cap for the input's defaultValue
+   * (mirrors `taxRate`) — empty string means no cap. */
+  maxDiscountPct: string;
   active: boolean;
 };
 
@@ -119,6 +122,22 @@ export function RegionForm({
             />
           </FieldRow>
         </div>
+
+        <FieldRow
+          label="Max discount %"
+          htmlFor="region-max-discount-pct"
+          hint="Managers cannot exceed this discount. Leave blank for no cap."
+        >
+          <input
+            id="region-max-discount-pct"
+            name="maxDiscountPct"
+            type="text"
+            inputMode="decimal"
+            defaultValue={defaultValues.maxDiscountPct}
+            placeholder="No cap"
+            className={fieldInputClass}
+          />
+        </FieldRow>
 
         <FieldRow label="Entity name" htmlFor="region-entity-name" required className="lg:col-span-2">
           <input

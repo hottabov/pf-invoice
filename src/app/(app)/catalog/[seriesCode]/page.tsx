@@ -9,6 +9,7 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   PageHeader,
   TableShell,
+  RowCell,
   tableClassName,
   tableHeadRowClassName,
   tableRowClassName,
@@ -45,11 +46,7 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
         backHref="/catalog"
         backLabel="Catalog"
         title={series.name}
-        description={
-          series.maxDiscountPct !== null
-            ? `${series.code} · max discount ${series.maxDiscountPct}%`
-            : series.code
-        }
+        description={series.code}
         actions={
           isAdmin ? (
             <Link
@@ -115,24 +112,23 @@ function ProductRow({
   seriesCode: string;
   product: ProductListItem;
 }) {
+  const href = `/catalog/${encodeURIComponent(seriesCode)}/${encodeURIComponent(p.code)}`;
   return (
-    <tr className={cn(tableRowClassName, "relative", p.active ? "" : "opacity-60")}>
-      <td className="px-4 py-3 align-middle">
-        <Link
-          href={`/catalog/${encodeURIComponent(seriesCode)}/${encodeURIComponent(p.code)}`}
-          className="absolute inset-0 focus-visible:z-10 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
-        >
-          <span className="sr-only">Open {p.name}</span>
-        </Link>
-        <span aria-hidden="true" className="relative font-mono text-sm text-brand-dark">
+    <tr className={cn(tableRowClassName, p.active ? "" : "opacity-60")}>
+      <RowCell href={href} primary={`Open ${p.name}`}>
+        <span aria-hidden="true" className="font-mono text-sm text-brand-dark">
           {p.code}
         </span>
-      </td>
-      <td className="px-4 py-3 text-sm text-slate-700">{p.name}</td>
-      <td className="px-4 py-3 text-right">
+      </RowCell>
+      <RowCell href={href}>
+        <span className="text-sm text-slate-700">{p.name}</span>
+      </RowCell>
+      <RowCell href={href} align="right">
         <PriceDisplay price={p.price} />
-      </td>
-      <td className="px-4 py-3 text-right">{!p.active ? <InactiveBadge /> : null}</td>
+      </RowCell>
+      <RowCell href={href} align="right">
+        {!p.active ? <InactiveBadge /> : null}
+      </RowCell>
     </tr>
   );
 }

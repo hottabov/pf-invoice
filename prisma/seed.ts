@@ -103,6 +103,7 @@ async function main() {
         entityLegalId: r.entityLegalId ?? null,
         entityAddress: r.entityAddress ?? null,
         bankDetails: r.bankDetails ?? undefined,
+        maxDiscountPct: r.maxDiscountPct,
       },
       create: {
         code: r.code,
@@ -114,6 +115,7 @@ async function main() {
         entityLegalId: r.entityLegalId,
         entityAddress: r.entityAddress,
         bankDetails: r.bankDetails,
+        maxDiscountPct: r.maxDiscountPct,
       },
     });
     regionIdByCode.set(r.code, region.id);

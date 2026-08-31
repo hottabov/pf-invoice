@@ -1,18 +1,22 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { fieldInputClass } from "@/components/ui-kit";
+import { fieldInputClass, useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
 
 const initialState: ActionResult = {};
 
 /**
- * The document-level "Discount %" field. Unlike an item's discount, there's
- * no series cap here — any 0..100 value (or empty, to clear) is accepted.
- * Lives in its own "Discounts" section on the builder page; the totals
- * breakdown shows the resulting discount amount once one is set.
+ * The document-level "Discount %" field. Enforced against the same region
+ * cap as an item's discount (see `setDocumentDiscount` in
+ * src/lib/actions/documents.ts): a MANAGER is blocked outright with an
+ * inline `error` on a save that exceeds the cap, while an ADMIN's save
+ * still succeeds and comes back with `warning` instead, surfaced here as a
+ * non-blocking toast — same split as `ItemDiscountField`. Lives in its own
+ * "Discounts" section on the builder page; the totals breakdown shows the
+ * resulting discount amount once one is set.
  */
 export function DocumentDiscountField({
   documentId,
@@ -25,10 +29,19 @@ export function DocumentDiscountField({
   setDiscountAction: (documentId: string, formData: FormData) => Promise<ActionResult>;
   readOnly?: boolean;
 }) {
+  const toast = useToast();
   const [state, formAction, pending] = useActionState(
     (_prevState: ActionResult, formData: FormData) => setDiscountAction(documentId, formData),
     initialState
   );
+  const lastWarning = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (state.warning && state.warning !== lastWarning.current) {
+      toast.info(state.warning);
+    }
+    lastWarning.current = state.warning;
+  }, [state.warning, toast]);
 
   if (readOnly) {
     return (

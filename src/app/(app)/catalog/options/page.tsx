@@ -8,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   PageHeader,
   TableShell,
+  RowCell,
   tableClassName,
   tableHeadRowClassName,
   tableRowClassName,
@@ -159,27 +160,26 @@ function FilterChip({ label, href, active }: { label: string; href: string; acti
 }
 
 function OptionRow({ option: o }: { option: OptionListItem }) {
+  const href = `/catalog/options/${encodeURIComponent(o.code)}`;
   return (
-    <tr className={cn(tableRowClassName, "relative", o.active ? "" : "opacity-60")}>
-      <td className="px-4 py-3 align-middle">
-        <Link
-          href={`/catalog/options/${encodeURIComponent(o.code)}`}
-          className="absolute inset-0 focus-visible:z-10 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
-        >
-          <span className="sr-only">Open {o.name}</span>
-        </Link>
-        <span aria-hidden="true" className="relative font-mono text-sm text-brand-dark">
+    <tr className={cn(tableRowClassName, o.active ? "" : "opacity-60")}>
+      <RowCell href={href} primary={`Open ${o.name}`}>
+        <span aria-hidden="true" className="font-mono text-sm text-brand-dark">
           {o.code}
         </span>
-      </td>
-      <td className="px-4 py-3 text-sm text-slate-700">{o.name}</td>
-      <td className="px-4 py-3">
+      </RowCell>
+      <RowCell href={href}>
+        <span className="text-sm text-slate-700">{o.name}</span>
+      </RowCell>
+      <RowCell href={href}>
         <CompatBadges seriesCodes={o.compatSeriesCodes} />
-      </td>
-      <td className="px-4 py-3 text-right">
+      </RowCell>
+      <RowCell href={href} align="right">
         <PriceDisplay price={o.price} />
-      </td>
-      <td className="px-4 py-3 text-right">{!o.active ? <InactiveBadge /> : null}</td>
+      </RowCell>
+      <RowCell href={href} align="right">
+        {!o.active ? <InactiveBadge /> : null}
+      </RowCell>
     </tr>
   );
 }

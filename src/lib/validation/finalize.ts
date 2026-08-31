@@ -33,9 +33,9 @@ export type FinalizerRole = "ADMIN" | "MANAGER";
  * one actionable message at a time:
  *   1. no client selected yet;
  *   2. nothing to bill — zero items AND zero document-level lines;
- *   3. the pricing engine flagged a discount above its series cap (an item
+ *   3. the pricing engine flagged a discount above its region cap (an item
  *      discount can end up violating its cap after the fact if an admin
- *      lowers `Series.maxDiscountPct` later — see the NOTE on
+ *      lowers `Region.maxDiscountPct` later — see the NOTE on
  *      `recalcDocument` in src/lib/actions/documents.ts — so this must be
  *      re-checked at finalize time, not just at save time) — but ONLY for a
  *      MANAGER. An ADMIN may finalize over a discount-cap violation (they

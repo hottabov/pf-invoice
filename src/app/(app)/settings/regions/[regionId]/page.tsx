@@ -58,6 +58,7 @@ export default async function EditRegionPage({ params }: { params: Promise<Param
               entityAddress: region.entityAddress ?? "",
               footerText: region.footerText ?? "",
               bankDetails: region.bankDetails,
+              maxDiscountPct: region.maxDiscountPct ?? "",
               active: region.active,
             }}
             submitLabel="Save changes"

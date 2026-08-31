@@ -45,12 +45,7 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
   const document = await db.document.findFirst({
     where: { id: parsedId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
     include: {
-      items: {
-        include: {
-          lines: true,
-          product: { include: { series: true } },
-        },
-      },
+      items: { include: { lines: true } },
       lines: { where: { itemId: null } },
       company: true,
       contact: true,

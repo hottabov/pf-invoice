@@ -10,6 +10,7 @@ import { DeleteDocumentButton } from "@/components/documents/delete-document-but
 import {
   PageHeader,
   TableShell,
+  RowCell,
   tableClassName,
   tableHeadRowClassName,
   tableRowClassName,
@@ -183,49 +184,6 @@ export default async function DocumentsPage({
         />
       )}
     </div>
-  );
-}
-
-/**
- * One cell of a clickable document row. Each `<td>` gets its own full-cell
- * `<Link>` (padding moved off the `<td>` and onto the `<a>`, so the link's
- * box exactly fills the cell) rather than a single `absolute inset-0` link
- * positioned against the `<tr>` — `position: relative` on a `<tr>` isn't a
- * reliable containing block for an absolutely-positioned child across
- * browsers/table layout modes, which was the actual bug (clicking the
- * Number cell's own text didn't navigate: the overlay link was being sized/
- * positioned against whatever ancestor *did* establish a containing block,
- * not the row directly). A real, normal-flow link per cell has no such
- * ambiguity and needs no absolute positioning at all.
- *
- * Only the first cell in a row (`primary`) is announced/focusable as a link
- * — the rest are `aria-hidden`/`tabIndex={-1}` so mouse users get full-row
- * click coverage while keyboard/screen-reader users still see exactly one
- * "Open {number}" stop per row, same as before.
- */
-function RowCell({
-  href,
-  children,
-  primary,
-  align,
-}: {
-  href: string;
-  children: React.ReactNode;
-  primary?: string;
-  align?: "right";
-}) {
-  return (
-    <td className="p-0 align-middle">
-      <Link
-        href={href}
-        aria-label={primary}
-        aria-hidden={primary ? undefined : true}
-        tabIndex={primary ? undefined : -1}
-        className={cn("focus-ring block px-4 py-3", align === "right" && "text-right")}
-      >
-        {children}
-      </Link>
-    </td>
   );
 }
 

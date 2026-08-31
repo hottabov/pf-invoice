@@ -51,7 +51,7 @@ function flattenZodError(error: z.ZodError): string {
 // --- recalculation --------------------------------------------------------
 
 // NOTE: callers currently ignore the returned violations. Phase 5 finalize MUST
-// check them (a series' maxDiscountPct can be lowered after an item discount was
+// check them (a region's maxDiscountPct can be lowered after an item discount was
 // saved) and refuse to finalize a document with violations.
 /**
  * Recomputes and persists a document's subtotal/taxAmount/total from its
@@ -63,29 +63,29 @@ function flattenZodError(error: z.ZodError): string {
  * can't produce a violation (adding/removing an item or line) can ignore
  * the return value. A missing document is treated as a no-op — the caller
  * has already scope-checked it before mutating.
+ *
+ * The discount cap fed to the engine is the document's region cap
+ * (`Region.maxDiscountPct`) — the same value applied to every item, not a
+ * per-item/series value (discount caps moved from Series to Region — see
+ * `setItemDiscount` below).
  */
 export async function recalcDocument(documentId: string): Promise<EngineViolation[]> {
   const document = await db.document.findUnique({
     where: { id: documentId },
     include: {
-      items: {
-        include: {
-          lines: true,
-          product: { include: { series: true } },
-        },
-      },
+      items: { include: { lines: true } },
       lines: { where: { itemId: null } },
+      region: true,
     },
   });
   if (!document) return [];
 
+  const regionMaxDiscountPct = document.region.maxDiscountPct ? Number(document.region.maxDiscountPct) : null;
   const engineInput: EngineInput = {
     items: document.items.map((item) => ({
       unitPrice: Number(item.unitPrice),
       discountPct: item.discountPct !== null ? Number(item.discountPct) : null,
-      maxDiscountPct: item.product?.series.maxDiscountPct
-        ? Number(item.product.series.maxDiscountPct)
-        : null,
+      maxDiscountPct: regionMaxDiscountPct,
       lines: item.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
     })),
     extraLines: document.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
@@ -618,16 +618,16 @@ export async function removeLine(lineId: string): Promise<ActionResult> {
 
 /**
  * Sets (or, given an empty `pct`, clears) an item's discount percentage.
- * The item's series cap (`Series.maxDiscountPct`, admin-editable on
- * /catalog — see `updateSeriesMaxDiscount`) is enforced *before* persisting
- * — unlike the pricing engine's own violation reporting (which happily
- * computes with whatever percentage is already stored and just flags it,
- * see `EngineViolation`) — but ONLY for a MANAGER: a save that exceeds the
- * cap is refused outright for them, so a violating discount is never
- * actually written by a manager's save. An ADMIN may exceed the cap; the
- * save still succeeds but comes back with `warning` set (rather than
+ * The document's region cap (`Region.maxDiscountPct`, admin-editable on
+ * /settings/regions — see `RegionForm`/`updateRegion`) is enforced *before*
+ * persisting — unlike the pricing engine's own violation reporting (which
+ * happily computes with whatever percentage is already stored and just
+ * flags it, see `EngineViolation`) — but ONLY for a MANAGER: a save that
+ * exceeds the cap is refused outright for them, so a violating discount is
+ * never actually written by a manager's save. An ADMIN may exceed the cap;
+ * the save still succeeds but comes back with `warning` set (rather than
  * `error`) so the caller can surface a non-blocking "exceeds cap" toast
- * instead of rejecting the save. A series with no cap configured
+ * instead of rejecting the save. A region with no cap configured
  * (`maxDiscountPct` null) allows any 0..100 discount for either role.
  */
 export async function setItemDiscount(itemId: string, formData: FormData): Promise<ActionResult> {
@@ -644,20 +644,20 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
       id: parsedItemId.data,
       document: { status: "DRAFT", ...documentWhereForUser(session.user) },
     },
-    include: { product: { include: { series: true } } },
+    include: { document: { include: { region: true } } },
   });
   if (!item) return { error: NOT_FOUND_ERROR };
 
-  const cap = item.product?.series.maxDiscountPct ? Number(item.product.series.maxDiscountPct) : null;
+  const cap = item.document.region.maxDiscountPct ? Number(item.document.region.maxDiscountPct) : null;
   const exceedsCap = parsedPct.data !== null && cap !== null && parsedPct.data > cap;
 
   let warning: string | undefined;
   if (exceedsCap) {
-    const seriesName = item.product?.series.name ?? "this series";
+    const regionName = item.document.region.name;
     if (session.user.role !== "ADMIN") {
-      return { error: `Max discount for ${seriesName} is ${cap}%` };
+      return { error: `Max discount for ${regionName} is ${cap}%` };
     }
-    warning = `Exceeds series cap of ${cap}%`;
+    warning = `Exceeds region cap of ${cap}%`;
   }
 
   await db.documentItem.update({
@@ -704,9 +704,10 @@ export async function setItemShowImage(itemId: string, show: boolean): Promise<A
 }
 
 /**
- * Sets (or clears) the document-level discount percentage. There's no cap
- * at the document level — only item discounts are bounded by their
- * series' `maxDiscountPct`.
+ * Sets (or clears) the document-level discount percentage. Enforced against
+ * the same region cap as `setItemDiscount` above (this used to be uncapped
+ * at the document level; it now shares the exact same
+ * MANAGER-blocked/ADMIN-warned enforcement as an item discount).
  */
 export async function setDocumentDiscount(documentId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -719,8 +720,20 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
 
   const document = await db.document.findFirst({
     where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
+    include: { region: true },
   });
   if (!document) return { error: NOT_FOUND_ERROR };
+
+  const cap = document.region.maxDiscountPct ? Number(document.region.maxDiscountPct) : null;
+  const exceedsCap = parsedPct.data !== null && cap !== null && parsedPct.data > cap;
+
+  let warning: string | undefined;
+  if (exceedsCap) {
+    if (session.user.role !== "ADMIN") {
+      return { error: `Max discount for ${document.region.name} is ${cap}%` };
+    }
+    warning = `Exceeds region cap of ${cap}%`;
+  }
 
   await db.document.update({
     where: { id: document.id },
@@ -730,7 +743,7 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
   await recalcDocument(document.id);
 
   revalidatePath(`/documents/${document.id}`);
-  return {};
+  return warning ? { warning } : {};
 }
 
 // --- price display toggles (quotation-first) --------------------------------

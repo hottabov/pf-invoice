@@ -42,6 +42,11 @@ export type RegionAdminDetail = {
   bankDetails: Record<string, string> | null;
   logoUrl: string | null;
   footerText: string | null;
+  /** String form of the region's discount cap (like `taxRate`), or `null`
+   * for no cap — feeds the region edit form's `maxDiscountPct` default and
+   * is enforced in setItemDiscount/setDocumentDiscount
+   * (src/lib/actions/documents.ts). */
+  maxDiscountPct: string | null;
   active: boolean;
 };
 
@@ -79,6 +84,7 @@ export async function getRegionAdmin(regionId: string): Promise<RegionAdminDetai
     bankDetails: toBankDetails(region.bankDetails),
     logoUrl: region.logoUrl,
     footerText: region.footerText,
+    maxDiscountPct: region.maxDiscountPct?.toString() ?? null,
     active: region.active,
   };
 }

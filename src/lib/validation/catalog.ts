@@ -149,18 +149,21 @@ export const priceInputSchema = z.object({
 
 export type PriceInput = z.infer<typeof priceInputSchema>;
 
-// --- series max discount ------------------------------------------------
+// --- max discount cap -----------------------------------------------------
 
 const MAX_DISCOUNT_PCT_REGEX = /^\d{1,3}(\.\d{1,2})?$/;
 
 /**
- * A series' `maxDiscountPct` cap, edited inline on /catalog (admin only —
- * see `updateSeriesMaxDiscount` in actions/catalog.ts). Same shape as
- * `discountPctSchema` in validation/documents.ts (0..100, at most 2 decimal
- * places, empty means "no cap"/`null`) but kept as its own schema here
- * rather than a cross-import — this module owns every catalog-admin field,
- * that one owns every document-builder field, and the two happen to need
- * the same percentage shape rather than actually depending on each other.
+ * A discount cap percentage: 0..100, at most 2 decimal places, empty means
+ * "no cap"/`null`. Originally the per-series `maxDiscountPct` edited on
+ * /catalog; discount caps now live on `Region` instead (owner: "USA 15%,
+ * Australia 10; don't surface in the catalog" — see `regionFormFields` in
+ * validation/regions.ts, which imports and reuses this exact schema rather
+ * than duplicating it). `Series.maxDiscountPct` itself is unused now — kept
+ * in the schema, not read anywhere. Same shape as `discountPctSchema` in
+ * validation/documents.ts, kept as its own schema here rather than a
+ * cross-import since the two modules happen to need the same percentage
+ * shape rather than actually depending on each other.
  */
 export const maxDiscountPctSchema = z.preprocess(
   (value) =>

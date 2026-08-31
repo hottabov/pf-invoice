@@ -12,11 +12,11 @@ const initialState: ActionResult = {};
  * Inline "Discount %" field on an item card. Submits `setItemDiscount`
  * directly (a real `<form>`, so it works with `useActionState` and shows
  * its own pending/error state) — an empty field clears the discount. The
- * item's series cap (if any) is shown as a hint.
+ * document's region cap (if any) is shown as a hint.
  *
  * A save that exceeds the cap behaves differently by role (enforced
  * server-side in `setItemDiscount`, not here): for a MANAGER it's rejected
- * outright with a "Max discount for <series> is <cap>%" `error` shown
+ * outright with a "Max discount for <region> is <cap>%" `error` shown
  * inline; for an ADMIN it still saves, and the action instead comes back
  * with `warning` set, surfaced here as a non-blocking toast rather than
  * blocking the save.

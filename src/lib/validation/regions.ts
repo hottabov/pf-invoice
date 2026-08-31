@@ -5,6 +5,7 @@
 // src/lib/actions/regions.ts). Mirrors the style of
 // src/lib/validation/users.ts and src/lib/validation/catalog.ts.
 import { z } from "zod";
+import { maxDiscountPctSchema } from "./catalog";
 
 // --- field pieces ----------------------------------------------------------
 
@@ -158,6 +159,11 @@ const regionFormFields = {
   entityAddress: entityAddressSchema,
   footerText: footerTextSchema,
   bankDetails: bankDetailsSchema,
+  // Region-level discount cap (owner: "USA 15%, Australia 10; don't surface
+  // in the catalog") -- same 0..100, ≤2dp, empty-means-no-cap shape as the
+  // old series-level cap, so this reuses `maxDiscountPctSchema` from
+  // validation/catalog.ts rather than duplicating it.
+  maxDiscountPct: maxDiscountPctSchema,
   active: activeSchema,
 };
 

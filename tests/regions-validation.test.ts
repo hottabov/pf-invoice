@@ -252,6 +252,7 @@ describe("createRegionSchema", () => {
     entityAddress: "1 Example St, Sydney",
     footerText: "Thanks for your business.",
     bankDetails: JSON.stringify({ BSB: "123-456" }),
+    maxDiscountPct: "10",
     active: "on",
   };
 
@@ -262,7 +263,25 @@ describe("createRegionSchema", () => {
       expect(result.data.code).toBe("AU");
       expect(result.data.active).toBe(true);
       expect(result.data.bankDetails).toEqual({ BSB: "123-456" });
+      expect(result.data.maxDiscountPct).toBe(10);
     }
+  });
+
+  it("treats a missing/blank maxDiscountPct as no cap (null)", () => {
+    const withoutCap = Object.fromEntries(
+      Object.entries(base).filter(([key]) => key !== "maxDiscountPct")
+    );
+    const result = createRegionSchema.safeParse(withoutCap);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.maxDiscountPct).toBeNull();
+
+    const blank = createRegionSchema.safeParse({ ...base, maxDiscountPct: "" });
+    expect(blank.success).toBe(true);
+    if (blank.success) expect(blank.data.maxDiscountPct).toBeNull();
+  });
+
+  it("rejects a maxDiscountPct above 100", () => {
+    expect(createRegionSchema.safeParse({ ...base, maxDiscountPct: "101" }).success).toBe(false);
   });
 
   it("accepts omitted optional fields", () => {
@@ -307,6 +326,7 @@ describe("updateRegionSchema", () => {
     entityAddress: "",
     footerText: "",
     bankDetails: "",
+    maxDiscountPct: "15",
     active: "on",
   };
 

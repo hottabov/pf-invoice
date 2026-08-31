@@ -46,6 +46,11 @@ export interface RegionSeed {
   entityLegalId?: string;
   entityAddress?: string;
   bankDetails?: Record<string, string>;
+  /** Region-level discount cap (owner: "USA 15%, Australia 10; don't
+   * surface in the catalog") -- `null` means no cap. See
+   * Region.maxDiscountPct in schema.prisma and its enforcement in
+   * setItemDiscount/setDocumentDiscount (src/lib/actions/documents.ts). */
+  maxDiscountPct: number | null;
 }
 
 /**
@@ -71,6 +76,7 @@ export const REGIONS: RegionSeed[] = [
       bsb: "013 442",
       accountNo: "4405 63886",
     },
+    maxDiscountPct: 10,
   },
   {
     code: "US",
@@ -81,6 +87,7 @@ export const REGIONS: RegionSeed[] = [
     entityName: "Pathfinder Cutting Technology LLC",
     entityAddress:
       "5623–5625 W74th Street\nIndianapolis, IN, 46278, USA\nTel: +1 (317) 349 0002\nEmail: salesusa@pathfindercut.com\nWeb: pathfindercut.com",
+    maxDiscountPct: 15,
   },
   {
     code: "UK",
@@ -91,6 +98,7 @@ export const REGIONS: RegionSeed[] = [
     entityName: "Pathfinder Cutting Technology UK LTD",
     entityAddress:
       "Unit 5 Maricott Court, Holywell Business Park,\nKineton Road Industrial Estate, Southam,\nWarwickshire, CV47 0FT, United Kingdom\nTel: +44 (0) 7572 949248\nEmail: salesuk@pathfindercut.com\nWeb: pathfindercut.com",
+    maxDiscountPct: null,
   },
 ];
 

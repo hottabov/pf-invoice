@@ -117,6 +117,10 @@ export type BuilderItem = {
   description: string | null;
   unitPrice: string;
   discountPct: string | null;
+  /** The document's region's discount cap (`Region.maxDiscountPct`) — the
+   * same value on every item of a given document, not a per-item/per-series
+   * value (discount caps moved from Series to Region — see setItemDiscount
+   * in src/lib/actions/documents.ts). `null` means no cap. */
   maxDiscountPct: string | null;
   /** The item's product's series id — needed, alongside `productId`, to
    * look up which options are compatible with it (see
@@ -321,13 +325,16 @@ export async function getDocumentForBuilder(
   // (recalcDocument only writes the document-level subtotal/tax/total) —
   // recompute them here with the same pure engine so the builder can show
   // "item total" and "discount: -$X" without duplicating the math.
+  // The discount cap is the document's region cap (Region.maxDiscountPct) —
+  // the same value on every item, not a per-item/series value; see
+  // setItemDiscount in src/lib/actions/documents.ts for the enforcement
+  // side of this move from Series to Region.
+  const regionMaxDiscountPct = document.region.maxDiscountPct ? Number(document.region.maxDiscountPct) : null;
   const engineInput: EngineInput = {
     items: document.items.map((item) => ({
       unitPrice: Number(item.unitPrice),
       discountPct: item.discountPct !== null ? Number(item.discountPct) : null,
-      maxDiscountPct: item.product?.series.maxDiscountPct
-        ? Number(item.product.series.maxDiscountPct)
-        : null,
+      maxDiscountPct: regionMaxDiscountPct,
       lines: item.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
     })),
     extraLines: document.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
@@ -382,7 +389,7 @@ export async function getDocumentForBuilder(
       description: item.description,
       unitPrice: item.unitPrice.toString(),
       discountPct: item.discountPct?.toString() ?? null,
-      maxDiscountPct: item.product?.series.maxDiscountPct?.toString() ?? null,
+      maxDiscountPct: document.region.maxDiscountPct?.toString() ?? null,
       seriesId: item.product?.seriesId ?? null,
       seriesCode: item.product?.series.code ?? null,
       productId: item.product?.id ?? null,

@@ -28,24 +28,25 @@ enum LineKind {
 }
 
 model Region {
-  id            String         @id @default(cuid())
-  code          String         @unique // AU, US, UK
-  name          String
-  currency      String // AUD, USD, GBP
-  taxName       String // GST, Sales Tax, VAT
-  taxRate       Decimal        @db.Decimal(5, 2) // 10.00
-  entityName    String // Pathfinder Australia Pty Ltd
-  entityLegalId String? // ABN 64 072 458 667
-  entityAddress String?
-  bankDetails   Json?
-  logoUrl       String?
-  footerText    String?
-  active        Boolean        @default(true)
-  users         User[]
-  companies     Company[]
-  prices        Price[]
-  documents     Document[]
-  contentBlocks ContentBlock[]
+  id             String         @id @default(cuid())
+  code           String         @unique // AU, US, UK
+  name           String
+  currency       String // AUD, USD, GBP
+  taxName        String // GST, Sales Tax, VAT
+  taxRate        Decimal        @db.Decimal(5, 2) // 10.00
+  entityName     String // Pathfinder Australia Pty Ltd
+  entityLegalId  String? // ABN 64 072 458 667
+  entityAddress  String?
+  bankDetails    Json?
+  logoUrl        String?
+  footerText     String?
+  maxDiscountPct Decimal?       @db.Decimal(5, 2) // AU: 10, US: 15 -- discount cap enforced against a document's region (see setItemDiscount/setDocumentDiscount in src/lib/actions/documents.ts); not shown in the catalog UI.
+  active         Boolean        @default(true)
+  users          User[]
+  companies      Company[]
+  prices         Price[]
+  documents      Document[]
+  contentBlocks  ContentBlock[]
 }
 
 model User {
@@ -103,7 +104,7 @@ model Series {
   id             String                @id @default(cuid())
   code           String                @unique // M, X, L, P, SW, LNS, EL, EF, FP, SVC
   name           String // M-Series, X-Calibre...
-  maxDiscountPct Decimal?              @db.Decimal(5, 2) // L-Series: 10
+  maxDiscountPct Decimal?              @db.Decimal(5, 2) // unused: discount caps moved to Region.maxDiscountPct; column kept, not read anywhere
   sortOrder      Int                   @default(0)
   products       Product[]
   compat         OptionCompatibility[]

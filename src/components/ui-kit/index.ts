@@ -1,6 +1,6 @@
 export { PageHeader } from "./page-header";
 export { SectionCard } from "./section-card";
-export { TableShell, tableClassName, tableHeadRowClassName, tableRowClassName } from "./data-table";
+export { TableShell, RowCell, tableClassName, tableHeadRowClassName, tableRowClassName } from "./data-table";
 export { StatusBadge, STATUS_TONE, type StatusTone } from "./status-badge";
 export { EmptyState } from "./empty-state";
 export { FieldRow, fieldInputClass } from "./field-row";

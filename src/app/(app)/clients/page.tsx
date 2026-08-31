@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   PageHeader,
   TableShell,
+  RowCell,
   tableClassName,
   tableHeadRowClassName,
   tableRowClassName,
@@ -120,38 +121,43 @@ export default async function ClientsPage({
 
 function CompanyRow({ company: c }: { company: CompanyListItem }) {
   const location = [c.city, c.country].filter(Boolean).join(", ") || "No address";
+  const href = `/clients/${c.id}`;
 
   return (
-    <tr className={cn(tableRowClassName, "relative")}>
-      <td className="px-4 py-3 align-middle">
-        <Link
-          href={`/clients/${c.id}`}
-          className="absolute inset-0 focus-visible:z-10 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
-        >
-          <span className="sr-only">Open {c.name}</span>
-        </Link>
-        <span aria-hidden="true" className="relative font-medium text-brand-dark">
+    <tr className={tableRowClassName}>
+      <RowCell href={href} primary={`Open ${c.name}`}>
+        <span aria-hidden="true" className="font-medium text-brand-dark">
           {c.name}
         </span>
-      </td>
-      <td className="px-4 py-3 text-sm text-slate-600">{location}</td>
-      <td className="px-4 py-3">
+      </RowCell>
+      <RowCell href={href}>
+        <span className="text-sm text-slate-600">{location}</span>
+      </RowCell>
+      <RowCell href={href}>
         <StatusBadge tone="slate">{c.regionCode}</StatusBadge>
-      </td>
-      <td className="px-4 py-3 text-sm text-slate-500">
-        {c.contactCount} {c.contactCount === 1 ? "contact" : "contacts"}
-      </td>
-      <td className="px-4 py-3 text-right">
+      </RowCell>
+      <RowCell href={href}>
+        <span className="text-sm text-slate-500">
+          {c.contactCount} {c.contactCount === 1 ? "contact" : "contacts"}
+        </span>
+      </RowCell>
+      {/* Deliberately its own plain `<td>` (no `RowCell`/row link) — the
+          external website link must stay independently clickable, and
+          nesting an `<a>` inside a `RowCell`'s own `<Link>` would be invalid
+          HTML and would fight the row link for clicks. */}
+      <td className="p-0 align-middle">
         {c.website ? (
-          <a
-            href={c.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`Open ${c.name}'s website`}
-            className="focus-ring relative z-10 -my-1 inline-flex size-11 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand"
-          >
-            <ExternalLink className="size-4" aria-hidden="true" />
-          </a>
+          <div className="flex justify-end px-2">
+            <a
+              href={c.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Open ${c.name}'s website`}
+              className="focus-ring inline-flex size-11 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand"
+            >
+              <ExternalLink className="size-4" aria-hidden="true" />
+            </a>
+          </div>
         ) : null}
       </td>
     </tr>
