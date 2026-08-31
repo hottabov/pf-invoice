@@ -34,6 +34,7 @@ export const SERIES_IMAGES: Record<string, string> = {
   LNS: "leather-nesting.png",
   EF: "easyfeeder.png",
   FP: "fabricpro.png",
+  P: "punchline.png",
 };
 
 /**
@@ -66,8 +67,7 @@ export const PRODUCT_IMAGES: Record<string, string> = {
  * intentionally referenced by neither SERIES_IMAGES nor PRODUCT_IMAGES --
  * documentation only (surfaced in the import script's summary), not used
  * in any lookup:
- *  - Punchline (P series) and EasyLoader (EL series) have no source image
- *    at all.
+ *  - EasyLoader (EL series) has no source image at all.
  *  - "LS Convert" (SW series) has no source image at all.
  */
 export const UNMAPPED_IMAGE_FILES: string[] = [];
