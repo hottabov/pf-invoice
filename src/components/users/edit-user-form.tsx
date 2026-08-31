@@ -47,7 +47,7 @@ export function EditUserForm({
   );
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form action={formAction} autoComplete="off" className="flex flex-col gap-4">
       {isSelf ? (
         <p className="rounded-lg border border-brand-accent-ink/30 bg-brand-accent-ink/5 px-3 py-2 text-sm text-brand-accent-ink">
           This is your own account — you can&apos;t deactivate it or remove your own admin role.
@@ -88,6 +88,7 @@ export function EditUserForm({
             id="edit-user-region"
             name="regionCode"
             defaultValue={defaultValues.regionCode}
+            autoComplete="off"
             className={fieldInputClass}
           >
             <option value="">No region</option>

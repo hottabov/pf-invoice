@@ -85,6 +85,7 @@ export function CompanyForm({
             id="company-region"
             name="regionCode"
             defaultValue={defaultValues.regionCode}
+            autoComplete="off"
             required
             className={fieldInputClass}
           >

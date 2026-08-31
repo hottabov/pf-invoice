@@ -30,7 +30,7 @@ export function UserForm({
   );
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form action={formAction} autoComplete="off" className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <FieldRow label="Email" htmlFor="user-email" required>
           <input
@@ -56,7 +56,7 @@ export function UserForm({
         </FieldRow>
 
         <FieldRow label="Region" htmlFor="user-region" hint="Leave unset if this user isn't tied to one region.">
-          <select id="user-region" name="regionCode" defaultValue="" className={fieldInputClass}>
+          <select id="user-region" name="regionCode" defaultValue="" autoComplete="off" className={fieldInputClass}>
             <option value="">No region</option>
             {regions.map((r) => (
               <option key={r.code} value={r.code}>
