@@ -12,7 +12,7 @@
 // importing the other, as long as `DocumentForBuilder`'s items carry the
 // extra fields (`specs`, `seriesCode`, `serialNumber`) this module needs.
 import { formatMoney } from "./format";
-import { machineSpecSentence, parseMachineSpecs } from "./machine-specs";
+import { machineSpecSentence, parseMachineSpecs, extraSpecVars } from "./machine-specs";
 import { renderMarkdown } from "./markdown";
 import {
   formatBankDetails,
@@ -435,6 +435,9 @@ export function buildQuotationData(
             cutHeightCm,
             cutWidthCm,
             ...(specSentence ? { specSentence } : {}),
+            // Resolve width placeholders from product code for series that
+            // don't encode specs in the code itself (EL, P).
+            ...extraSpecVars(item.seriesCode ?? "", item.code),
             // The item's own TOTAL — qty * unit price plus every attached
             // option, exactly the figure `lineSummary.total` already carries
             // from the pricing engine (`totals.itemTotals`, see

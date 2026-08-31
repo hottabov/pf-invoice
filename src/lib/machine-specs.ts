@@ -89,3 +89,34 @@ export function machineSpecSentence(seriesName: string, seriesCode: string | nul
 
   return null;
 }
+
+/**
+ * Resolves width placeholder variables from product code for series that
+ * don't have spec-encoding schemes but still have width information:
+ *  - EL (Easy-Loader) codes like "EL-2020" extract tableWidthMm from the
+ *    4-digit code suffix: `{ tableWidthMm: "2020" }`
+ *  - P (Punchline) codes have fixed mappings: P-180 → `{ paperWidthMm: "1880" }`,
+ *    P-220 → `{ paperWidthMm: "2280" }`
+ *  - All other series/codes return `{}`
+ */
+export function extraSpecVars(seriesCode: string, code: string): Record<string, string> {
+  // EL (Easy-Loader): EL-XXXX pattern, extract the 4-digit width
+  if (seriesCode === "EL") {
+    const elMatch = /^EL-(\d{4})$/.exec(code);
+    if (elMatch) {
+      return { tableWidthMm: elMatch[1] };
+    }
+  }
+
+  // P (Punchline): fixed mappings from product code to paper width
+  if (seriesCode === "P") {
+    if (code === "P-180") {
+      return { paperWidthMm: "1880" };
+    }
+    if (code === "P-220") {
+      return { paperWidthMm: "2280" };
+    }
+  }
+
+  return {};
+}

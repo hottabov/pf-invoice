@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseMachineSpecs, machineSpecSentence } from "../src/lib/machine-specs";
+import { parseMachineSpecs, machineSpecSentence, extraSpecVars } from "../src/lib/machine-specs";
 
 // Pure module — no @/lib/db import, so this never needs DATABASE_URL set,
 // same as tests/quotation-data.test.ts.
@@ -85,5 +85,59 @@ describe("machineSpecSentence", () => {
 
   it("returns null for an unrecognised series (EL-2020)", () => {
     expect(machineSpecSentence("Easy-Loader", "EL", "EL-2020")).toBeNull();
+  });
+});
+
+describe("extraSpecVars — EL (Easy-Loader)", () => {
+  it("extracts tableWidthMm from EL-2020 code", () => {
+    expect(extraSpecVars("EL", "EL-2020")).toEqual({ tableWidthMm: "2020" });
+  });
+
+  it("extracts tableWidthMm from EL-2420 code", () => {
+    expect(extraSpecVars("EL", "EL-2420")).toEqual({ tableWidthMm: "2420" });
+  });
+
+  it("returns empty object for malformed EL code", () => {
+    expect(extraSpecVars("EL", "EL-202")).toEqual({});
+  });
+
+  it("returns empty object for EL code with non-digits", () => {
+    expect(extraSpecVars("EL", "EL-202A")).toEqual({});
+  });
+});
+
+describe("extraSpecVars — P (Punchline)", () => {
+  it("returns { paperWidthMm: '1880' } for P-180", () => {
+    expect(extraSpecVars("P", "P-180")).toEqual({ paperWidthMm: "1880" });
+  });
+
+  it("returns { paperWidthMm: '2280' } for P-220", () => {
+    expect(extraSpecVars("P", "P-220")).toEqual({ paperWidthMm: "2280" });
+  });
+
+  it("returns empty object for unmapped P code", () => {
+    expect(extraSpecVars("P", "P-390")).toEqual({});
+  });
+});
+
+describe("extraSpecVars — other series", () => {
+  it("returns empty object for M series", () => {
+    expect(extraSpecVars("M", "M3390")).toEqual({});
+  });
+
+  it("returns empty object for X series", () => {
+    expect(extraSpecVars("X", "X-3180")).toEqual({});
+  });
+
+  it("returns empty object for L series", () => {
+    expect(extraSpecVars("L", "L-320")).toEqual({});
+  });
+
+  it("returns empty object for unknown series", () => {
+    expect(extraSpecVars("UNKNOWN", "UNKNOWN-123")).toEqual({});
+  });
+
+  it("returns empty object for empty series code", () => {
+    expect(extraSpecVars("", "M3180")).toEqual({});
   });
 });
