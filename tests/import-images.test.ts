@@ -1,12 +1,24 @@
 import { describe, it, expect } from "vitest";
 import { createHash } from "node:crypto";
+import { existsSync, readdirSync } from "node:fs";
+import path from "node:path";
 import {
   formatMd5AsUuid,
   md5UuidFilename,
   distinctImageFiles,
   SERIES_IMAGES,
   PRODUCT_IMAGES,
+  ICON_OPTION_TARGETS,
+  ICON_PRODUCT_TARGETS,
+  UNMAPPED_ICONS,
+  distinctIconCodes,
+  iconFilename,
+  allIconOptionCodes,
+  findDuplicateOptionTargets,
 } from "../scripts/import-images-lib";
+
+const OPTION_ICONS_DIR = path.resolve(__dirname, "..", "prisma", "seed-data", "option-icons");
+const BRAND_DIR = path.resolve(__dirname, "..", "prisma", "seed-data", "brand");
 
 // Same shape scripts/import-product-images.ts relies on: src/lib/uploads.ts's
 // (unexported) UPLOAD_FILENAME_PATTERN. Duplicated here rather than imported
@@ -64,5 +76,100 @@ describe("distinctImageFiles", () => {
   it("is sorted", () => {
     const files = distinctImageFiles();
     expect(files).toEqual([...files].sort());
+  });
+});
+
+describe("ICON_OPTION_TARGETS / ICON_PRODUCT_TARGETS", () => {
+  it("has no duplicate option-code targets across icons", () => {
+    // Every option should get its icon from exactly one code -- a code
+    // reachable via two icons is a mapping bug, not something the import
+    // script should silently pick a winner for.
+    expect(findDuplicateOptionTargets()).toEqual([]);
+  });
+
+  it("has no duplicate product-code targets across icons", () => {
+    const seen = new Set<string>();
+    const dupes: string[] = [];
+    for (const codes of Object.values(ICON_PRODUCT_TARGETS)) {
+      for (const code of codes) {
+        if (seen.has(code)) dupes.push(code);
+        else seen.add(code);
+      }
+    }
+    expect(dupes).toEqual([]);
+  });
+
+  it("references only icon files that actually exist under prisma/seed-data/option-icons/", () => {
+    for (const iconCode of distinctIconCodes()) {
+      const filePath = path.join(OPTION_ICONS_DIR, iconFilename(iconCode));
+      expect(existsSync(filePath), `missing icon file: ${filePath}`).toBe(true);
+    }
+  });
+
+  it("lists JTP as unmapped, and does not also map it as a target", () => {
+    expect(UNMAPPED_ICONS).toContain("JTP");
+    expect(Object.keys(ICON_OPTION_TARGETS)).not.toContain("JTP");
+    expect(Object.keys(ICON_PRODUCT_TARGETS)).not.toContain("JTP");
+  });
+
+  it("every icon file on disk is accounted for by either a target map or UNMAPPED_ICONS", () => {
+    // Guards against a 22nd icon silently added to the folder without also
+    // updating the maps (or explicitly marking it unmapped).
+    const mappedCodes = new Set([
+      ...Object.keys(ICON_OPTION_TARGETS),
+      ...Object.keys(ICON_PRODUCT_TARGETS),
+      ...UNMAPPED_ICONS,
+    ]);
+    const filesOnDisk = existsSync(OPTION_ICONS_DIR)
+      ? readdirSync(OPTION_ICONS_DIR).filter((f: string) => f.endsWith(".png"))
+      : [];
+    for (const file of filesOnDisk) {
+      const code = file.replace(/\.png$/, "").toUpperCase();
+      expect(mappedCodes.has(code), `icon file "${file}" is neither mapped nor in UNMAPPED_ICONS`).toBe(true);
+    }
+  });
+});
+
+describe("distinctIconCodes", () => {
+  it("returns every icon code referenced by ICON_OPTION_TARGETS or ICON_PRODUCT_TARGETS, deduplicated", () => {
+    const codes = distinctIconCodes();
+    const expectedSet = new Set([...Object.keys(ICON_OPTION_TARGETS), ...Object.keys(ICON_PRODUCT_TARGETS)]);
+    expect(new Set(codes)).toEqual(expectedSet);
+    // PRA and PTW each feed both an option target and a product target --
+    // must still appear once.
+    expect(codes.filter((c) => c === "PRA")).toHaveLength(1);
+    expect(codes.filter((c) => c === "PTW")).toHaveLength(1);
+  });
+
+  it("is sorted", () => {
+    const codes = distinctIconCodes();
+    expect(codes).toEqual([...codes].sort());
+  });
+
+  it("excludes JTP", () => {
+    expect(distinctIconCodes()).not.toContain("JTP");
+  });
+});
+
+describe("iconFilename", () => {
+  it("lowercases the icon code and appends .png", () => {
+    expect(iconFilename("ABR")).toBe("abr.png");
+    expect(iconFilename("PTW")).toBe("ptw.png");
+  });
+});
+
+describe("allIconOptionCodes", () => {
+  it("flattens every option code across ICON_OPTION_TARGETS", () => {
+    const codes = allIconOptionCodes();
+    expect(codes).toContain("ABR-M");
+    expect(codes).toContain("MTS- additional travel p/Metre");
+    expect(codes).toContain("PRA-L");
+    expect(codes.length).toBe(Object.values(ICON_OPTION_TARGETS).flat().length);
+  });
+});
+
+describe("region brand logo source file", () => {
+  it("exists under prisma/seed-data/brand/pf-logo.png", () => {
+    expect(existsSync(path.join(BRAND_DIR, "pf-logo.png"))).toBe(true);
   });
 });

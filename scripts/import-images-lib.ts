@@ -8,6 +8,17 @@
  * for the pure hashing/formatting logic, then writes files and Prisma
  * updates from the result. Mirrors the prisma/seed-lib.ts + prisma/seed.ts
  * split already used elsewhere in this repo.
+ *
+ * Three independent things are mapped here, all imported/applied by the
+ * same script:
+ *  - SERIES_IMAGES / PRODUCT_IMAGES: per-series and per-product photos under
+ *    prisma/seed-data/product-images/ -> Product.imageUrl.
+ *  - ICON_OPTION_TARGETS / ICON_PRODUCT_TARGETS: per-option icons under
+ *    prisma/seed-data/option-icons/ -> Option.imageUrl (primary intent) and,
+ *    for a few codes, also Product.imageUrl (bonus, only-if-null).
+ *  - The region brand logo under prisma/seed-data/brand/ -> every Region's
+ *    logoUrl (only-if-null) -- that one's a single fixed file, not a map, so
+ *    it's handled directly in the import script with no lib helper.
  */
 import { createHash } from "node:crypto";
 
@@ -69,6 +80,108 @@ export const UNMAPPED_IMAGE_FILES: string[] = [];
  */
 export function distinctImageFiles(): string[] {
   return Array.from(new Set([...Object.values(SERIES_IMAGES), ...Object.values(PRODUCT_IMAGES)])).sort();
+}
+
+/**
+ * Icon base code (matches prisma/seed-data/option-icons/<code-lowercased>.png,
+ * e.g. "ABR" -> abr.png) -> catalog Option codes whose `imageUrl` this icon
+ * should fill. Same only-if-null-unless---force rule as PRODUCT_IMAGES above
+ * applies when the import script applies these. Every option code below was
+ * verified present in prisma/seed-data/catalog.json's `options[].code` list
+ * at the time this map was written; scripts/import-product-images.ts also
+ * re-checks this at runtime (warns, doesn't crash, on a mismatch).
+ */
+export const ICON_OPTION_TARGETS: Record<string, string[]> = {
+  ABR: ["ABR-M", "ABR-L"],
+  AFP: ["AFP"],
+  APM: ["APM-M", "APM-L"],
+  BCR: ["BCR-M", "BCR-L"],
+  DR2: ["DR2"],
+  DRG: ["DRG-1", "DRG-2", "DRG-3"],
+  HDC: ["HDC-M", "HDC-L"],
+  HFV: ["HFV-M", "HFV-L"],
+  IJP: ["IJP"],
+  IKA: ["IKA"],
+  MRK: ["MRK"],
+  MTS: ["MTS", "MTS- additional travel p/Metre"],
+  OFD: ["OFD-M", "OFD-L"],
+  OFJ: ["OFJ"],
+  OFP: ["OFP-M", "OFP-L"],
+  PRA: ["PRA-L"],
+  PRM: ["PRM-M", "PRM-L"],
+  PTW: ["PTW"],
+};
+
+/**
+ * Same icon base code -> catalog Product codes, for the handful of icons
+ * that ALSO double as a product image. This is bonus coverage on top of the
+ * option icons above, not the primary intent -- the only-if-null rule means
+ * it mostly no-ops: ANT-V5, ANT-V6 and PTW(S) already got pathworks.png from
+ * PRODUCT_IMAGES (see that map's doc comment), so in a normal (non---force)
+ * run only "LS Convert" -- previously in UNMAPPED_IMAGE_FILES, now filled by
+ * the LSC icon -- actually changes. --force lets an icon image win over an
+ * existing PRODUCT_IMAGES image for these codes; this map is applied after
+ * PRODUCT_IMAGES by the import script, so under --force the icon wins.
+ */
+export const ICON_PRODUCT_TARGETS: Record<string, string[]> = {
+  ANT: ["ANT-V5", "ANT-V6"],
+  PRA: ["PRA"],
+  PTW: ["PTW(S)"],
+  LSC: ["LS Convert"],
+};
+
+/**
+ * Icon base codes present under prisma/seed-data/option-icons/ that are
+ * deliberately unmapped -- no catalog option or product code identified for
+ * them. Surfaced in the import script's summary (logged as skipped), not
+ * used in any lookup or copied to uploads.
+ */
+export const UNMAPPED_ICONS: string[] = ["JTP"];
+
+/**
+ * Every distinct icon base code referenced by ICON_OPTION_TARGETS or
+ * ICON_PRODUCT_TARGETS, sorted for deterministic output. Each corresponding
+ * <code-lowercased>.png file is hashed/copied exactly once regardless of how
+ * many option/product codes map to it (e.g. PRA and PTW each feed both an
+ * option and a product target).
+ */
+export function distinctIconCodes(): string[] {
+  return Array.from(new Set([...Object.keys(ICON_OPTION_TARGETS), ...Object.keys(ICON_PRODUCT_TARGETS)])).sort();
+}
+
+/** Filename under prisma/seed-data/option-icons/ for a given icon base code. */
+export function iconFilename(code: string): string {
+  return `${code.toLowerCase()}.png`;
+}
+
+/**
+ * Every catalog Option code targeted by ICON_OPTION_TARGETS, flattened (not
+ * deduplicated -- a duplicate here is exactly what findDuplicateOptionTargets
+ * below flags as a bug). Used by the import script's startup sanity check
+ * against prisma/seed-data/catalog.json.
+ */
+export function allIconOptionCodes(): string[] {
+  return Object.values(ICON_OPTION_TARGETS).flat();
+}
+
+/**
+ * Option codes that appear under more than one icon in ICON_OPTION_TARGETS
+ * -- i.e. a mapping bug, since every option should get its image from
+ * exactly one icon. Returns the duplicated codes (empty when the map is
+ * well-formed); scripts/import-product-images.ts's addTarget-style conflict
+ * handling for products doesn't apply to options, so this is how the option
+ * map's well-formedness is checked instead (see tests/import-images.test.ts).
+ */
+export function findDuplicateOptionTargets(): string[] {
+  const seen = new Set<string>();
+  const dupes: string[] = [];
+  for (const codes of Object.values(ICON_OPTION_TARGETS)) {
+    for (const code of codes) {
+      if (seen.has(code)) dupes.push(code);
+      else seen.add(code);
+    }
+  }
+  return dupes;
 }
 
 /**
