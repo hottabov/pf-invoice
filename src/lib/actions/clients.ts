@@ -267,3 +267,137 @@ export async function deleteContact(contactId: string): Promise<ActionResult> {
   revalidatePath(`/clients/${existing.companyId}`);
   return {};
 }
+
+// --- inline creation (document builder) -----------------------------------
+//
+// JSON-friendly siblings of createCompany/createContact for the document
+// builder's inline "+ New company" / "+ New contact" panels
+// (src/components/builder/client-section.tsx): plain-object input instead
+// of FormData, and the created entity is RETURNED instead of redirecting,
+// so the builder can select it and call setDocumentClient without ever
+// leaving the page. Validation and scope rules are shared with the form
+// actions above (same zod schemas, same companyWhereForUser) — the two
+// stay in sync by construction.
+
+export type CompanyInlineInput = {
+  name: string;
+  regionCode: string;
+  website?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  postcode?: string;
+  country?: string;
+  taxId?: string;
+};
+
+export type CreateCompanyInlineResult =
+  | { ok: true; company: { id: string; name: string } }
+  | { error: string };
+
+/**
+ * Creates a company owned by the current session's user (same ownership
+ * rule as `createCompany`). `notes` isn't collectable from the inline
+ * panel — it's deliberately short; a manager who needs it uses the full
+ * /clients/new form or edits the company afterwards from /clients.
+ */
+export async function createCompanyInline(input: CompanyInlineInput): Promise<CreateCompanyInlineResult> {
+  const session = await requireSession();
+
+  const parsed = companySchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: flattenZodError(parsed.error) };
+  }
+
+  const region = await db.region.findUnique({ where: { code: parsed.data.regionCode } });
+  if (!region) return { error: "Region not found" };
+
+  const created = await db.company.create({
+    data: {
+      name: parsed.data.name,
+      street: parsed.data.street ?? null,
+      city: parsed.data.city ?? null,
+      state: parsed.data.state ?? null,
+      postcode: parsed.data.postcode ?? null,
+      country: parsed.data.country ?? null,
+      website: parsed.data.website ?? null,
+      taxId: parsed.data.taxId ?? null,
+      notes: null,
+      regionId: region.id,
+      ownerId: session.user.id,
+    },
+  });
+
+  revalidatePath("/clients");
+  return { ok: true, company: { id: created.id, name: created.name } };
+}
+
+export type ContactInlineInput = {
+  firstName: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  position?: string;
+};
+
+export type CreateContactInlineResult =
+  | { ok: true; contact: { id: string; label: string } }
+  | { error: string };
+
+/**
+ * Creates a contact under `companyId`, scope-checked through the parent
+ * company exactly like `createContact`. The inline panel has no
+ * "Primary contact" checkbox (there's no meaningful choice yet on a
+ * brand-new company) — instead the FIRST contact ever created for a
+ * company is automatically made primary, so `setDocumentClient`'s
+ * auto-primary resolution (see src/lib/actions/documents.ts) has
+ * something to pick up the moment this contact is chosen.
+ */
+export async function createContactInline(
+  companyId: string,
+  input: ContactInlineInput
+): Promise<CreateContactInlineResult> {
+  const session = await requireSession();
+
+  const idParsed = idSchema.safeParse(companyId);
+  if (!idParsed.success) {
+    return { error: NOT_FOUND_ERROR };
+  }
+
+  const company = await db.company.findFirst({
+    where: { id: companyId, ...companyWhereForUser(session.user) },
+  });
+  if (!company) return { error: NOT_FOUND_ERROR };
+
+  const existingContactCount = await db.contact.count({ where: { companyId: company.id } });
+  const isPrimary = existingContactCount === 0;
+
+  const parsed = contactSchema.safeParse({ ...input, isPrimary });
+  if (!parsed.success) {
+    return { error: flattenZodError(parsed.error) };
+  }
+
+  const created = await db.$transaction(async (tx) => {
+    if (parsed.data.isPrimary) {
+      await tx.contact.updateMany({
+        where: { companyId: company.id, isPrimary: true },
+        data: { isPrimary: false },
+      });
+    }
+    return tx.contact.create({
+      data: {
+        companyId: company.id,
+        firstName: parsed.data.firstName,
+        lastName: parsed.data.lastName ?? null,
+        email: parsed.data.email ?? null,
+        phone: parsed.data.phone ?? null,
+        position: parsed.data.position ?? null,
+        isPrimary: parsed.data.isPrimary,
+      },
+    });
+  });
+
+  revalidatePath(`/clients/${company.id}`);
+  const label = [created.firstName, created.lastName].filter(Boolean).join(" ");
+  return { ok: true, contact: { id: created.id, label } };
+}

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui-kit";
+import { useState } from "react";
+import { AutosaveIndicator } from "@/components/builder/autosave-indicator";
 import { RichTextEditor, RICH_TEXT_PROSE_CLASS } from "@/components/ui-kit/rich-text-editor";
 import { cn } from "@/lib/utils";
 import { toEditorHtml, renderStoredRichText } from "@/lib/rich-text";
+import { useAutosave } from "@/lib/use-autosave";
 import type { ActionResult } from "@/lib/actions/documents";
 
 /**
@@ -14,9 +14,11 @@ import type { ActionResult } from "@/lib/actions/documents";
  * document/invoice sheet, both via `renderStoredRichText`) — a smaller
  * sibling of `ContentBlockForm`'s `RichTextEditor` (WYSIWYG, formatted text
  * shows immediately, no separate preview pane) but without a title field or
- * a placeholder sidebar: just the editor + one Save button, calling
- * `setDocumentNotes` directly (DRAFT-only — see that action). Rendered for
- * both QUOTE and INVOICE documents (see the builder page).
+ * a placeholder sidebar: just the editor, autosaved via `useAutosave`
+ * (no Save button — see src/lib/use-autosave.ts) which calls
+ * `setDocumentNotes` directly (DRAFT-only — see that action) 800ms after
+ * typing settles. Rendered for both QUOTE and INVOICE documents (see the
+ * builder page).
  *
  * `notes` may still be a legacy markdown row (`toEditorHtml` normalizes it
  * to HTML for the editor on first load — see src/lib/rich-text.ts); once
@@ -39,22 +41,16 @@ export function NotesSection({
   setNotesAction: (documentId: string, formData: FormData) => Promise<ActionResult>;
   readOnly?: boolean;
 }) {
-  const toast = useToast();
   const [body, setBody] = useState(() => toEditorHtml(notes ?? ""));
-  const [pending, startTransition] = useTransition();
-
-  function handleSave() {
-    const formData = new FormData();
-    formData.set("notes", body);
-    startTransition(async () => {
-      const result = await setNotesAction(documentId, formData);
-      if (result?.error) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Saved");
-    });
-  }
+  const { status, error } = useAutosave({
+    value: body,
+    enabled: !readOnly,
+    onSave: async (html) => {
+      const formData = new FormData();
+      formData.set("notes", html);
+      return setNotesAction(documentId, formData);
+    },
+  });
 
   if (readOnly) {
     if (!notes) return <p className="text-sm text-slate-500">No notes.</p>;
@@ -67,21 +63,15 @@ export function NotesSection({
 
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-sm font-medium text-brand-dark">Body</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-brand-dark">Body</span>
+        <AutosaveIndicator status={status} error={error} />
+      </div>
       <RichTextEditor
         value={body}
         onChange={setBody}
-        disabled={pending}
         placeholder="Freeform remarks for this document…"
       />
-      <Button
-        type="button"
-        onClick={handleSave}
-        disabled={pending}
-        className="h-11 w-full bg-brand text-white hover:bg-brand/90 sm:w-auto sm:self-start"
-      >
-        {pending ? "Saving…" : "Save notes"}
-      </Button>
     </div>
   );
 }

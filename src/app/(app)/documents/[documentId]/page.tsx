@@ -11,6 +11,7 @@ import {
   type CompatibleOption,
   type DocumentForBuilder,
 } from "@/lib/queries/documents";
+import { listActiveRegions } from "@/lib/queries/catalog";
 import { getShowOptionIcons } from "@/lib/queries/settings";
 import {
   addCustomLine,
@@ -28,6 +29,7 @@ import {
   setItemShowImage,
   setPriceDisplay,
 } from "@/lib/actions/documents";
+import { createCompanyInline, createContactInline } from "@/lib/actions/clients";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { ClientSection } from "@/components/builder/client-section";
 import { ItemsSection } from "@/components/builder/items-section";
@@ -74,10 +76,11 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
   const isDraft = document.status === "DRAFT";
   const isAdmin = session.user.role === "ADMIN";
 
-  const [companies, catalog, showOptionIcons] = await Promise.all([
+  const [companies, catalog, showOptionIcons, regions] = await Promise.all([
     listClientPickerCompanies(session.user),
     getItemPickerCatalog(document.regionCode),
     getShowOptionIcons(),
+    listActiveRegions(),
   ]);
 
   // Compatible options are preloaded once per distinct (productId, seriesId)
@@ -120,6 +123,10 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
             initialCompanyId={document.company?.id ?? null}
             initialContactId={document.contactId}
             setClientAction={setDocumentClient}
+            createCompanyInlineAction={createCompanyInline}
+            createContactInlineAction={createContactInline}
+            regions={regions.map((r) => ({ code: r.code, name: r.name }))}
+            defaultRegionCode={document.regionCode}
             readOnly={!isDraft}
           />
 
