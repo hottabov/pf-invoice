@@ -4,21 +4,22 @@
  * No IO and no Prisma client here on purpose -- everything in this file is
  * a plain function of its inputs, so it can be unit tested without a
  * database or filesystem (see tests/import-images.test.ts). The script
- * itself is the IO shell: it reads the source PNGs, calls into this file
+ * itself is the IO shell: it reads the source images, calls into this file
  * for the pure hashing/formatting logic, then writes files and Prisma
  * updates from the result. Mirrors the prisma/seed-lib.ts + prisma/seed.ts
  * split already used elsewhere in this repo.
  *
  * Three independent things are mapped here, all imported/applied by the
  * same script:
- *  - SERIES_IMAGES / PRODUCT_IMAGES: per-series and per-product photos under
- *    prisma/seed-data/product-images/ -> Product.imageUrl.
- *  - ICON_OPTION_TARGETS / ICON_PRODUCT_TARGETS: per-option icons under
+ *  - SERIES_IMAGES / PRODUCT_IMAGES: per-series and per-product PNG photos
+ *    under prisma/seed-data/product-images/ -> Product.imageUrl.
+ *  - ICON_OPTION_TARGETS / ICON_PRODUCT_TARGETS: per-option SVG icons under
  *    prisma/seed-data/option-icons/ -> Option.imageUrl (primary intent) and,
  *    for a few codes, also Product.imageUrl (bonus, only-if-null).
- *  - The region brand logo under prisma/seed-data/brand/ -> every Region's
- *    logoUrl (only-if-null) -- that one's a single fixed file, not a map, so
- *    it's handled directly in the import script with no lib helper.
+ *  - The region brand logo (SVG) under prisma/seed-data/brand/ -> every
+ *    Region's logoUrl (only-if-null) -- that one's a single fixed file, not
+ *    a map, so it's handled directly in the import script with no lib
+ *    helper.
  */
 import { createHash } from "node:crypto";
 
@@ -83,8 +84,8 @@ export function distinctImageFiles(): string[] {
 }
 
 /**
- * Icon base code (matches prisma/seed-data/option-icons/<code-lowercased>.png,
- * e.g. "ABR" -> abr.png) -> catalog Option codes whose `imageUrl` this icon
+ * Icon base code (matches prisma/seed-data/option-icons/<code-lowercased>.svg,
+ * e.g. "ABR" -> abr.svg) -> catalog Option codes whose `imageUrl` this icon
  * should fill. Same only-if-null-unless---force rule as PRODUCT_IMAGES above
  * applies when the import script applies these. Every option code below was
  * verified present in prisma/seed-data/catalog.json's `options[].code` list
@@ -141,7 +142,7 @@ export const UNMAPPED_ICONS: string[] = ["JTP"];
 /**
  * Every distinct icon base code referenced by ICON_OPTION_TARGETS or
  * ICON_PRODUCT_TARGETS, sorted for deterministic output. Each corresponding
- * <code-lowercased>.png file is hashed/copied exactly once regardless of how
+ * <code-lowercased>.svg file is hashed/copied exactly once regardless of how
  * many option/product codes map to it (e.g. PRA and PTW each feed both an
  * option and a product target).
  */
@@ -149,9 +150,11 @@ export function distinctIconCodes(): string[] {
   return Array.from(new Set([...Object.keys(ICON_OPTION_TARGETS), ...Object.keys(ICON_PRODUCT_TARGETS)])).sort();
 }
 
-/** Filename under prisma/seed-data/option-icons/ for a given icon base code. */
+/** Filename under prisma/seed-data/option-icons/ for a given icon base code.
+ * Icons are vendored as SVG (see the module-level doc comment) rather than
+ * the PNGs product/series photos still use. */
 export function iconFilename(code: string): string {
-  return `${code.toLowerCase()}.png`;
+  return `${code.toLowerCase()}.svg`;
 }
 
 /**
@@ -187,7 +190,7 @@ export function findDuplicateOptionTargets(): string[] {
 /**
  * Formats a 32-hex-char digest as a UUID-shaped string (8-4-4-4-12). This
  * is the exact shape src/lib/uploads.ts's (unexported) UPLOAD_FILENAME_PATTERN
- * requires -- `^[a-f0-9-]{36}\.(jpg|png|webp)$` -- once an extension is
+ * requires -- `^[a-f0-9-]{36}\.(jpg|png|webp|svg)$` -- once an extension is
  * appended: 32 hex chars + 4 dashes = 36 chars. Pure string slicing, no
  * validation that `hex` actually looks like a digest since its only caller
  * (md5UuidFilename) always passes a real md5 hexdigest (already lowercase
@@ -200,16 +203,17 @@ export function formatMd5AsUuid(hex: string): string {
 }
 
 /**
- * Deterministic, content-addressed filename for an imported product image:
- * md5(fileBuffer) formatted as a uuid, plus a ".png" extension (every
- * source file under prisma/seed-data/product-images/ is a PNG). The same
+ * Deterministic, content-addressed filename for an imported image:
+ * md5(fileBuffer) formatted as a uuid, plus the given extension (defaults to
+ * ".png" -- every source file under prisma/seed-data/product-images/ is a
+ * PNG; callers importing the SVG icon/logo sources pass `"svg"`). The same
  * input bytes always produce the same filename, which is what makes
  * scripts/import-product-images.ts idempotent -- re-running it against the
  * same source files always resolves to the same uploads/ filename, so "does
  * this file already exist" is a reliable dedupe check across runs, and two
  * distinct source files never collide unless their bytes are identical.
  */
-export function md5UuidFilename(buffer: Buffer): string {
+export function md5UuidFilename(buffer: Buffer, ext: string = "png"): string {
   const hex = createHash("md5").update(buffer).digest("hex");
-  return `${formatMd5AsUuid(hex)}.png`;
+  return `${formatMd5AsUuid(hex)}.${ext}`;
 }

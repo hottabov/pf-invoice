@@ -3,11 +3,14 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 
 /** Accepted upload content types, mapped to the extension we store them
- * under. Anything else is rejected. */
+ * under. Anything else is rejected. SVG is accepted for icons/logos (vector
+ * source art) alongside the raster formats used for real photos — see
+ * `sniffImageType` for how its content is verified. */
 export const ALLOWED: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
+  "image/svg+xml": "svg",
 };
 
 /** Maximum accepted upload size, in bytes. */
@@ -33,7 +36,7 @@ export class UploadValidationError extends Error {
  * declared-type check and rejects on mismatch. Pure and dependency-free so
  * it's trivially unit-testable with small constructed buffers.
  */
-export function sniffImageType(buf: Buffer): "jpg" | "png" | "webp" | null {
+export function sniffImageType(buf: Buffer): "jpg" | "png" | "webp" | "svg" | null {
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
     return "jpg";
   }
@@ -57,6 +60,19 @@ export function sniffImageType(buf: Buffer): "jpg" | "png" | "webp" | null {
   ) {
     return "webp";
   }
+  // SVG has no magic bytes -- it's XML text. Strip a leading UTF-8 BOM (if
+  // any) and leading whitespace, then check whether what's left starts with
+  // an XML prolog or an `<svg` root element. This is intentionally strict
+  // (no general "looks like XML" check) since anything broader would let an
+  // arbitrary HTML/script payload through as a fake image.
+  let start = 0;
+  if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
+    start = 3; // UTF-8 BOM
+  }
+  const text = buf.toString("utf8", start).replace(/^\s+/, "").slice(0, 256).toLowerCase();
+  if (text.startsWith("<?xml") || text.startsWith("<svg")) {
+    return "svg";
+  }
   return null;
 }
 
@@ -64,12 +80,12 @@ export function sniffImageType(buf: Buffer): "jpg" | "png" | "webp" | null {
  * the shape `resolveUploadPath` requires before touching the filesystem, so
  * a path-traversal attempt (`../x`, `a/b.jpg`) or an unexpected extension
  * never reaches `path.join`. */
-const UPLOAD_FILENAME_PATTERN = /^[a-f0-9-]{36}\.(jpg|png|webp)$/;
+const UPLOAD_FILENAME_PATTERN = /^[a-f0-9-]{36}\.(jpg|png|webp|svg)$/;
 
 /** The `/api/files/<name>` URL shape stored on `Product.imageUrl` /
  * `Option.imageUrl`. Exported so the catalog server actions and this
  * module's tests validate against the exact same pattern. */
-export const IMAGE_URL_PATTERN = /^\/api\/files\/[a-f0-9-]{36}\.(jpg|png|webp)$/;
+export const IMAGE_URL_PATTERN = /^\/api\/files\/[a-f0-9-]{36}\.(jpg|png|webp|svg)$/;
 
 /** Directory uploads are written to and served from. */
 export function uploadsDir(): string {
@@ -85,7 +101,7 @@ export async function saveUpload(file: File): Promise<string> {
   const ext = ALLOWED[file.type];
   if (!ext) {
     throw new UploadValidationError(
-      `Unsupported file type "${file.type || "unknown"}". Allowed types: JPEG, PNG, WebP.`
+      `Unsupported file type "${file.type || "unknown"}". Allowed types: JPEG, PNG, WebP, SVG.`
     );
   }
   if (file.size > MAX_UPLOAD_BYTES) {
@@ -101,7 +117,7 @@ export async function saveUpload(file: File): Promise<string> {
   const sniffed = sniffImageType(buffer);
   if (sniffed !== ext) {
     throw new UploadValidationError(
-      "File content doesn't match its declared type. Upload a genuine JPEG, PNG, or WebP image."
+      "File content doesn't match its declared type. Upload a genuine JPEG, PNG, WebP, or SVG image."
     );
   }
 

@@ -10,13 +10,19 @@ describe("resolveUploadPath", () => {
     expect(result).toBe(path.resolve(uploadsDir(), VALID_NAME));
   });
 
-  it("accepts valid uuid.png and uuid.webp names", () => {
+  it("accepts valid uuid.png, uuid.webp, and uuid.svg names", () => {
     expect(resolveUploadPath("a1b2c3d4-e5f6-4789-a0b1-c2d3e4f56789.png")).not.toBeNull();
     expect(resolveUploadPath("a1b2c3d4-e5f6-4789-a0b1-c2d3e4f56789.webp")).not.toBeNull();
+    expect(resolveUploadPath("a1b2c3d4-e5f6-4789-a0b1-c2d3e4f56789.svg")).not.toBeNull();
   });
 
   it("rejects a path-traversal attempt", () => {
     expect(resolveUploadPath("../x")).toBeNull();
+  });
+
+  it("rejects a path-traversal attempt disguised with an allowed svg extension", () => {
+    expect(resolveUploadPath("../../etc/passwd.svg")).toBeNull();
+    expect(resolveUploadPath("..%2f..%2fetc%2fpasswd.svg")).toBeNull();
   });
 
   it("rejects a name containing a path separator", () => {
@@ -46,7 +52,7 @@ describe("resolveUploadPath", () => {
 
 describe("IMAGE_URL_PATTERN", () => {
   it("accepts a well-formed /api/files/<uuid>.<ext> url for each allowed extension", () => {
-    for (const ext of ["jpg", "png", "webp"]) {
+    for (const ext of ["jpg", "png", "webp", "svg"]) {
       expect(IMAGE_URL_PATTERN.test(`/api/files/${VALID_NAME.slice(0, -3)}${ext}`)).toBe(true);
     }
   });
@@ -115,10 +121,6 @@ describe("sniffImageType", () => {
     expect(sniffImageType(Buffer.from("GIF89a", "ascii"))).toBeNull();
   });
 
-  it("does not misidentify an SVG/XML payload relabeled as an image", () => {
-    expect(sniffImageType(Buffer.from('<?xml version="1.0"?><svg></svg>', "ascii"))).toBeNull();
-  });
-
   it("rejects a buffer that has RIFF but not WEBP at offset 8 (e.g. a WAV file)", () => {
     const buf = Buffer.concat([
       Buffer.from("RIFF", "ascii"),
@@ -126,5 +128,29 @@ describe("sniffImageType", () => {
       Buffer.from("WAVE", "ascii"),
     ]);
     expect(sniffImageType(buf)).toBeNull();
+  });
+
+  it("recognizes an SVG that starts with an XML prolog", () => {
+    expect(sniffImageType(Buffer.from('<?xml version="1.0"?><svg></svg>', "ascii"))).toBe("svg");
+  });
+
+  it("recognizes an SVG with no XML prolog, starting directly with <svg", () => {
+    expect(
+      sniffImageType(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>', "utf8"))
+    ).toBe("svg");
+  });
+
+  it("recognizes an SVG preceded by a UTF-8 BOM and/or leading whitespace", () => {
+    const withBom = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("<svg></svg>", "utf8")]);
+    expect(sniffImageType(withBom)).toBe("svg");
+    expect(sniffImageType(Buffer.from("\n\n  <svg></svg>", "utf8"))).toBe("svg");
+  });
+
+  it("does not misidentify arbitrary HTML/script content as an SVG", () => {
+    expect(sniffImageType(Buffer.from("<html><body><script>alert(1)</script></body></html>", "ascii"))).toBeNull();
+  });
+
+  it("returns null for plain text that isn't XML or a known image format", () => {
+    expect(sniffImageType(Buffer.from("just some text", "ascii"))).toBeNull();
   });
 });

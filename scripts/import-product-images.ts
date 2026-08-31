@@ -1,9 +1,9 @@
 /**
- * Imports catalog images: product/series photos, option icons, and the
- * region brand logo. Every source PNG is copied into the uploads directory
- * (content-addressed by md5, matching src/lib/uploads.ts's saveUpload
- * naming convention) and the matching DB rows' image/logo URL is pointed at
- * the resulting `/api/files/<name>` URL.
+ * Imports catalog images: product/series photos (PNG), option icons and the
+ * region brand logo (both SVG). Every source file is copied into the
+ * uploads directory (content-addressed by md5, matching src/lib/uploads.ts's
+ * saveUpload naming convention, extension preserved) and the matching DB
+ * rows' image/logo URL is pointed at the resulting `/api/files/<name>` URL.
  *
  * Mapping lives in scripts/import-images-lib.ts (pure, unit tested):
  *  - SERIES_IMAGES: every product in a whole series gets that series'
@@ -33,12 +33,24 @@
  *    --force to overwrite regardless.
  *
  * Usage:
- *   npm run images:import [-- --dry] [-- --force]
- *   tsx scripts/import-product-images.ts [--dry] [--force]
+ *   npm run images:import [-- --dry] [-- --force] [-- --refresh-icons]
+ *   tsx scripts/import-product-images.ts [--dry] [--force] [--refresh-icons]
  *
- * --dry    Print the plan (files that would be copied, rows that would be
- *          updated) without writing anything to disk or the database.
- * --force  Overwrite an image/logo URL even on a row that already has one.
+ * --dry            Print the plan (files that would be copied, rows that
+ *                   would be updated) without writing anything to disk or
+ *                   the database.
+ * --force          Overwrite an image/logo URL even on a row that already
+ *                   has one (product/series photos, option icons, and the
+ *                   region logo -- everything this script touches).
+ * --refresh-icons  Narrower than --force: overwrites Option.imageUrl for
+ *                   every ICON_OPTION_TARGETS-mapped option, and every
+ *                   Region.logoUrl, unconditionally -- without touching
+ *                   product/series photos that already have one. Meant for
+ *                   one-off use after the option icons or brand logo were
+ *                   re-vendored (e.g. the PNG -> SVG migration) while a
+ *                   database already has the old PNG uploads' URLs set --
+ *                   the normal only-if-null rule would otherwise leave
+ *                   those stale.
  */
 import "dotenv/config";
 import { existsSync } from "node:fs";
@@ -63,7 +75,7 @@ import type { Catalog } from "../prisma/seed-lib";
 const SOURCE_DIR = path.resolve(__dirname, "..", "prisma", "seed-data", "product-images");
 const ICONS_SOURCE_DIR = path.resolve(__dirname, "..", "prisma", "seed-data", "option-icons");
 const BRAND_SOURCE_DIR = path.resolve(__dirname, "..", "prisma", "seed-data", "brand");
-const BRAND_LOGO_FILE = "pf-logo.png";
+const BRAND_LOGO_FILE = "pf-logo.svg";
 
 const catalog = catalogData as Catalog;
 
@@ -73,6 +85,7 @@ async function main() {
   const args = process.argv.slice(2);
   const dry = args.includes("--dry");
   const force = args.includes("--force");
+  const refreshIcons = args.includes("--refresh-icons");
 
   // Imported only now (not at module scope) so `--dry`/`--force` parsing
   // above can't accidentally be skipped by an early DB/env failure --
@@ -215,7 +228,7 @@ async function main() {
     }
 
     const buffer = await readFile(sourcePath);
-    const filename = md5UuidFilename(buffer);
+    const filename = md5UuidFilename(buffer, "svg");
     iconFilenameByCode.set(iconCode, filename);
 
     const destPath = path.join(destDir, filename);
@@ -252,7 +265,7 @@ async function main() {
         continue;
       }
 
-      if (option.imageUrl !== null && !force) {
+      if (option.imageUrl !== null && !force && !refreshIcons) {
         optionSkippedHasImage++;
         console.log(`skip (already has an image): option ${optionCode}`);
         continue;
@@ -317,7 +330,7 @@ async function main() {
     throw new Error(`brand logo not found: ${brandLogoPath}`);
   }
   const logoBuffer = await readFile(brandLogoPath);
-  const logoFilename = md5UuidFilename(logoBuffer);
+  const logoFilename = md5UuidFilename(logoBuffer, "svg");
   const logoDestPath = path.join(destDir, logoFilename);
   const logoAlreadyExists = existsSync(logoDestPath);
   if (dry) {
@@ -336,7 +349,7 @@ async function main() {
   let regionSkippedHasLogo = 0;
 
   for (const region of regions.sort((a, b) => a.code.localeCompare(b.code))) {
-    if (region.logoUrl !== null && !force) {
+    if (region.logoUrl !== null && !force && !refreshIcons) {
       regionSkippedHasLogo++;
       console.log(`skip (already has a logo): region ${region.code}`);
       continue;

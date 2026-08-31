@@ -62,7 +62,8 @@ export const REGIONS: RegionSeed[] = [
     taxRate: 10.0,
     entityName: "Pathfinder Australia Pty Ltd",
     entityLegalId: "ABN 64 072 458 667",
-    entityAddress: "12 Did Ct, Tullamarine Vic. 3043, Australia",
+    entityAddress:
+      "12 Dib Court\nTullamarine, VIC 3043, Australia\nPh: +61 3 9338 3471\nEmail: sales@pathfindercut.com\nWeb: pathfindercut.com",
     bankDetails: {
       bank: "ANZ Westfield",
       accountName: "Pathfinder Australia Pty Ltd",
@@ -77,7 +78,9 @@ export const REGIONS: RegionSeed[] = [
     currency: "USD",
     taxName: "Sales Tax",
     taxRate: 0,
-    entityName: "Pathfinder USA", // placeholder — real US entity data TBD
+    entityName: "Pathfinder Cutting Technology LLC",
+    entityAddress:
+      "5623–5625 W74th Street\nIndianapolis, IN, 46278, USA\nTel: +1 (317) 349 0002\nEmail: salesusa@pathfindercut.com\nWeb: pathfindercut.com",
   },
   {
     code: "UK",
@@ -85,7 +88,9 @@ export const REGIONS: RegionSeed[] = [
     currency: "GBP",
     taxName: "VAT",
     taxRate: 20,
-    entityName: "Pathfinder UK", // placeholder — real UK entity data TBD
+    entityName: "Pathfinder Cutting Technology UK LTD",
+    entityAddress:
+      "Unit 5 Maricott Court, Holywell Business Park,\nKineton Road Industrial Estate, Southam,\nWarwickshire, CV47 0FT, United Kingdom\nTel: +44 (0) 7572 949248\nEmail: salesuk@pathfindercut.com\nWeb: pathfindercut.com",
   },
 ];
 

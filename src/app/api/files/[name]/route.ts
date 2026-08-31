@@ -12,6 +12,7 @@ const CONTENT_TYPES: Record<string, string> = {
   jpg: "image/jpeg",
   png: "image/png",
   webp: "image/webp",
+  svg: "image/svg+xml",
 };
 
 /**
@@ -46,12 +47,21 @@ export async function GET(
   const contentType = CONTENT_TYPES[ext] ?? "application/octet-stream";
   const body = Readable.toWeb(createReadStream(filePath)) as ReadableStream<Uint8Array>;
 
-  return new Response(body, {
-    headers: {
-      "Content-Type": contentType,
-      "Content-Length": String(size),
-      "Cache-Control": "private, max-age=86400",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": contentType,
+    "Content-Length": String(size),
+    "Cache-Control": "private, max-age=86400",
+    "X-Content-Type-Options": "nosniff",
+  };
+  // SVG is XML that can carry <script>/event-handler content -- sandbox it
+  // so a direct navigation to this URL can't execute anything, even though
+  // nosniff already stops a browser from reinterpreting it as another type.
+  // Embedding via <img> (how icons/logos are actually used) is unaffected:
+  // the sandboxed-document restriction only applies to top-level navigation
+  // and non-image embeds (e.g. <iframe>/<object>).
+  if (ext === "svg") {
+    headers["Content-Security-Policy"] = "sandbox";
+  }
+
+  return new Response(body, { headers });
 }

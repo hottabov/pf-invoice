@@ -68,4 +68,25 @@ describe("renderDocumentHtml", () => {
     expect(html).toContain("INV-AU-2026-001");
     expect(html).toContain("1,100");
   });
+
+  it("renders a multi-line entity address as one pq-entity-line div per line, not a literal newline", async () => {
+    const html = await renderDocumentHtml(
+      baseSheetData({
+        entity: {
+          name: "Pathfinder Cutting Systems",
+          legalId: "ABN 123",
+          address: "12 Dib Court\nTullamarine, VIC 3043, Australia\nWeb: pathfindercut.com",
+          bankDetails: [],
+          footerText: null,
+        },
+      })
+    );
+
+    // Each address line lands in its own element rather than a single block
+    // with an embedded "\n" (which HTML would collapse to a single space).
+    expect(html).toContain('<div class="pq-entity-line">12 Dib Court</div>');
+    expect(html).toContain('<div class="pq-entity-line">Tullamarine, VIC 3043, Australia</div>');
+    expect(html).toContain('<div class="pq-entity-line">Web: pathfindercut.com</div>');
+    expect(html).not.toContain("Dib Court\\n");
+  });
 });

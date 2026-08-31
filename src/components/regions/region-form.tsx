@@ -141,13 +141,19 @@ export function RegionForm({
           />
         </FieldRow>
 
-        <FieldRow label="Entity address" htmlFor="region-entity-address">
-          <input
+        <FieldRow
+          label="Entity address"
+          htmlFor="region-entity-address"
+          className="lg:col-span-2"
+          hint="One line each for street, city/postcode, and contact details (phone/email/web) — each line break here appears as a new line on documents."
+        >
+          <textarea
             id="region-entity-address"
             name="entityAddress"
             defaultValue={defaultValues.entityAddress}
             maxLength={400}
-            className={fieldInputClass}
+            rows={4}
+            className={cn(fieldInputClass, "h-auto min-h-24 py-2")}
           />
         </FieldRow>
 

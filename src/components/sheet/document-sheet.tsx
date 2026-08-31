@@ -48,7 +48,18 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
           <div className="pq-header-entity">
             <div className="pq-entity-name">{data.entity.name}</div>
             {data.entity.legalId ? <div className="pq-entity-line">{data.entity.legalId}</div> : null}
-            {data.entity.address ? <div className="pq-entity-line">{data.entity.address}</div> : null}
+            {data.entity.address
+              ? data.entity.address.split("\n").map((line, i) => (
+                  // entityAddress is a single free-text Region field that may
+                  // carry embedded newlines (street / city+postcode / phone /
+                  // email / web, one per line) -- split rather than a single
+                  // <div> so each line actually breaks instead of the "\n"
+                  // rendering as a literal character inside one block.
+                  <div className="pq-entity-line" key={i}>
+                    {line}
+                  </div>
+                ))
+              : null}
           </div>
         </header>
 

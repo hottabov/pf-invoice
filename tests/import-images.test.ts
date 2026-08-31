@@ -24,7 +24,7 @@ const BRAND_DIR = path.resolve(__dirname, "..", "prisma", "seed-data", "brand");
 // (unexported) UPLOAD_FILENAME_PATTERN. Duplicated here rather than imported
 // since it isn't exported -- kept in sync manually, same as that module's own
 // IMAGE_URL_PATTERN comment describes for its sibling.
-const UPLOAD_FILENAME_PATTERN = /^[a-f0-9-]{36}\.(jpg|png|webp)$/;
+const UPLOAD_FILENAME_PATTERN = /^[a-f0-9-]{36}\.(jpg|png|webp|svg)$/;
 
 describe("formatMd5AsUuid", () => {
   it("inserts dashes at the 8-4-4-4-12 boundaries", () => {
@@ -61,6 +61,13 @@ describe("md5UuidFilename", () => {
     const buf = Buffer.from("PathQuote product image");
     const expectedHex = createHash("md5").update(buf).digest("hex");
     expect(md5UuidFilename(buf)).toBe(`${formatMd5AsUuid(expectedHex)}.png`);
+  });
+
+  it("uses the given extension instead of the .png default", () => {
+    const buf = Buffer.from("<svg></svg>");
+    const filename = md5UuidFilename(buf, "svg");
+    expect(filename).toMatch(UPLOAD_FILENAME_PATTERN);
+    expect(filename.endsWith(".svg")).toBe(true);
   });
 });
 
@@ -121,12 +128,17 @@ describe("ICON_OPTION_TARGETS / ICON_PRODUCT_TARGETS", () => {
       ...UNMAPPED_ICONS,
     ]);
     const filesOnDisk = existsSync(OPTION_ICONS_DIR)
-      ? readdirSync(OPTION_ICONS_DIR).filter((f: string) => f.endsWith(".png"))
+      ? readdirSync(OPTION_ICONS_DIR).filter((f: string) => f.endsWith(".svg"))
       : [];
     for (const file of filesOnDisk) {
-      const code = file.replace(/\.png$/, "").toUpperCase();
+      const code = file.replace(/\.svg$/, "").toUpperCase();
       expect(mappedCodes.has(code), `icon file "${file}" is neither mapped nor in UNMAPPED_ICONS`).toBe(true);
     }
+  });
+
+  it("no PNG icon files remain under prisma/seed-data/option-icons/ (SVG-only now)", () => {
+    const filesOnDisk = existsSync(OPTION_ICONS_DIR) ? readdirSync(OPTION_ICONS_DIR) : [];
+    expect(filesOnDisk.filter((f: string) => f.endsWith(".png"))).toEqual([]);
   });
 });
 
@@ -152,9 +164,9 @@ describe("distinctIconCodes", () => {
 });
 
 describe("iconFilename", () => {
-  it("lowercases the icon code and appends .png", () => {
-    expect(iconFilename("ABR")).toBe("abr.png");
-    expect(iconFilename("PTW")).toBe("ptw.png");
+  it("lowercases the icon code and appends .svg", () => {
+    expect(iconFilename("ABR")).toBe("abr.svg");
+    expect(iconFilename("PTW")).toBe("ptw.svg");
   });
 });
 
@@ -169,7 +181,11 @@ describe("allIconOptionCodes", () => {
 });
 
 describe("region brand logo source file", () => {
-  it("exists under prisma/seed-data/brand/pf-logo.png", () => {
-    expect(existsSync(path.join(BRAND_DIR, "pf-logo.png"))).toBe(true);
+  it("exists under prisma/seed-data/brand/pf-logo.svg", () => {
+    expect(existsSync(path.join(BRAND_DIR, "pf-logo.svg"))).toBe(true);
+  });
+
+  it("no PNG brand logo remains under prisma/seed-data/brand/ (SVG-only now)", () => {
+    expect(existsSync(path.join(BRAND_DIR, "pf-logo.png"))).toBe(false);
   });
 });

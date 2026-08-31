@@ -46,7 +46,16 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
           <div className="pq-header-entity">
             <div className="pq-entity-name">{data.entity.name}</div>
             {data.entity.legalId ? <div className="pq-entity-line">{data.entity.legalId}</div> : null}
-            {data.entity.address ? <div className="pq-entity-line">{data.entity.address}</div> : null}
+            {data.entity.address
+              ? data.entity.address.split("\n").map((line, i) => (
+                  // See document-sheet.tsx's identical block: entityAddress
+                  // may carry embedded newlines, so split into one line per
+                  // <div> rather than rendering "\n" as a literal character.
+                  <div className="pq-entity-line" key={i}>
+                    {line}
+                  </div>
+                ))
+              : null}
           </div>
         </header>
 
