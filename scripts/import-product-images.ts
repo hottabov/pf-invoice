@@ -7,11 +7,11 @@
  *
  * Mapping lives in scripts/import-images-lib.ts (pure, unit tested):
  *  - SERIES_IMAGES: every product in a whole series gets that series'
- *    image (M, XC, L, LNS, EF, FP -- one photo per product line).
+ *    image (M, X, L, LNS, EF, FP -- one photo per product line).
  *  - PRODUCT_IMAGES: individual SW-series software modules that share
  *    PathWorks' screenshot, plus Production Analyst's own image, plus the
- *    two hand-authored manual products (FP-TROLLEY, HDRF) with their own
- *    standalone photos. Every code was verified against
+ *    hand-authored manual products (FP-TROLLEY, HDRF-180/220/320) with their
+ *    own standalone photos. Every code was verified against
  *    prisma/seed-data/catalog.json -- see that file's doc comment.
  *  - ICON_OPTION_TARGETS: per-option icons under
  *    prisma/seed-data/option-icons/ -> Option.imageUrl. Primary purpose of

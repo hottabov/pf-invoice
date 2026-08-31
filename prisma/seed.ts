@@ -36,9 +36,15 @@ const contentBlocksJson = contentBlocksData as ContentBlocksJson;
 const usPricesJson = usPricesData as UsPricesJson;
 
 /**
- * Option codes retired by the EasyLoader/EasyFeeder/Software reclassification
- * fix: these sheets' rows were originally (incorrectly) extracted entirely as
- * options, leaving their series with 0 products. They're now products (see
+ * Option codes retired from the catalog -- either reclassified as products
+ * (the EasyLoader/EasyFeeder/Software fix below) or genuinely discontinued
+ * (FM180). A retired code's Option row is never left seeded alongside its
+ * replacement/discontinuation: see the retirement loop in main() for how
+ * each one is actually removed (delete, or deactivate if still referenced).
+ *
+ * EasyLoader/EasyFeeder/Software reclassification: these sheets' rows were
+ * originally (incorrectly) extracted entirely as options, leaving their
+ * series with 0 products. They're now products (see
  * scripts/extract-catalog.ts), so any pre-existing Option row seeded under
  * the old code must be removed -- otherwise it lingers alongside its new
  * product-equivalent, duplicating the item in the catalog UI.
@@ -50,6 +56,11 @@ const usPricesJson = usPricesData as UsPricesJson;
  *  - the 10 Software options (incl. PRA-SW) -> now SW-series products of the
  *    same codes (PRA-SW's SW-sheet counterpart is now product code "PRA";
  *    L-Series' differently-priced "PRA-L" option is unaffected and stays).
+ *
+ * FM180 ("Fabric Master"): not sold anymore (owner decision) -- dropped from
+ * extraction entirely (scripts/extract-catalog.ts skips its M-series sheet
+ * row), so it needs the same existing-DB cleanup as the reclassified codes
+ * above, just for "discontinued" rather than "renamed into a product".
  */
 const RETIRED_OPTION_CODES: string[] = [
   // EasyLoader drive modules -> products EL-2020 / EL-2420.
@@ -70,6 +81,8 @@ const RETIRED_OPTION_CODES: string[] = [
   "PTW(S)",
   "WPL",
   "WPN",
+  // Discontinued -- not a reclassification, just retired outright.
+  "FM180",
 ];
 
 async function main() {
@@ -106,6 +119,29 @@ async function main() {
     regionIdByCode.set(r.code, region.id);
   }
 
+  // 1b. Rename legacy Series.code "XC" -> "X" -- X-Calibre's *series code*
+  // changed from "XC" to "X" (owner: the catalog UI showed "XC" but should
+  // read "X"; see scripts/extract-catalog.ts's compatibleSeriesFor). Product
+  // codes were already "X-####" before this rename and are unaffected --
+  // that's the separate "legacy XC-####" product-code migration further
+  // down (step 4). Renaming in place (not delete+recreate) preserves the
+  // series' id and every relation to it (Products, OptionCompatibility rows,
+  // etc). Must run before the series upsert loop below, which upserts by
+  // code and would otherwise create a brand new "X" series row alongside an
+  // untouched legacy "XC" one on every existing DB. P2002-tolerant: if a "X"
+  // series row already exists (shouldn't happen -- this migration only ever
+  // needs to run once per DB), log a warning and skip rather than crashing
+  // the whole seed run.
+  let renamedSeriesCount = 0;
+  try {
+    const result = await db.series.updateMany({ where: { code: "XC" }, data: { code: "X" } });
+    renamedSeriesCount = result.count;
+  } catch (e) {
+    const isDuplicate = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+    if (!isDuplicate) throw e;
+    console.warn(`seed: cannot rename series "XC" -> "X" -- a series with code "X" already exists; skipped`);
+  }
+
   // 2. Series
   const seriesIdByCode = new Map<string, string>();
   for (const s of mapSeries(catalog)) {
@@ -117,21 +153,30 @@ async function main() {
     seriesIdByCode.set(s.code, series.id);
   }
 
-  // 3. Retire options reclassified as products (or otherwise removed) by
-  // this catalog revision -- see RETIRED_OPTION_CODES above. Only delete an
-  // option if no DocumentLine snapshot still references it; a document that
-  // already used the option keeps working as-is, and the stale option row
-  // is left in place (skipped + warned) rather than breaking that document's
-  // history. Price and OptionCompatibility rows cascade on Option delete.
+  // 3. Retire options reclassified as products, or otherwise removed
+  // (discontinued), by this catalog revision -- see RETIRED_OPTION_CODES
+  // above. Delete an option outright when no DocumentLine snapshot
+  // references it; when one does (a document that already used the option),
+  // deleting would break that document's history, so instead the option is
+  // deactivated (active: false) -- it's hidden from every catalog picker
+  // (queries/catalog.ts already filters pickers to active: true) but the
+  // existing document keeps rendering its frozen snapshot exactly as before.
+  // Price and OptionCompatibility rows cascade on Option delete; a
+  // deactivated option keeps both (it's not gone, just hidden).
   let retiredCount = 0;
+  let deactivatedCount = 0;
   for (const code of RETIRED_OPTION_CODES) {
     const existing = await db.option.findUnique({ where: { code } });
     if (!existing) continue; // never seeded under this code (e.g. fresh DB) -- nothing to retire
     const refCount = await db.documentLine.count({ where: { refId: existing.id, kind: "OPTION" } });
     if (refCount > 0) {
+      if (existing.active) {
+        await db.option.update({ where: { id: existing.id }, data: { active: false } });
+      }
       console.warn(
-        `seed: retired option "${code}" is still referenced by ${refCount} document line(s) -- skipped, not deleted`
+        `seed: retired option "${code}" is still referenced by ${refCount} document line(s) -- deactivated, not deleted`
       );
+      deactivatedCount++;
       continue;
     }
     await db.option.delete({ where: { id: existing.id } });
@@ -140,9 +185,10 @@ async function main() {
 
   // 4. Rename legacy "XC-####" product codes to "X-####" (the X-Calibre
   // product-code prefix changed from "XC-" to "X-" -- see
-  // scripts/extract-catalog.ts; the series code itself stays "XC"). Existing
-  // DBs (local and the future VPS) may already contain products seeded under
-  // the old "XC-####" codes, and some may already be referenced by
+  // scripts/extract-catalog.ts; this is unrelated to step 1b's *series*
+  // code rename above, which is a separate field on a separate row).
+  // Existing DBs (local and the future VPS) may already contain products
+  // seeded under the old "XC-####" codes, and some may already be referenced by
   // DocumentItems (e.g. a finalized quote) -- those rows can never be
   // deleted, and duplicating them under the new code is unacceptable, so
   // this renames the code string in place instead. Renaming (rather than
@@ -172,6 +218,33 @@ async function main() {
       console.warn(
         `seed: cannot rename product "${product.code}" -> "${newCode}" -- a product with code "${newCode}" already exists; skipped`
       );
+    }
+  }
+
+  // 4b. Rename legacy "HDRF" product code to "HDRF-180" -- the single
+  // width-less "HDRF" product was split into three real width variants,
+  // HDRF-180/220/320 (owner decision, model like EasyLoader's own per-width
+  // products -- see MANUAL_PRODUCTS.EF in scripts/extract-catalog.ts).
+  // Existing DBs may already have a product seeded under the old "HDRF"
+  // code, possibly with an image and/or a Price row already attached (and
+  // possibly referenced by a DocumentItem) -- renaming in place (rather than
+  // delete+recreate) preserves all of that instead of orphaning it. HDRF-180
+  // is the target (not HDRF-220/320) because it's the width the retired
+  // "HDRF" product's own description matched (up to 1800mm) and the one the
+  // old AU price, if any, was seeded against. The step 5 upsert loop below
+  // then creates HDRF-220/HDRF-320 as brand new products, same as any other
+  // catalog addition. P2002-tolerant, same convention as every other rename
+  // step in this file.
+  let renamedHdrfCount = 0;
+  const legacyHdrf = await db.product.findUnique({ where: { code: "HDRF" } });
+  if (legacyHdrf) {
+    try {
+      await db.product.update({ where: { id: legacyHdrf.id }, data: { code: "HDRF-180" } });
+      renamedHdrfCount = 1;
+    } catch (e) {
+      const isDuplicate = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+      if (!isDuplicate) throw e;
+      console.warn(`seed: cannot rename product "HDRF" -> "HDRF-180" -- a product with code "HDRF-180" already exists; skipped`);
     }
   }
 
@@ -278,6 +351,20 @@ async function main() {
   // Prisma's composite-key `upsert` (which can't target a NULL member)
   // doesn't apply either way — check for an existing row first, then create
   // if absent, same pattern for both branches.
+  //
+  // This used to be add-only, which meant a compatibility row removed from
+  // catalog.json (e.g. an option's compatibleSeries/compatibleProducts
+  // shrinking) never got cleaned up on an existing DB -- the stale row just
+  // sat there forever, making e.g. an EL-2020-only accessory keep showing up
+  // for EL-2420 too. It's now a full sync per option: after every desired
+  // row from catalog.json is ensured to exist (the create-if-absent loop
+  // below, unchanged), any *existing* OptionCompatibility row for an option
+  // catalog.json still knows about, but whose (seriesId, productId) pair
+  // catalog.json no longer lists, is deleted. Only options present in
+  // catalog.json (i.e. in optionIdByCode) are touched this way -- a
+  // hand-created/manual option outside the catalog JSON entirely keeps
+  // whatever compatibility rows an admin gave it via the catalog UI.
+  const desiredCompatByOption = new Map<string, Set<string>>();
   let compatCount = 0;
   for (const c of mapCompatibility(catalog)) {
     const optionId = optionIdByCode.get(c.optionCode);
@@ -302,6 +389,13 @@ async function main() {
             return { optionId, seriesId: null as string | null, productId };
           })();
 
+    // Track this pair as "desired" for the sync pass below, keyed the same
+    // way regardless of which branch (series/product) produced it.
+    const desiredKey = `${where.seriesId ?? ""}:${where.productId ?? ""}`;
+    const desired = desiredCompatByOption.get(optionId) ?? new Set<string>();
+    desired.add(desiredKey);
+    desiredCompatByOption.set(optionId, desired);
+
     const existing = await db.optionCompatibility.findFirst({ where });
     if (!existing) {
       try {
@@ -320,6 +414,28 @@ async function main() {
       }
     }
     compatCount++;
+  }
+
+  // 8b. Compatibility sync: delete every existing OptionCompatibility row,
+  // for an option catalog.json still knows about, whose pair isn't in that
+  // option's desired set built above. Deliberately scoped to
+  // `optionIdByCode` (options seeded from catalog.json) rather than every
+  // Option row in the DB -- a manual/hand-created option's compatibility is
+  // never touched by this sync.
+  let compatDeletedCount = 0;
+  for (const optionId of optionIdByCode.values()) {
+    const desired = desiredCompatByOption.get(optionId) ?? new Set<string>();
+    const existingRows = await db.optionCompatibility.findMany({ where: { optionId } });
+    for (const row of existingRows) {
+      const key = `${row.seriesId ?? ""}:${row.productId ?? ""}`;
+      if (!desired.has(key)) {
+        await db.optionCompatibility.delete({ where: { id: row.id } });
+        compatDeletedCount++;
+      }
+    }
+  }
+  if (compatDeletedCount) {
+    console.log(`seed: compatibility sync removed ${compatDeletedCount} stale OptionCompatibility row(s)`);
   }
 
   // 9. Content blocks -- one regionId:null "default" row per key from
@@ -363,14 +479,16 @@ async function main() {
 
   console.log("seed: done");
   console.log(`  regions:        ${regionIdByCode.size}`);
+  console.log(`  renamed XC->X series: ${renamedSeriesCount}`);
   console.log(`  series:         ${seriesIdByCode.size}`);
-  console.log(`  retired options: ${retiredCount}`);
-  console.log(`  renamed XC->X products: ${renamedXCount}`);
+  console.log(`  retired options: ${retiredCount} deleted, ${deactivatedCount} deactivated`);
+  console.log(`  renamed XC->X product codes: ${renamedXCount}`);
+  console.log(`  renamed HDRF->HDRF-180: ${renamedHdrfCount}`);
   console.log(`  products:       ${productIdByCode.size}`);
   console.log(`  options:        ${optionIdByCode.size}`);
   console.log(`  prices (AU):    ${priceCount}`);
   console.log(`  prices (US):    ${usPriceCount}`);
-  console.log(`  compatibility:  ${compatCount}`);
+  console.log(`  compatibility:  ${compatCount} ensured, ${compatDeletedCount} stale removed`);
   console.log(`  content blocks: ${contentBlockCreated} created, ${contentBlockSkipped} skipped (already seeded)`);
 }
 

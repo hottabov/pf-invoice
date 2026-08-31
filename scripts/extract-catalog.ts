@@ -225,6 +225,11 @@ function extractMSeries(wb: XLSX.WorkBook) {
   for (let row = 17; row <= 51; row++) {
     const code = cellText(ws, `C${row}`);
     if (!code) continue;
+    // FM180 ("Fabric Master") is retired -- not sold anymore (owner
+    // decision). Dropped at extraction rather than post-filtered so it never
+    // reappears in catalog.json; prisma/seed.ts's RETIRED_OPTION_CODES
+    // handles the corresponding existing-DB cleanup.
+    if (code === "FM180") continue;
     const desc = stripNotes(cellText(ws, `E${row}`));
     const price = cellNumber(ws, `F${row}`);
     // "Drills included" (rows 50-51) share the same code; the description
@@ -503,11 +508,15 @@ function extractFabricPro(wb: XLSX.WorkBook) {
 //     separate, with the series code suffixed onto every variant's code
 //     (e.g. "ABR-M", "ABR-L") so the base code is never ambiguously reused.
 // Every option pulled from the M-series sheet is also compatible with
-// X-Calibre (XC clones M's machines and is expected to reuse M's options).
+// X-Calibre (X clones M's machines and is expected to reuse M's options).
+// The X-Calibre *series code* is "X" (not "XC" -- that was the old code,
+// renamed per owner request since the catalog UI showed "XC" but should
+// read "X"; X-Calibre's product-code prefix was already "X-####" before
+// this rename and is unaffected).
 // ---------------------------------------------------------------------------
 
 function compatibleSeriesFor(seriesCode: string): string[] {
-  return seriesCode === "M" ? ["M", "XC"] : [seriesCode];
+  return seriesCode === "M" ? ["M", "X"] : [seriesCode];
 }
 
 function buildGlobalOptions(seriesOptionsList: SeriesOptions[]): GlobalOption[] {
@@ -600,14 +609,58 @@ const MANUAL_PRODUCTS: Record<string, CatalogItem[]> = {
       needsReview: true,
     },
   ],
+  // HDRF used to be a single width-less "HDRF" product. The NA price list
+  // (scripts/extract-us-prices.ts) confirms three real, distinctly-priced
+  // width variants (180/220/320cm) -- owner decision: split into three
+  // separate products, one per width, same convention as EasyLoader/
+  // EasyFeeder/FabricPro's own per-width products. AU pricing isn't
+  // published for any of the three yet (needsReview, same as the original
+  // single HDRF product); US pricing is 12500/13900/15290 respectively --
+  // see extractHDRF in scripts/extract-us-prices.ts, which now writes all
+  // three into prisma/seed-data/prices-us.json instead of leaving 220/320 in
+  // `unmatched`. prisma/seed.ts renames any pre-existing "HDRF" product row
+  // to "HDRF-180" in place (preserving its id/refs/image) before this
+  // product list is upserted.
   EF: [
     {
-      code: "HDRF",
-      name: "Heavy Duty Roll Feeder",
+      code: "HDRF-180",
+      name: "Heavy Duty Roll Feeder 180",
       description:
-        "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 2240mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
+        "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 1800mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
       price: null,
       needsReview: true,
+    },
+    {
+      code: "HDRF-220",
+      name: "Heavy Duty Roll Feeder 220",
+      description:
+        "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 2200mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
+      price: null,
+      needsReview: true,
+    },
+    {
+      code: "HDRF-320",
+      name: "Heavy Duty Roll Feeder 320",
+      description:
+        "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 3200mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
+      price: null,
+      needsReview: true,
+    },
+  ],
+  // "Service" is a container product -- it exists so the service OPTIONS in
+  // MANUAL_OPTIONS below (compatibleProducts: ["SERVICE"]) have something to
+  // attach to in a document, the same way EasyLoader's accessory options
+  // attach to a specific EL-#### drive-module product. Unlike every other
+  // needsReview gap in this file, its own price is a real, deliberate 0 (not
+  // a "TBD" placeholder) -- the product itself is never sold on its own, only
+  // its options carry a price -- so needsReview is false here.
+  SVC: [
+    {
+      code: "SERVICE",
+      name: "Service",
+      description: "Installation, training and support services.",
+      price: 0,
+      needsReview: false,
     },
   ],
 };
@@ -645,7 +698,7 @@ const MANUAL_PRODUCTS: Record<string, CatalogItem[]> = {
 //  - PTW(I): Software sheet row 7, coded "PTW (I)" (normalized to "PTW(I)",
 //    stripping the space before the parenthesis) -- a standalone SW-series
 //    product distinct from the existing "PTW(S)" SW product and from the
-//    unrelated cross-series "PTW" GlobalOption (M/XC/L-compatible, sourced
+//    unrelated cross-series "PTW" GlobalOption (M/X/L-compatible, sourced
 //    from the AU M-series/L-Series sheets) -- per spec, this is added as a
 //    new product, not merged into that option.
 //  - EL-3220/EL-4030: EasyLoader sheet has FOUR width sections in the NA
@@ -666,10 +719,10 @@ const MANUAL_PRODUCTS: Record<string, CatalogItem[]> = {
 // Not added despite a "300"-width pattern: X-Calibre. The X-series sheet
 // only prices two machine codes at all (X10180, X10220 -- both already
 // mapped to existing X-10180/X-10220), so there is no NA evidence for an
-// X-3300-style product the way there is for M3300 et al. XC's own products
+// X-3300-style product the way there is for M3300 et al. X's own products
 // are cloned from M-Series' products earlier in this file (see "X-Calibre"
 // below) -- that clone happens before this NA_PRODUCTS append, so it does
-// NOT pick up M3300/M5300/M7300/M10300 either; XC stays at its original 12
+// NOT pick up M3300/M5300/M7300/M10300 either; X stays at its original 12
 // products.
 // ---------------------------------------------------------------------------
 
@@ -760,6 +813,131 @@ const NA_PRODUCTS: Record<string, CatalogItem[]> = {
 };
 
 // ---------------------------------------------------------------------------
+// Manual options
+//
+// Hand-authored GlobalOptions with no row in the AU price list at all --
+// same rationale as MANUAL_PRODUCTS/NA_PRODUCTS above, just for the options
+// list instead of a series' products. Merged into the cross-sheet-merged
+// options array in main(), after buildGlobalOptions() runs, so a re-run of
+// `npm run extract:catalog` always regenerates them rather than requiring a
+// hand-edit of catalog.json. Every entry here has AU price: null /
+// needsReview: true -- none of these are published in the AU price list
+// (RAW/11 Price List Australia ...xlsx) at all.
+//
+//  - JTP ("JetPen"): owner-requested new option, L-Series only. Distinct
+//    from the pre-existing "JetPen" option (coded from the L-Series sheet's
+//    own "Jetpen Marking Tool..." row, priced 7500) -- that row is untouched;
+//    this is a second, separate, as-yet-unpriced option per explicit
+//    instruction. needsReview stays true for BOTH AU and US (unlike the
+//    service options below, this one deliberately has no US price either --
+//    see scripts/extract-us-prices.ts, which does not map "JTP" to anything).
+//
+//  - SVC-*: service options for the new "SERVICE" container product (see
+//    MANUAL_PRODUCTS.SVC above), sourced from rows scripts/extract-us-prices.ts
+//    reports in prisma/seed-data/prices-us.json's `unmatched[]` array (real
+//    NA price-list rows with no AU equivalent and no catalog code to attach
+//    to). Every one of these DOES get a real US price -- extract-us-prices.ts
+//    now maps these exact rows onto these codes instead of leaving them
+//    unmatched (see that script's SVC_UNMATCHED_TARGETS). Only rows with a
+//    single, unambiguous price across every sheet/width they appear on are
+//    included; width-dependent-priced service rows (e.g. EasyFeeder's
+//    "Installation (3 hrs)" row, 360 for the 2020/2420 sections vs 720 for
+//    3220/4030) are left as unmatched/unclaimed rather than guessing which
+//    price (or how many split codes) is "correct" -- same policy this file
+//    already applies to genuinely ambiguous data everywhere else.
+const MANUAL_OPTIONS: GlobalOption[] = [
+  {
+    code: "JTP",
+    name: "JetPen",
+    description: "Non-contact high speed ink marking.",
+    price: null,
+    needsReview: true,
+    compatibleSeries: ["L"],
+  },
+  {
+    code: "SVC-LNS-INSTALL",
+    name: "Installation/Training — Leather Nesting System (with cutter)",
+    description: "Installation/Training — Leather Nesting System (with cutter installation), 2 days.",
+    price: null,
+    needsReview: true,
+    compatibleSeries: [],
+    compatibleProducts: ["SERVICE"],
+  },
+  {
+    code: "SVC-FP-INSTALL",
+    name: "FabricPro Installation & Training (1 day)",
+    description: "FabricPro Installation & Training, 1 day (with Cutter installation).",
+    price: null,
+    needsReview: true,
+    compatibleSeries: [],
+    compatibleProducts: ["SERVICE"],
+  },
+  {
+    code: "SVC-HDRF-INSTALL",
+    name: "HDRF Installation (2 hours)",
+    description: "Heavy Duty Roll Feeder installation, 2 hours.",
+    price: null,
+    needsReview: true,
+    compatibleSeries: [],
+    compatibleProducts: ["SERVICE"],
+  },
+  {
+    code: "SVC-M-INSTALL",
+    name: "M-Series Installation & Training (Static, no MTS)",
+    description: "1 day installation, 3 days training (Static -- no MTS).",
+    price: null,
+    needsReview: true,
+    compatibleSeries: [],
+    compatibleProducts: ["SERVICE"],
+  },
+  {
+    code: "SVC-M-INSTALL-MTS",
+    name: "M-Series Installation & Training (with MTS, up to 6m travel)",
+    description: "2 day installation, 3 days training, with MTS up to 6m travel.",
+    price: null,
+    needsReview: true,
+    compatibleSeries: [],
+    compatibleProducts: ["SERVICE"],
+  },
+  {
+    code: "SVC-L-INSTALL",
+    name: "L-Series Installation & Training (Static, no MTS)",
+    description: "L-Series Install/Training (Static -- no MTS).",
+    price: null,
+    needsReview: true,
+    compatibleSeries: [],
+    compatibleProducts: ["SERVICE"],
+  },
+  {
+    code: "SVC-L-INSTALL-MTS",
+    name: "L-Series Installation & Training (with MTS)",
+    description: "L-Series Install/Training, with MTS.",
+    price: null,
+    needsReview: true,
+    compatibleSeries: [],
+    compatibleProducts: ["SERVICE"],
+  },
+  {
+    code: "SVC-EL-INSTALL",
+    name: "EasyLoader Installation",
+    description: "EasyLoader installation (Drive Module + Additional Modules) with Cutter installation.",
+    price: null,
+    needsReview: true,
+    compatibleSeries: [],
+    compatibleProducts: ["SERVICE"],
+  },
+  {
+    code: "SVC-SW-TRAINING",
+    name: "Software Remote Training Support",
+    description: "Remote training support for PathWorks/PathCut software modules.",
+    price: null,
+    needsReview: true,
+    compatibleSeries: [],
+    compatibleProducts: ["SERVICE"],
+  },
+];
+
+// ---------------------------------------------------------------------------
 // Assembly
 // ---------------------------------------------------------------------------
 
@@ -793,12 +971,19 @@ function main(): void {
     { seriesCode: "EL", seriesName: "EasyLoader", maxDiscountPct: null, products: sortByCode(el.products) },
     { seriesCode: "EF", seriesName: "EasyFeeder", maxDiscountPct: null, products: sortByCode(ef.products) },
     { seriesCode: "FP", seriesName: "FabricPro", maxDiscountPct: null, products: sortByCode(fp.products) },
+    // "Service" -- a hand-authored series with no sheet of its own at all
+    // (see MANUAL_PRODUCTS.SVC and MANUAL_OPTIONS below). Starts empty here;
+    // the MANUAL_PRODUCTS append loop further down fills in its one product.
+    { seriesCode: "SVC", seriesName: "Service", maxDiscountPct: null, products: [] },
   ];
 
   // Cross-sheet option merge, in the same M/L/P/SW/LNS/EL/EF/FP order used
-  // above -- see buildGlobalOptions for the merge/split rule.
-  const options = sortByCode(
-    buildGlobalOptions([
+  // above -- see buildGlobalOptions for the merge/split rule. MANUAL_OPTIONS
+  // (JTP, the SVC-* service options) have no sheet row at all, so they're
+  // appended after the merge rather than fed into it, then the combined list
+  // is re-sorted so they take their alphabetical place.
+  const options = sortByCode([
+    ...buildGlobalOptions([
       { seriesCode: "M", options: m.options },
       { seriesCode: "L", options: l.options },
       { seriesCode: "P", options: p.options },
@@ -807,22 +992,24 @@ function main(): void {
       { seriesCode: "EL", options: el.options },
       { seriesCode: "EF", options: ef.options },
       { seriesCode: "FP", options: fp.options },
-    ])
-  );
+    ]),
+    ...MANUAL_OPTIONS,
+  ]);
 
   // X-Calibre: a distinct sellable line built on M-Series' machine specs.
   // Cloned from the already-extracted M products; codes drop the leading
   // "M" and gain an "X-" prefix (M3180 -> X-3180). Prices are copied
   // as-is but flagged needsReview because X-Calibre-specific pricing is not
   // yet published in the source file -- these are provisional placeholders.
-  // The series code stays "XC" (see compatibleSeriesFor above) -- only the
-  // product-code prefix is "X-", analogous to M/L-Series product codes not
-  // repeating their series code either.
-  // XC is expected to reuse M-Series' options via compatibleSeries (every
-  // M-sheet option already lists "XC"), not via a duplicated options list.
+  // The series code is "X" (see compatibleSeriesFor above -- renamed from
+  // "XC" per owner request; the catalog UI showed "XC" but should read "X")
+  // -- the product-code prefix was already "X-", analogous to M/L-Series
+  // product codes not repeating their series code either.
+  // X is expected to reuse M-Series' options via compatibleSeries (every
+  // M-sheet option already lists "X"), not via a duplicated options list.
   const mSeries = series.find((s) => s.seriesCode === "M")!;
   const xcSeries: CatalogSeries = {
-    seriesCode: "XC",
+    seriesCode: "X",
     seriesName: "X-Calibre",
     maxDiscountPct: null,
     products: sortByCode(
@@ -844,7 +1031,7 @@ function main(): void {
   }
 
   // Append NA-only products (see NA_PRODUCTS above) the same way -- after
-  // the XC clone, so they don't leak into XC without NA evidence of their
+  // the X clone, so they don't leak into X without NA evidence of their
   // own X-series equivalent.
   for (const s of series) {
     const na = NA_PRODUCTS[s.seriesCode];

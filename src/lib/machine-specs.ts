@@ -9,7 +9,7 @@
 // `DATABASE_URL` set.
 //
 // Two series families are recognised:
-//  - M-Series ("M") / X-Calibre ("XC"): code is `M<h><w>` or `X-<h><w>`
+//  - M-Series ("M") / X-Calibre ("X"): code is `M<h><w>` or `X-<h><w>`
 //    (e.g. "M3390", "X-3180") — `<h>` is a 1-2 digit compressed-lay cutting
 //    height in cm (one of 3, 5, 7, 10), `<w>` is the cutting width in cm
 //    (one of 180, 220, 390). Both a bare "M"/"X" prefix and a "M-"/"X-"
@@ -45,11 +45,11 @@ const L_PATTERN = /^L-(\d{2,3})F?$/;
 /**
  * Parses a product code against its series' known spec-encoding scheme.
  * Returns `null` when `seriesCode` isn't one of the recognised
- * spec-encoding series ("M", "XC", "L"), or when `productCode` doesn't
+ * spec-encoding series ("M", "X", "L"), or when `productCode` doesn't
  * match that series' pattern.
  */
 export function parseMachineSpecs(seriesCode: string | null, productCode: string): MachineSpecs | null {
-  if (seriesCode === "M" || seriesCode === "XC") {
+  if (seriesCode === "M" || seriesCode === "X") {
     const match = M_XC_PATTERN.exec(productCode);
     if (!match) return null;
     return { heightCm: Number(match[1]), widthCm: Number(match[2]) };
@@ -67,7 +67,7 @@ export function parseMachineSpecs(seriesCode: string | null, productCode: string
 /**
  * A human-readable one-line spec summary derived purely from the product
  * code, e.g. `"M-Series Cutting Machine, 3cm compressed lay height, 390cm
- * cutting width"` (M/XC — both dimensions) or `"L-Series Cutting Machine
+ * cutting width"` (M/X — both dimensions) or `"L-Series Cutting Machine
  * with 320cm cutting width"` (L — width only, no height in the code to
  * report). Returns `null` whenever `parseMachineSpecs` does (unrecognised
  * series, or a code that doesn't match its series' pattern) — never a
@@ -77,7 +77,7 @@ export function machineSpecSentence(seriesName: string, seriesCode: string | nul
   const specs = parseMachineSpecs(seriesCode, code);
   if (!specs) return null;
 
-  if (seriesCode === "M" || seriesCode === "XC") {
+  if (seriesCode === "M" || seriesCode === "X") {
     if (specs.heightCm === undefined || specs.widthCm === undefined) return null;
     return `${seriesName} Cutting Machine, ${specs.heightCm}cm compressed lay height, ${specs.widthCm}cm cutting width`;
   }

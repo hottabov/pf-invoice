@@ -1,5 +1,5 @@
 {
-  "extractedAt": "2026-08-31T01:00:40.220Z",
+  "extractedAt": "2026-08-31T02:15:13.811Z",
   "prices": [
     {
       "code": "1.0mm dia punch",
@@ -218,8 +218,16 @@
       "amountUsd": 2785.71
     },
     {
-      "code": "HDRF",
+      "code": "HDRF-180",
       "amountUsd": 12500
+    },
+    {
+      "code": "HDRF-220",
+      "amountUsd": 13900
+    },
+    {
+      "code": "HDRF-320",
+      "amountUsd": 15290
     },
     {
       "code": "HFV-L",
@@ -418,6 +426,42 @@
       "amountUsd": 362
     },
     {
+      "code": "SVC-EL-INSTALL",
+      "amountUsd": 180
+    },
+    {
+      "code": "SVC-FP-INSTALL",
+      "amountUsd": 960
+    },
+    {
+      "code": "SVC-HDRF-INSTALL",
+      "amountUsd": 180
+    },
+    {
+      "code": "SVC-L-INSTALL",
+      "amountUsd": 6900
+    },
+    {
+      "code": "SVC-L-INSTALL-MTS",
+      "amountUsd": 8820
+    },
+    {
+      "code": "SVC-LNS-INSTALL",
+      "amountUsd": 2600
+    },
+    {
+      "code": "SVC-M-INSTALL",
+      "amountUsd": 6900
+    },
+    {
+      "code": "SVC-M-INSTALL-MTS",
+      "amountUsd": 8820
+    },
+    {
+      "code": "SVC-SW-TRAINING",
+      "amountUsd": 480
+    },
+    {
       "code": "WPL",
       "amountUsd": 5432
     },
@@ -462,18 +506,8 @@
     },
     {
       "sheet": "EasyLoader",
-      "label": "EL-2020 Installation (Drive Module@2hrs + Additional Modules@ 0.75hrs) with Cutter installation.",
-      "price": 180
-    },
-    {
-      "sheet": "EasyLoader",
       "label": "EL-2420 Crate",
       "price": 1125
-    },
-    {
-      "sheet": "EasyLoader",
-      "label": "EL-2420 Installation (Drive Module@2hrs + Additional Modules@ 0.75hrs) with Cutter installation.",
-      "price": 180
     },
     {
       "sheet": "EasyLoader",
@@ -489,11 +523,6 @@
       "sheet": "EasyLoader",
       "label": "EL-3220 Electrical Runner Per 1.2M Used for Fabric Pro automatic spreader.",
       "price": 209
-    },
-    {
-      "sheet": "EasyLoader",
-      "label": "EL-3220 Installation (Drive Module@4hrs + Additional Modules@ 1.5hrs) with Cutter installation",
-      "price": 180
     },
     {
       "sheet": "EasyLoader",
@@ -522,11 +551,6 @@
     },
     {
       "sheet": "EasyLoader",
-      "label": "EL-4030 Installation (Drive Module@4hrs + Additional Modules@ 1.5hrs) with Cutter installation",
-      "price": 180
-    },
-    {
-      "sheet": "EasyLoader",
       "label": "EL-4030 Static table 1.2M lengths",
       "price": 1003
     },
@@ -536,34 +560,9 @@
       "price": 161
     },
     {
-      "sheet": "FabricPro",
-      "label": "FP-180 Installation & Training 1 day (with Cutter installation) (service)",
-      "price": 960
-    },
-    {
-      "sheet": "FabricPro",
-      "label": "FP-220 Installation & Training 1 day (with Cutter Installation) (service)",
-      "price": 960
-    },
-    {
-      "sheet": "FabricPro",
-      "label": "FP-300 Installation & Training 1 day (with Cutter installation) (service)",
-      "price": 960
-    },
-    {
-      "sheet": "HDRF",
-      "label": "HDRF-180 2 hours installation (service)",
-      "price": 180
-    },
-    {
       "sheet": "HDRF",
       "label": "HDRF-180 Crate- Wooden Crate for transport",
       "price": 1254
-    },
-    {
-      "sheet": "HDRF",
-      "label": "HDRF-220 2 hours installation (service)",
-      "price": 180
     },
     {
       "sheet": "HDRF",
@@ -572,48 +571,8 @@
     },
     {
       "sheet": "HDRF",
-      "label": "HDRF-220 Heavy Duty Roll Feeder (width variant, not a catalog product)",
-      "price": 13900
-    },
-    {
-      "sheet": "HDRF",
-      "label": "HDRF320 2 hours installation (service)",
-      "price": 180
-    },
-    {
-      "sheet": "HDRF",
       "label": "HDRF320 Crate- Wooden Crate for transport",
       "price": 1600
-    },
-    {
-      "sheet": "HDRF",
-      "label": "HDRF320 Heavy Duty Roll Feeder (width variant, not a catalog product)",
-      "price": 15290
-    },
-    {
-      "sheet": "L-Series",
-      "label": "L180, L180E, L220 Install/Training (service)",
-      "price": 6900
-    },
-    {
-      "sheet": "L-Series",
-      "label": "L220E, L320E Install/Training (service)",
-      "price": 8820
-    },
-    {
-      "sheet": "Leather Nesting System",
-      "label": "LNS-2020 Installation/Training (With cutter installation) 2 days. (service)",
-      "price": 2600
-    },
-    {
-      "sheet": "Leather Nesting System",
-      "label": "LNS-2420 Installation/Training (With cutter installation) 2 days. (service)",
-      "price": 2600
-    },
-    {
-      "sheet": "Leather Nesting System",
-      "label": "LNS-3220 Installation/Training (With cutter installation) 2 days. (service)",
-      "price": 2600
     },
     {
       "sheet": "M-series",
@@ -627,16 +586,6 @@
     },
     {
       "sheet": "M-series",
-      "label": "Install/Training -- 1 day installation, 3 days training (Static= No MTS)",
-      "price": 6900
-    },
-    {
-      "sheet": "M-series",
-      "label": "Install/Training+MTS -- 2 day installation, 3 days training with MTS up to 6m travel.",
-      "price": 8820
-    },
-    {
-      "sheet": "M-series",
       "label": "TR220 -- Transformer 30KVA, 60 Hz, Autotransformer, Three phase. 220V(input) to 380V/415V?(output). Standalone unit- Customer responsibility to hardwire.",
       "price": 5036
     },
@@ -644,11 +593,6 @@
       "sheet": "M-series",
       "label": "TR480 -- Transformer 30KVA, 60 Hz, Autotransformer, Three phase. 480V(input) to 380V(output). Integrated and wired.",
       "price": 2716
-    },
-    {
-      "sheet": "Software",
-      "label": "Training (service)",
-      "price": 480
     },
     {
       "sheet": "X-series",

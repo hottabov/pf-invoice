@@ -14,11 +14,11 @@ describe("parseMachineSpecs — M/X-Calibre", () => {
   });
 
   it("parses a dashed 'X-' prefix code (X-3180 -> 3cm height, 180cm width)", () => {
-    expect(parseMachineSpecs("XC", "X-3180")).toEqual({ heightCm: 3, widthCm: 180 });
+    expect(parseMachineSpecs("X", "X-3180")).toEqual({ heightCm: 3, widthCm: 180 });
   });
 
   it("parses a dashed 'X-' code with a 2-digit height (X-10390 -> 10cm height, 390cm width)", () => {
-    expect(parseMachineSpecs("XC", "X-10390")).toEqual({ heightCm: 10, widthCm: 390 });
+    expect(parseMachineSpecs("X", "X-10390")).toEqual({ heightCm: 10, widthCm: 390 });
   });
 });
 
@@ -62,7 +62,7 @@ describe("machineSpecSentence", () => {
   });
 
   it("builds the X-Calibre sentence with both height and width", () => {
-    expect(machineSpecSentence("X-Calibre", "XC", "X-3180")).toBe(
+    expect(machineSpecSentence("X-Calibre", "X", "X-3180")).toBe(
       "X-Calibre Cutting Machine, 3cm compressed lay height, 180cm cutting width"
     );
   });

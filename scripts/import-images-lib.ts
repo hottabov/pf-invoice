@@ -30,7 +30,7 @@ import { createHash } from "node:crypto";
  */
 export const SERIES_IMAGES: Record<string, string> = {
   M: "m-series.png",
-  XC: "x-calibre.png",
+  X: "x-calibre.png",
   L: "l-series.png",
   LNS: "leather-nesting.png",
   EF: "easyfeeder.png",
@@ -44,10 +44,13 @@ export const SERIES_IMAGES: Record<string, string> = {
  * below is an exact `code` present there. Most are SW-series software
  * modules sharing PathWorks' screenshot or Production Analyst's own image
  * ("PTW(S)", "ANT-V5", "ANT-V6" etc. match catalog.json byte-for-byte);
- * FP-TROLLEY and HDRF are the two hand-authored manual products (see
- * MANUAL_PRODUCTS in scripts/extract-catalog.ts), each with its own
- * standalone photo. "LS Convert" is the SW series' one other product and
- * is deliberately left unmapped (see UNMAPPED_IMAGE_FILES).
+ * FP-TROLLEY and HDRF-180/220/320 are the hand-authored manual products (see
+ * MANUAL_PRODUCTS in scripts/extract-catalog.ts) -- FP-TROLLEY with its own
+ * standalone photo, and all three HDRF width variants sharing the one
+ * pre-split "hdrf.png" photo (there's no per-width product photo in the
+ * source material, same "one shot per line" convention SERIES_IMAGES uses).
+ * "LS Convert" is the SW series' one other product and is deliberately left
+ * unmapped (see UNMAPPED_IMAGE_FILES).
  */
 export const PRODUCT_IMAGES: Record<string, string> = {
   PRA: "production-analyst.png",
@@ -60,7 +63,9 @@ export const PRODUCT_IMAGES: Record<string, string> = {
   PTN: "pathworks.png",
   EDG: "pathworks.png",
   "FP-TROLLEY": "fp-trolley.png",
-  HDRF: "hdrf.png",
+  "HDRF-180": "hdrf.png",
+  "HDRF-220": "hdrf.png",
+  "HDRF-320": "hdrf.png",
 };
 
 /**
@@ -111,6 +116,7 @@ export const ICON_OPTION_TARGETS: Record<string, string[]> = {
   PRA: ["PRA-L"],
   PRM: ["PRM-M", "PRM-L"],
   PTW: ["PTW"],
+  JTP: ["JTP"],
 };
 
 /**
@@ -135,9 +141,12 @@ export const ICON_PRODUCT_TARGETS: Record<string, string[]> = {
  * Icon base codes present under prisma/seed-data/option-icons/ that are
  * deliberately unmapped -- no catalog option or product code identified for
  * them. Surfaced in the import script's summary (logged as skipped), not
- * used in any lookup or copied to uploads.
+ * used in any lookup or copied to uploads. JTP used to sit here (no catalog
+ * option existed for it yet) but now maps to the new "JTP" ("JetPen") option
+ * -- see ICON_OPTION_TARGETS above and MANUAL_OPTIONS in
+ * scripts/extract-catalog.ts.
  */
-export const UNMAPPED_ICONS: string[] = ["JTP"];
+export const UNMAPPED_ICONS: string[] = [];
 
 /**
  * Every distinct icon base code referenced by ICON_OPTION_TARGETS or

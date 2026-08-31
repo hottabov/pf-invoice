@@ -45,7 +45,7 @@ export type QuotationItemInput = ToSheetItemInput & {
   /** `DocumentItem.serialNumber` — used as-is (blank when unset) in the RSP
    * coverage table; never a placeholder-substitution concern. */
   serialNumber: string | null;
-  /** The item's product's series code (e.g. "M", "XC", "EL") — see
+  /** The item's product's series code (e.g. "M", "X", "EL") — see
    * `productBlockKey`. `null` for a snapshot item whose product no longer
    * resolves a series. */
   seriesCode: string | null;
@@ -118,11 +118,14 @@ export function resolveBlocks(blocks: ContentBlockRow[], regionId: string): Map<
  * stripped (e.g. "ABR-M" -> "option.ABR", "ABR-FP" -> "option.ABR"). A code
  * with no "-" only ever produces the one exact candidate.
  *
- * Fabric Master is catalogued as an M/XC-series *option* rather than a
- * standalone product (e.g. "FM180"), so it never goes through
- * `productBlockKey`. To keep it reachable, any code starting with "FM" gets
- * "equipment.fabric-master" appended as a last-resort candidate, after the
- * exact-key (and, where applicable, stripped-suffix) misses.
+ * Fabric Master ("FM180") no longer needs a special-case fallback here: it
+ * was catalogued as an M/X-series option with no standalone product to
+ * route through `productBlockKey`, but the option itself was retired (not
+ * sold anymore, owner decision — see RETIRED_OPTION_CODES in prisma/seed.ts)
+ * and dropped from extraction entirely (scripts/extract-catalog.ts), so no
+ * document can add a new "FM180" line any more. The `equipment.fabric-master`
+ * content block itself is left in place (harmless — content blocks with no
+ * matching option are simply never rendered).
  *
  * Callers should try each candidate against the resolved blocks map in
  * order and use the first hit, skipping the option entirely if none
@@ -136,9 +139,6 @@ export function optionBlockKey(code: string): string[] {
     const strippedKey = `option.${stripped}`;
     if (!candidates.includes(strippedKey)) candidates.push(strippedKey);
   }
-  if (code.startsWith("FM") && !candidates.includes("equipment.fabric-master")) {
-    candidates.push("equipment.fabric-master");
-  }
   return candidates;
 }
 
@@ -146,7 +146,7 @@ export function optionBlockKey(code: string): string[] {
  * The single `ContentBlock` key for a machine/equipment item's product, or
  * `null` when nothing in the content library covers it (item still renders,
  * just without a `titleBlockHtml`). Mapping is by series code:
- *  - "M" / "XC" (the cutting-machine series) -> "machine.m-series"
+ *  - "M" / "X" (the cutting-machine series) -> "machine.m-series"
  *  - "EL" (Easy-Loader) -> "equipment.easy-loader"
  *  - "FP" (Fabric Pro) -> "equipment.fabric-pro"
  *  - "P" (Punchline) -> "equipment.punchline"
@@ -159,7 +159,7 @@ export function optionBlockKey(code: string): string[] {
 export function productBlockKey(productCode: string, seriesCode: string | null): string | null {
   switch (seriesCode) {
     case "M":
-    case "XC":
+    case "X":
       return "machine.m-series";
     case "EL":
       return "equipment.easy-loader";
@@ -188,7 +188,7 @@ export function productBlockKey(productCode: string, seriesCode: string | null):
  * "is this a machine at all" (RSP coverage), that is "which content block
  * describes this specific product".
  */
-const MACHINE_SERIES_CODES = new Set(["M", "XC", "L", "P", "LNS"]);
+const MACHINE_SERIES_CODES = new Set(["M", "X", "L", "P", "LNS"]);
 
 /**
  * Display name per series code, for the one piece of prose
@@ -199,7 +199,7 @@ const MACHINE_SERIES_CODES = new Set(["M", "XC", "L", "P", "LNS"]);
  * to the raw code itself (moot in practice, since `machineSpecSentence`
  * returns `null` for those series regardless of the name it's given).
  */
-const SERIES_DISPLAY_NAMES: Record<string, string> = { M: "M-Series", XC: "X-Calibre", L: "L-Series" };
+const SERIES_DISPLAY_NAMES: Record<string, string> = { M: "M-Series", X: "X-Calibre", L: "L-Series" };
 
 // --- substitutePlaceholders ------------------------------------------------
 

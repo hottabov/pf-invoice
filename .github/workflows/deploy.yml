@@ -77,7 +77,7 @@ jobs:
             adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
           });
 
-          const expected = { regions: 3, series: 9, products: 64 };
+          const expected = { regions: 3, series: 10, products: 67 };
 
           async function main() {
             const [regions, series, products] = await Promise.all([

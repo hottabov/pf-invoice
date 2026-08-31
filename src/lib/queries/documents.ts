@@ -125,7 +125,7 @@ export type BuilderItem = {
    * (shouldn't happen: deleting a referenced product is blocked — see
    * `deleteProduct` in actions/catalog.ts). */
   seriesId: string | null;
-  /** The item's product's series *code* (e.g. "M", "XC", "EL") — distinct
+  /** The item's product's series *code* (e.g. "M", "X", "EL") — distinct
    * from `seriesId`, needed by `productBlockKey` (src/lib/quotation-data.ts)
    * to map an item to its `machine.*`/`equipment.*`/`software.*` content
    * block. `null` in the same defensive case as `seriesId`. */

@@ -38,7 +38,7 @@ describe('Catalog Extraction Validation', () => {
 
   beforeAll(() => {
     mSeries = catalog.series.find((s) => s.seriesCode === 'M')!;
-    xcSeries = catalog.series.find((s) => s.seriesCode === 'XC')!;
+    xcSeries = catalog.series.find((s) => s.seriesCode === 'X')!;
     lSeries = catalog.series.find((s) => s.seriesCode === 'L')!;
     pSeries = catalog.series.find((s) => s.seriesCode === 'P')!;
 
@@ -51,19 +51,22 @@ describe('Catalog Extraction Validation', () => {
   });
 
   describe('Series Structure', () => {
-    it('should have exactly 9 series', () => {
-      expect(catalog.series).toHaveLength(9);
+    // 10 series: the original 9 plus "SVC" (Service) -- a hand-authored
+    // series with no sheet of its own, added for the new "SERVICE" container
+    // product and its SVC-* service options (see MANUAL_PRODUCTS.SVC and
+    // MANUAL_OPTIONS in scripts/extract-catalog.ts).
+    it('should have exactly 10 series', () => {
+      expect(catalog.series).toHaveLength(10);
     });
 
-    // Total grew from 54 to 64 with the North America USD price-list
-    // extraction: 10 genuinely new products confirmed by that sheet with no
-    // AU-sheet equivalent (M3300/M5300/M7300/M10300, L-320E, PTW(I),
-    // EL-3220/EL-4030, EF-3220, FP-300) were added via NA_PRODUCTS in
-    // scripts/extract-catalog.ts -- see that file's header comment on
-    // NA_PRODUCTS for the evidence behind each one.
-    it('should have exactly 64 total products across all series', () => {
+    // 64 -> 67: the single width-less "HDRF" product was split into three
+    // width variants (HDRF-180/220/320, net +2 -- owner decision, see
+    // MANUAL_PRODUCTS.EF), and the new "SERVICE" container product was added
+    // (+1, see MANUAL_PRODUCTS.SVC). See that file's header comments for the
+    // full history of how 64 itself was reached (10 NA-only additions).
+    it('should have exactly 67 total products across all series', () => {
       const totalProducts = catalog.series.reduce((sum, series) => sum + series.products.length, 0);
-      expect(totalProducts).toBe(64);
+      expect(totalProducts).toBe(67);
     });
 
     it('M series should have 16 products (12 original + NA-only M3300/M5300/M7300/M10300)', () => {
@@ -83,9 +86,14 @@ describe('Catalog Extraction Validation', () => {
       expect(el.products).toHaveLength(4);
     });
 
-    it('EasyFeeder (EF) should have 5 products (2020/2420/4030 + manual HDRF + NA-only EF-3220)', () => {
+    // 5 -> 7: the single "HDRF" product was replaced by three width variants
+    // (HDRF-180/220/320) -- see MANUAL_PRODUCTS.EF in scripts/extract-catalog.ts.
+    it('EasyFeeder (EF) should have 7 products (2020/2420/4030 + NA-only EF-3220 + manual HDRF-180/220/320)', () => {
       const ef = catalog.series.find((s) => s.seriesCode === 'EF')!;
-      expect(ef.products).toHaveLength(5);
+      expect(ef.products).toHaveLength(7);
+      expect(ef.products.map((p) => p.code).sort()).toEqual(
+        ['EF-2020', 'EF-2420', 'EF-3220', 'EF-4030', 'HDRF-180', 'HDRF-220', 'HDRF-320'].sort()
+      );
     });
 
     it('FabricPro (FP) should have 4 products (FP-180/FP-220 + manual FP-TROLLEY + NA-only FP-300)', () => {
@@ -97,27 +105,49 @@ describe('Catalog Extraction Validation', () => {
       const sw = catalog.series.find((s) => s.seriesCode === 'SW')!;
       expect(sw.products).toHaveLength(11);
     });
+
+    // New hand-authored series (see MANUAL_PRODUCTS.SVC in
+    // scripts/extract-catalog.ts) -- a container product for the SVC-*
+    // service options, not sold on its own (price 0, needsReview false).
+    it('Service (SVC) should have exactly 1 product: "SERVICE"', () => {
+      const svc = catalog.series.find((s) => s.seriesCode === 'SVC')!;
+      expect(svc).toBeDefined();
+      expect(svc.products).toHaveLength(1);
+      expect(svc.products[0]).toMatchObject({
+        code: 'SERVICE',
+        name: 'Service',
+        price: 0,
+        needsReview: false,
+      });
+    });
   });
 
-  describe('XC and M Series Code Mapping', () => {
-    // XC is cloned from M-Series' products BEFORE the NA-only M3300/M5300/
+  describe('X and M Series Code Mapping', () => {
+    // X is cloned from M-Series' products BEFORE the NA-only M3300/M5300/
     // M7300/M10300 products are appended (see scripts/extract-catalog.ts's
     // main()) -- there's no NA evidence of a matching X-3300-style product
-    // (the NA X-series sheet only prices X10180/X10220), so XC intentionally
+    // (the NA X-series sheet only prices X10180/X10220), so X intentionally
     // stays at its original 12 rather than growing to 16 alongside M.
-    it('XC series should have 12 products (unaffected by the NA-only M-series widths)', () => {
+    it('X series should have 12 products (unaffected by the NA-only M-series widths)', () => {
       expect(xcSeries.products).toHaveLength(12);
     });
 
-    it('every XC product should correspond to an M product of the same spec (X-<code> <-> M<code>)', () => {
+    // The X-Calibre *series code* is "X" (renamed from "XC" -- the catalog
+    // UI showed "XC" but should read "X"; product codes were already
+    // "X-####" before this rename and are unaffected).
+    it('X series seriesName should still read "X-Calibre"', () => {
+      expect(xcSeries.seriesName).toBe('X-Calibre');
+    });
+
+    it('every X product should correspond to an M product of the same spec (X-<code> <-> M<code>)', () => {
       xcSeries.products.forEach((xcProduct) => {
         const expectedMCode = 'M' + xcProduct.code.substring(2);
         const mProduct = mSeries.products.find((p) => p.code === expectedMCode);
-        expect(mProduct, `expected M product "${expectedMCode}" for XC product "${xcProduct.code}"`).toBeDefined();
+        expect(mProduct, `expected M product "${expectedMCode}" for X product "${xcProduct.code}"`).toBeDefined();
       });
     });
 
-    it('every original M product (excluding the NA-only 300cm-width tier) has an XC clone', () => {
+    it('every original M product (excluding the NA-only 300cm-width tier) has an X clone', () => {
       const naOnlyMCodes = new Set(['M3300', 'M5300', 'M7300', 'M10300']);
       mSeries.products
         .filter((p) => !naOnlyMCodes.has(p.code))
@@ -171,9 +201,18 @@ describe('Catalog Extraction Validation', () => {
   describe('Price Validation Rules', () => {
     // A price is either a usable positive number, or it's flagged for review
     // (covers both a missing price, e.g. M3390, and a present-but-unusable
-    // one, e.g. TPL's genuine 0).
-    it('every item should have a positive price OR be flagged needsReview', () => {
+    // one, e.g. TPL's genuine 0) -- with one deliberate, documented
+    // exception: "SERVICE" (see MANUAL_PRODUCTS.SVC in
+    // scripts/extract-catalog.ts) is a container product never sold on its
+    // own -- its own price is a real, intentional 0, not a "TBD" gap, so
+    // needsReview is false for it specifically.
+    it('every item should have a positive price OR be flagged needsReview (except the SERVICE container product)', () => {
       allItems.forEach((item) => {
+        if (item.code === 'SERVICE') {
+          expect(item.price).toBe(0);
+          expect(item.needsReview).toBe(false);
+          return;
+        }
         expect((item.price !== null && item.price > 0) || item.needsReview).toBe(true);
       });
     });
@@ -221,19 +260,29 @@ describe('Catalog Extraction Validation', () => {
       expect(trolley?.needsReview).toBe(true);
     });
 
-    it('HDRF (manual EF product) should exist with needsReview=true and no price', () => {
+    // The old single width-less "HDRF" product was split into three width
+    // variants (owner decision, model like EasyLoader) -- see
+    // MANUAL_PRODUCTS.EF in scripts/extract-catalog.ts. "HDRF" itself no
+    // longer exists as a product code.
+    it('HDRF-180/220/320 (manual EF products) should exist with needsReview=true and no AU price', () => {
       const ef = catalog.series.find((s) => s.seriesCode === 'EF')!;
-      const hdrf = ef.products.find((p) => p.code === 'HDRF');
-      expect(hdrf).toBeDefined();
-      expect(hdrf?.name).toBe('Heavy Duty Roll Feeder');
-      expect(hdrf?.price).toBeNull();
-      expect(hdrf?.needsReview).toBe(true);
+      expect(ef.products.some((p) => p.code === 'HDRF')).toBe(false);
+      for (const code of ['HDRF-180', 'HDRF-220', 'HDRF-320']) {
+        const product = ef.products.find((p) => p.code === code);
+        expect(product, `expected EF product "${code}"`).toBeDefined();
+        expect(product?.name).toBe(`Heavy Duty Roll Feeder ${code.split('-')[1]}`);
+        expect(product?.price).toBeNull();
+        expect(product?.needsReview).toBe(true);
+      }
     });
   });
 
   describe('Global Options', () => {
-    it('should have exactly 81 global options', () => {
-      expect(catalog.options).toHaveLength(81);
+    // 81 -> 90: -1 (FM180 retired, not sold anymore -- see the "FM180
+    // retirement" describe block below), +1 (JTP), +9 (SVC-* service
+    // options) -- see MANUAL_OPTIONS in scripts/extract-catalog.ts.
+    it('should have exactly 90 global options', () => {
+      expect(catalog.options).toHaveLength(90);
     });
 
     // Most options are series-scoped (non-empty compatibleSeries). A few
@@ -261,12 +310,12 @@ describe('Catalog Extraction Validation', () => {
       });
     });
 
-    it('every option sourced from the M sheet should include "XC" in compatibleSeries', () => {
-      // PTW (merged M+L) and every M-only/split "-M" option should carry XC.
+    it('every option sourced from the M sheet should include "X" in compatibleSeries', () => {
+      // PTW (merged M+L) and every M-only/split "-M" option should carry X.
       const mSourced = catalog.options.filter((o) => o.compatibleSeries.includes('M'));
       expect(mSourced.length).toBeGreaterThan(0);
       mSourced.forEach((option) => {
-        expect(option.compatibleSeries).toContain('XC');
+        expect(option.compatibleSeries).toContain('X');
       });
     });
 
@@ -275,7 +324,7 @@ describe('Catalog Extraction Validation', () => {
       const ptw = catalog.options.filter((o) => o.code === 'PTW');
       expect(ptw).toHaveLength(1);
       expect(ptw[0].price).toBe(3500);
-      expect(ptw[0].compatibleSeries.sort()).toEqual(['L', 'M', 'XC'].sort());
+      expect(ptw[0].compatibleSeries.sort()).toEqual(['L', 'M', 'X'].sort());
       // No unsuffixed leftovers for a merged code.
       expect(catalog.options.some((o) => o.code === 'PTW-M' || o.code === 'PTW-L')).toBe(false);
     });
@@ -291,7 +340,7 @@ describe('Catalog Extraction Validation', () => {
         expect(mVariant).toBeDefined();
         expect(lVariant).toBeDefined();
         expect(mVariant!.price).not.toBe(lVariant!.price);
-        expect(mVariant!.compatibleSeries).toContain('XC');
+        expect(mVariant!.compatibleSeries).toContain('X');
       });
 
       // Crate splits three ways (M, P, FP), all at different prices.
@@ -327,6 +376,59 @@ describe('Catalog Extraction Validation', () => {
       const praProduct = sw.products.find((p) => p.code === 'PRA');
       expect(praProduct).toBeDefined();
       expect(praProduct!.price).toBe(3500);
+    });
+
+    // New owner-requested option (MANUAL_OPTIONS in scripts/extract-catalog.ts),
+    // distinct from the pre-existing "JetPen" option sourced from the
+    // L-Series sheet's own row (priced 7500).
+    it('JTP ("JetPen") should exist, L-Series only, price null + needsReview true', () => {
+      const jtp = catalog.options.find((o) => o.code === 'JTP');
+      expect(jtp).toBeDefined();
+      expect(jtp?.name).toBe('JetPen');
+      expect(jtp?.price).toBeNull();
+      expect(jtp?.needsReview).toBe(true);
+      expect(jtp?.compatibleSeries).toEqual(['L']);
+
+      // The pre-existing "JetPen" option (different code, different price)
+      // is untouched by this addition.
+      const jetPen = catalog.options.find((o) => o.code === 'JetPen');
+      expect(jetPen).toBeDefined();
+      expect(jetPen?.price).toBe(7500);
+    });
+
+    // FM180 ("Fabric Master") retired -- not sold anymore (owner decision).
+    // Dropped at extraction (scripts/extract-catalog.ts skips the row) so it
+    // never reappears in catalog.json; prisma/seed.ts's RETIRED_OPTION_CODES
+    // handles cleaning it up on an existing DB.
+    it('FM180 no longer exists as a catalog option', () => {
+      expect(catalog.options.some((o) => o.code === 'FM180')).toBe(false);
+    });
+
+    // Service options (MANUAL_OPTIONS in scripts/extract-catalog.ts),
+    // product-scoped to the new "SERVICE" container product, sourced from
+    // prisma/seed-data/prices-us.json's `unmatched[]` rows (real NA service
+    // rows with no AU equivalent) -- see scripts/extract-us-prices.ts.
+    it('service options exist, product-scoped to SERVICE, AU price null + needsReview true', () => {
+      const serviceCodes = [
+        'SVC-LNS-INSTALL',
+        'SVC-FP-INSTALL',
+        'SVC-HDRF-INSTALL',
+        'SVC-M-INSTALL',
+        'SVC-M-INSTALL-MTS',
+        'SVC-L-INSTALL',
+        'SVC-L-INSTALL-MTS',
+        'SVC-EL-INSTALL',
+        'SVC-SW-TRAINING',
+      ];
+      expect(serviceCodes).toHaveLength(9);
+      for (const code of serviceCodes) {
+        const option = catalog.options.find((o) => o.code === code);
+        expect(option, `expected service option "${code}"`).toBeDefined();
+        expect(option?.price).toBeNull();
+        expect(option?.needsReview).toBe(true);
+        expect(option?.compatibleSeries).toEqual([]);
+        expect(option?.compatibleProducts).toEqual(['SERVICE']);
+      }
     });
   });
 

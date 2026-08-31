@@ -57,26 +57,20 @@ describe("optionBlockKey — fallback", () => {
     expect(optionBlockKey("-M")).toEqual(["option.-M"]);
   });
 
-  it("appends equipment.fabric-master as a last-resort candidate for FM-prefixed codes", () => {
-    // Fabric Master is catalogued as an M/XC option (e.g. "FM180"), not a
-    // standalone product, so it needs a fallback into the equipment.* key
-    // space rather than a never-seeded "option.FM180".
-    expect(optionBlockKey("FM180")).toEqual(["option.FM180", "equipment.fabric-master"]);
-  });
-
-  it("appends the fabric-master fallback after a stripped-suffix candidate too", () => {
-    expect(optionBlockKey("FM-220")).toEqual(["option.FM-220", "option.FM", "equipment.fabric-master"]);
-  });
-
-  it("does not add the fabric-master fallback for non-FM codes", () => {
-    expect(optionBlockKey("MTS")).not.toContain("equipment.fabric-master");
+  // FM180 ("Fabric Master") was retired (not sold anymore, owner decision)
+  // and the equipment.fabric-master special-case fallback removed along with
+  // it -- see optionBlockKey's doc comment in src/lib/quotation-data.ts. A
+  // code with an "FM" prefix is no longer treated specially at all.
+  it("does not add an equipment.fabric-master fallback for FM-prefixed codes (special case removed)", () => {
+    expect(optionBlockKey("FM180")).toEqual(["option.FM180"]);
+    expect(optionBlockKey("FM-220")).toEqual(["option.FM-220", "option.FM"]);
   });
 });
 
 describe("productBlockKey", () => {
-  it("maps M and XC series to machine.m-series", () => {
+  it("maps M and X series to machine.m-series", () => {
     expect(productBlockKey("M5180", "M")).toBe("machine.m-series");
-    expect(productBlockKey("XC450", "XC")).toBe("machine.m-series");
+    expect(productBlockKey("X-450", "X")).toBe("machine.m-series");
   });
 
   it("maps EL to equipment.easy-loader and FP to equipment.fabric-pro", () => {
@@ -328,18 +322,18 @@ describe("buildQuotationData", () => {
     expect(data.rsp.coverageRows[0].serialNumber).toBe("");
   });
 
-  it("includes items from every machine series (M, XC, L, P, LNS)", () => {
+  it("includes items from every machine series (M, X, L, P, LNS)", () => {
     const doc = baseDoc({
       items: [
         baseItem({ id: "i-m", name: "M item", seriesCode: "M" }),
-        baseItem({ id: "i-xc", name: "XC item", seriesCode: "XC" }),
+        baseItem({ id: "i-xc", name: "X item", seriesCode: "X" }),
         baseItem({ id: "i-l", name: "L item", seriesCode: "L" }),
         baseItem({ id: "i-p", name: "P item", seriesCode: "P" }),
         baseItem({ id: "i-lns", name: "LNS item", seriesCode: "LNS" }),
       ],
     });
     const data = buildQuotationData(doc, []);
-    expect(data.rsp.coverageRows.map((r) => r.name)).toEqual(["M item", "XC item", "L item", "P item", "LNS item"]);
+    expect(data.rsp.coverageRows.map((r) => r.name)).toEqual(["M item", "X item", "L item", "P item", "LNS item"]);
   });
 
   it("excludes a non-machine-series item with no serial number (e.g. an option/accessory/software item)", () => {

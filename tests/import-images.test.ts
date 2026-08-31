@@ -113,9 +113,12 @@ describe("ICON_OPTION_TARGETS / ICON_PRODUCT_TARGETS", () => {
     }
   });
 
-  it("lists JTP as unmapped, and does not also map it as a target", () => {
-    expect(UNMAPPED_ICONS).toContain("JTP");
-    expect(Object.keys(ICON_OPTION_TARGETS)).not.toContain("JTP");
+  // JTP used to sit in UNMAPPED_ICONS (no catalog option existed for it yet).
+  // The new "JTP" ("JetPen") option (see MANUAL_OPTIONS in
+  // scripts/extract-catalog.ts) gives it somewhere to map to now.
+  it("maps JTP to the new JTP option, and no longer lists it as unmapped", () => {
+    expect(ICON_OPTION_TARGETS.JTP).toEqual(["JTP"]);
+    expect(UNMAPPED_ICONS).not.toContain("JTP");
     expect(Object.keys(ICON_PRODUCT_TARGETS)).not.toContain("JTP");
   });
 
@@ -158,8 +161,8 @@ describe("distinctIconCodes", () => {
     expect(codes).toEqual([...codes].sort());
   });
 
-  it("excludes JTP", () => {
-    expect(distinctIconCodes()).not.toContain("JTP");
+  it("includes JTP (now mapped, see ICON_OPTION_TARGETS)", () => {
+    expect(distinctIconCodes()).toContain("JTP");
   });
 });
 

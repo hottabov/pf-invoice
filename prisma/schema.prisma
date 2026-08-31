@@ -101,7 +101,7 @@ model VerificationToken {
 
 model Series {
   id             String                @id @default(cuid())
-  code           String                @unique // M, XC, L, P, SW, LNS, EL, EF, FP
+  code           String                @unique // M, X, L, P, SW, LNS, EL, EF, FP, SVC
   name           String // M-Series, X-Calibre...
   maxDiscountPct Decimal?              @db.Decimal(5, 2) // L-Series: 10
   sortOrder      Int                   @default(0)

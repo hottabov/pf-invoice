@@ -100,7 +100,18 @@ describe("Spot Price Validation (USD)", () => {
     expect(byCode.get("LNS-2020")).toBe(27534);
   });
 
-  it("HDRF = 12500", () => {
-    expect(byCode.get("HDRF")).toBe(12500);
+  // HDRF was split into three width variants -- HDRF-180 is the one that
+  // absorbed the old width-less "HDRF" code's US price (see extractHDRF in
+  // scripts/extract-us-prices.ts).
+  it("HDRF-180 = 12500", () => {
+    expect(byCode.get("HDRF-180")).toBe(12500);
+  });
+
+  it("HDRF-220 = 13900", () => {
+    expect(byCode.get("HDRF-220")).toBe(13900);
+  });
+
+  it("HDRF-320 = 15290", () => {
+    expect(byCode.get("HDRF-320")).toBe(15290);
   });
 });

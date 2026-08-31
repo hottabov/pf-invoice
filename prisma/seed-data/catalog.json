@@ -1,8 +1,8 @@
 {
-  "extractedAt": "2026-08-31T01:01:29.818Z",
+  "extractedAt": "2026-08-31T02:15:13.315Z",
   "series": [
     {
-      "seriesCode": "XC",
+      "seriesCode": "X",
       "seriesName": "X-Calibre",
       "maxDiscountPct": null,
       "products": [
@@ -469,9 +469,23 @@
           "needsReview": false
         },
         {
-          "code": "HDRF",
-          "name": "Heavy Duty Roll Feeder",
-          "description": "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 2240mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
+          "code": "HDRF-180",
+          "name": "Heavy Duty Roll Feeder 180",
+          "description": "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 1800mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
+          "price": null,
+          "needsReview": true
+        },
+        {
+          "code": "HDRF-220",
+          "name": "Heavy Duty Roll Feeder 220",
+          "description": "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 2200mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
+          "price": null,
+          "needsReview": true
+        },
+        {
+          "code": "HDRF-320",
+          "name": "Heavy Duty Roll Feeder 320",
+          "description": "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 3200mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
           "price": null,
           "needsReview": true
         }
@@ -509,6 +523,20 @@
           "description": "Ergonomic fabric roll trolley designed for seamless use with the FabricPro spreading system. Direct roll transfer from storage to FabricPro with no intermediate handling or bulky roll-lifting devices. Carries up to 2 fabric rolls; 2 lockable castor wheels; welded steel construction; compatible with EasyLoader tables (880-940mm height); compact flat-packed design.",
           "price": null,
           "needsReview": true
+        }
+      ]
+    },
+    {
+      "seriesCode": "SVC",
+      "seriesName": "Service",
+      "maxDiscountPct": null,
+      "products": [
+        {
+          "code": "SERVICE",
+          "name": "Service",
+          "description": "Installation, training and support services.",
+          "price": 0,
+          "needsReview": false
         }
       ]
     }
@@ -632,7 +660,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -643,7 +671,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -664,7 +692,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -685,7 +713,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -696,7 +724,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -747,7 +775,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -768,7 +796,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -779,7 +807,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -810,7 +838,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -821,7 +849,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -832,7 +860,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -843,7 +871,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -854,7 +882,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -875,7 +903,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -886,7 +914,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1051,18 +1079,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
-      ]
-    },
-    {
-      "code": "FM180",
-      "name": "Fabric Master- semi automatic fabric spreading machine for materials widths up to 1800mm.",
-      "description": "Fabric Master- semi automatic fabric spreading machine for materials widths up to 1800mm.",
-      "price": 16000,
-      "needsReview": false,
-      "compatibleSeries": [
-        "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1083,7 +1100,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1104,7 +1121,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1115,7 +1132,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1126,7 +1143,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1137,7 +1154,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1151,6 +1168,16 @@
       ]
     },
     {
+      "code": "JTP",
+      "name": "JetPen",
+      "description": "Non-contact high speed ink marking.",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
       "code": "MRK",
       "name": "Marking tool includes standard Bic biro pen holder (After sales: Head cover replacement is at extra cost)",
       "description": "Marking tool includes standard Bic biro pen holder (After sales: Head cover replacement is at extra cost)",
@@ -1158,7 +1185,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1169,7 +1196,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1180,7 +1207,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1211,7 +1238,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1222,7 +1249,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1243,7 +1270,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1264,7 +1291,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1295,7 +1322,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1306,7 +1333,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC",
+        "X",
         "L"
       ]
     },
@@ -1318,6 +1345,105 @@
       "needsReview": false,
       "compatibleSeries": [
         "L"
+      ]
+    },
+    {
+      "code": "SVC-EL-INSTALL",
+      "name": "EasyLoader Installation",
+      "description": "EasyLoader installation (Drive Module + Additional Modules) with Cutter installation.",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "SERVICE"
+      ]
+    },
+    {
+      "code": "SVC-FP-INSTALL",
+      "name": "FabricPro Installation & Training (1 day)",
+      "description": "FabricPro Installation & Training, 1 day (with Cutter installation).",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "SERVICE"
+      ]
+    },
+    {
+      "code": "SVC-HDRF-INSTALL",
+      "name": "HDRF Installation (2 hours)",
+      "description": "Heavy Duty Roll Feeder installation, 2 hours.",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "SERVICE"
+      ]
+    },
+    {
+      "code": "SVC-L-INSTALL",
+      "name": "L-Series Installation & Training (Static, no MTS)",
+      "description": "L-Series Install/Training (Static -- no MTS).",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "SERVICE"
+      ]
+    },
+    {
+      "code": "SVC-L-INSTALL-MTS",
+      "name": "L-Series Installation & Training (with MTS)",
+      "description": "L-Series Install/Training, with MTS.",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "SERVICE"
+      ]
+    },
+    {
+      "code": "SVC-LNS-INSTALL",
+      "name": "Installation/Training — Leather Nesting System (with cutter)",
+      "description": "Installation/Training — Leather Nesting System (with cutter installation), 2 days.",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "SERVICE"
+      ]
+    },
+    {
+      "code": "SVC-M-INSTALL",
+      "name": "M-Series Installation & Training (Static, no MTS)",
+      "description": "1 day installation, 3 days training (Static -- no MTS).",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "SERVICE"
+      ]
+    },
+    {
+      "code": "SVC-M-INSTALL-MTS",
+      "name": "M-Series Installation & Training (with MTS, up to 6m travel)",
+      "description": "2 day installation, 3 days training, with MTS up to 6m travel.",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "SERVICE"
+      ]
+    },
+    {
+      "code": "SVC-SW-TRAINING",
+      "name": "Software Remote Training Support",
+      "description": "Remote training support for PathWorks/PathCut software modules.",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "SERVICE"
       ]
     },
     {
@@ -1338,7 +1464,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1349,7 +1475,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1360,7 +1486,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     },
     {
@@ -1371,7 +1497,7 @@
       "needsReview": false,
       "compatibleSeries": [
         "M",
-        "XC"
+        "X"
       ]
     }
   ]

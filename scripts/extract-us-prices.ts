@@ -278,13 +278,25 @@ function extractMSeries(wb: XLSX.WorkBook): void {
   }
   // Rows 43-46: Crate M180 / Crate M220 (per-width crate, no single
   // catalog "Crate-M180"/"Crate-M220" code -- the catalog's one "Crate-M" is
-  // not width-specific) and Install/Training x2 (services).
+  // not width-specific -- stay unmatched) and Install/Training x2, which now
+  // map onto the SVC-M-INSTALL / SVC-M-INSTALL-MTS service options (see
+  // MANUAL_OPTIONS in scripts/extract-catalog.ts) instead of staying
+  // unmatched.
+  const installTargets: Record<string, string> = {
+    "Install/Training": "SVC-M-INSTALL",
+    "Install/Training+MTS": "SVC-M-INSTALL-MTS",
+  };
   for (let row = 43; row <= 46; row++) {
     const rawCode = cellText(ws, `C${row}`);
     const price = cellNumber(ws, `F${row}`);
     if (!rawCode || price === null) continue;
     const label = cellText(ws, `E${row}`) || rawCode;
-    addUnmatched(sheet, `${rawCode} -- ${label}`, price);
+    const target = installTargets[rawCode];
+    if (target) {
+      setPrice(target, price, `${sheet} C${row}`);
+    } else {
+      addUnmatched(sheet, `${rawCode} -- ${label}`, price);
+    }
   }
 }
 
@@ -371,12 +383,17 @@ function extractLSeries(wb: XLSX.WorkBook): void {
     }
   }
 
-  // Rows 40-41: Install/Training rows (services).
+  // Rows 40-41: Install/Training rows -- row 40 (L180/L180E/L220, Static/no
+  // MTS, 6900) maps to SVC-L-INSTALL; row 41 (L220E/L320E, with MTS, 8820)
+  // maps to SVC-L-INSTALL-MTS (see MANUAL_OPTIONS in
+  // scripts/extract-catalog.ts). Mapped by row index rather than by parsing
+  // the descriptive column-C text (which lists machine widths, not a code).
+  const installTargetsByRow: Record<number, string> = { 40: "SVC-L-INSTALL", 41: "SVC-L-INSTALL-MTS" };
   for (const row of [40, 41]) {
     const rawCode = cellText(ws, `C${row}`);
     const price = cellNumber(ws, `F${row}`);
     if (!rawCode || price === null) continue;
-    addUnmatched(sheet, `${rawCode} (service)`, price);
+    setPrice(installTargetsByRow[row], price, `${sheet} C${row}`);
   }
 }
 
@@ -407,11 +424,12 @@ function extractSoftware(wb: XLSX.WorkBook): void {
     }
   }
 
-  // Row 13: "Training" (remote support, service) -- reported, not catalogued.
+  // Row 13: "Training" (remote support, service) -- maps to SVC-SW-TRAINING
+  // (see MANUAL_OPTIONS in scripts/extract-catalog.ts).
   {
     const rawCode = cellText(ws, "C13");
     const price = cellNumber(ws, "F13");
-    if (rawCode && price !== null) addUnmatched(sheet, `${rawCode} (service)`, price);
+    if (rawCode && price !== null) setPrice("SVC-SW-TRAINING", price, `${sheet} C13`);
   }
 
   // Row 17: "LS Convert software module (dongle protected)" -- the sheet's
@@ -434,7 +452,9 @@ function extractSoftware(wb: XLSX.WorkBook): void {
 // ---------------------------------------------------------------------------
 // Leather Nesting System -- LNS-2020/2420/3220 match by code; each width's
 // "Installation/Training (With cutter installation) 2 days." row is a
-// service, reported not catalogued.
+// service, priced identically (2600) across all three widths -- maps to the
+// SVC-LNS-INSTALL service option (see MANUAL_OPTIONS in
+// scripts/extract-catalog.ts) instead of staying unmatched.
 // ---------------------------------------------------------------------------
 
 function extractLNS(wb: XLSX.WorkBook): void {
@@ -453,7 +473,7 @@ function extractLNS(wb: XLSX.WorkBook): void {
     const serviceLabel = cellText(ws, `E${serviceRow}`);
     const servicePrice = cellNumber(ws, `F${serviceRow}`);
     if (serviceLabel && servicePrice !== null) {
-      addUnmatched(sheet, `${code} ${serviceLabel} (service)`, servicePrice);
+      setPrice("SVC-LNS-INSTALL", servicePrice, `${sheet} F${serviceRow}`);
     }
   }
 }
@@ -469,10 +489,16 @@ function extractLNS(wb: XLSX.WorkBook): void {
 // option equivalent at all and are reported as unmatched, not invented.
 // ---------------------------------------------------------------------------
 
+// Every section's own "Installation (Drive Module@... + Additional
+// Modules@...) with Cutter installation" row is priced identically (180)
+// regardless of width -- these map to the SVC-EL-INSTALL service option
+// (see MANUAL_OPTIONS in scripts/extract-catalog.ts) via the `service: true`
+// flag below, instead of staying unmatched like the (still-uncatalogued)
+// per-width Crate rows next to them.
 const EL_SECTIONS: {
   width: string;
   driveRow: number;
-  accessories: { row: number; target?: string }[];
+  accessories: { row: number; target?: string; service?: true }[];
 }[] = [
   {
     width: "2020",
@@ -492,7 +518,7 @@ const EL_SECTIONS: {
           "EL-2020 #ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
       },
       { row: 13 }, // Crate -- no catalog code
-      { row: 14 }, // Installation -- service
+      { row: 14, service: true }, // Installation -- service
     ],
   },
   {
@@ -513,7 +539,7 @@ const EL_SECTIONS: {
           "EL-2420 ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
       },
       { row: 28 }, // Crate -- no catalog code
-      { row: 29 }, // Installation -- service
+      { row: 29, service: true }, // Installation -- service
     ],
   },
   {
@@ -521,13 +547,27 @@ const EL_SECTIONS: {
     // option equivalent yet.
     width: "3220",
     driveRow: 36,
-    accessories: [{ row: 37 }, { row: 38 }, { row: 39 }, { row: 40 }, { row: 41 }, { row: 42 }],
+    accessories: [
+      { row: 37 },
+      { row: 38 },
+      { row: 39 },
+      { row: 40 },
+      { row: 41 }, // Crate -- no catalog code
+      { row: 42, service: true }, // Installation -- service
+    ],
   },
   {
     // NEW product (EL-4030, see NA_PRODUCTS) -- same as 3220.
     width: "4030",
     driveRow: 49,
-    accessories: [{ row: 50 }, { row: 51 }, { row: 52 }, { row: 53 }, { row: 54 }, { row: 55 }],
+    accessories: [
+      { row: 50 },
+      { row: 51 },
+      { row: 52 },
+      { row: 53 },
+      { row: 54 }, // Crate -- no catalog code
+      { row: 55, service: true }, // Installation -- service
+    ],
   },
 ];
 
@@ -546,6 +586,8 @@ function extractEasyLoader(wb: XLSX.WorkBook): void {
       const label = cellText(ws, `E${acc.row}`) || `(row ${acc.row})`;
       if (acc.target) {
         setPrice(acc.target, price, `${sheet} F${acc.row}`);
+      } else if (acc.service) {
+        setPrice("SVC-EL-INSTALL", price, `${sheet} F${acc.row}`);
       } else {
         addUnmatched(sheet, `EL-${section.width} ${label}`, price);
       }
@@ -590,8 +632,10 @@ function extractEasyFeed(wb: XLSX.WorkBook): void {
 // one per machine width), so only the first (FP-180's) is applied to
 // "Crate-FP"; the other two are logged as reconciliation notes via the
 // normal setPrice() dedup path, same as any other repeated code. Each
-// section's "Installation & Training" row is a service, reported not
-// catalogued. Note: this sheet's price column is G, not F (unlike every
+// section's "Installation & Training" row is a service, priced identically
+// (960) across all three widths -- maps to the SVC-FP-INSTALL service option
+// (see MANUAL_OPTIONS in scripts/extract-catalog.ts) instead of staying
+// unmatched. Note: this sheet's price column is G, not F (unlike every
 // other sheet in this workbook).
 // ---------------------------------------------------------------------------
 
@@ -614,18 +658,21 @@ function extractFabricPro(wb: XLSX.WorkBook): void {
     const installLabel = cellText(ws, `C${installRow}`);
     const installPrice = cellNumber(ws, `G${installRow}`);
     if (installLabel && installPrice !== null) {
-      addUnmatched(sheet, `${code} ${installLabel} (service)`, installPrice);
+      setPrice("SVC-FP-INSTALL", installPrice, `${sheet} G${installRow}`);
     }
   }
 }
 
 // ---------------------------------------------------------------------------
-// HDRF -- the catalog has a single, width-less "HDRF" product. This sheet
-// has three real width variants (HDRF-180/220/320) at three different
-// prices. Per spec: map the catalog's base "HDRF" price from HDRF-180 only,
-// and report the other two variants rather than inventing HDRF-220/HDRF-320
-// products. Crate and installation rows are reported, not catalogued (no
-// catalog crate/service code exists for this series at all).
+// HDRF -- the catalog now has three width-specific products, HDRF-180/220/320
+// (see MANUAL_PRODUCTS.EF in scripts/extract-catalog.ts; owner decision to
+// split the old single width-less "HDRF" product, same as this sheet's own
+// three real, distinctly-priced width variants). Each section's machine row
+// maps directly onto its matching catalog product code. Each section's
+// "2 hours installation" row is priced identically (180) across all three
+// widths and maps to the SVC-HDRF-INSTALL service option (see
+// MANUAL_OPTIONS in scripts/extract-catalog.ts). Crate rows are reported,
+// not catalogued (no catalog crate code exists for this series at all).
 // ---------------------------------------------------------------------------
 
 function extractHDRF(wb: XLSX.WorkBook): void {
@@ -633,35 +680,27 @@ function extractHDRF(wb: XLSX.WorkBook): void {
   const sheet = "HDRF";
 
   const sections = [
-    { widthCode: "HDRF-180", machineRow: 6, crateRow: 7, installRow: 8 },
-    { widthCode: "HDRF-220", machineRow: 13, crateRow: 14, installRow: 15 },
-    { widthCode: "HDRF320", machineRow: 23, crateRow: 24, installRow: 25 },
+    { widthLabel: "HDRF-180", catalogCode: "HDRF-180", machineRow: 6, crateRow: 7, installRow: 8 },
+    { widthLabel: "HDRF-220", catalogCode: "HDRF-220", machineRow: 13, crateRow: 14, installRow: 15 },
+    { widthLabel: "HDRF320", catalogCode: "HDRF-320", machineRow: 23, crateRow: 24, installRow: 25 },
   ];
 
   for (const section of sections) {
-    const machineLabel = cellText(ws, `C${section.machineRow}`);
     const machinePrice = cellNumber(ws, `G${section.machineRow}`);
     if (machinePrice !== null) {
-      if (section.widthCode === "HDRF-180") {
-        // Base catalog product -- per spec, this is the one price applied.
-        setPrice("HDRF", machinePrice, `${sheet} G${section.machineRow}`);
-      } else {
-        // HDRF-220 / HDRF320 -- real variants, reported only (per spec: do
-        // NOT create new HDRF-### products without explicit sign-off).
-        addUnmatched(sheet, `${section.widthCode} ${machineLabel} (width variant, not a catalog product)`, machinePrice);
-      }
+      setPrice(section.catalogCode, machinePrice, `${sheet} G${section.machineRow}`);
     }
 
     const crateLabel = cellText(ws, `C${section.crateRow}`);
     const cratePrice = cellNumber(ws, `G${section.crateRow}`);
     if (crateLabel && cratePrice !== null) {
-      addUnmatched(sheet, `${section.widthCode} ${crateLabel}`, cratePrice);
+      addUnmatched(sheet, `${section.widthLabel} ${crateLabel}`, cratePrice);
     }
 
     const installLabel = cellText(ws, `C${section.installRow}`);
     const installPrice = cellNumber(ws, `G${section.installRow}`);
     if (installLabel && installPrice !== null) {
-      addUnmatched(sheet, `${section.widthCode} ${installLabel} (service)`, installPrice);
+      setPrice("SVC-HDRF-INSTALL", installPrice, `${sheet} G${section.installRow}`);
     }
   }
 }
