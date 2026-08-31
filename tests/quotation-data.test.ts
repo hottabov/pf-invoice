@@ -210,6 +210,51 @@ const rspAgreementBlock: ContentBlockRow = {
   sortOrder: 5,
 };
 
+describe("buildQuotationData — machine spec parsing", () => {
+  it("derives cutHeightCm/cutWidthCm from the product code, overriding stored specs", () => {
+    // M3390 parses to 3cm height / 390cm width per the code — this must win
+    // over the (deliberately different/stale) specs field to prove code
+    // parsing is authoritative, not just a fallback.
+    const doc = baseDoc({
+      items: [baseItem({ code: "M3390", seriesCode: "M", specs: { cutHeightCm: 99, cutWidthCm: 99 } })],
+    });
+    const data = buildQuotationData(doc, [machineBlock]);
+    expect(data.machineSections[0].titleBlockHtml).toContain("Height 3cm, width 390cm");
+  });
+
+  it("falls back to the stored specs field when the code doesn't parse", () => {
+    const doc = baseDoc({
+      items: [baseItem({ code: "M999", seriesCode: "M", specs: { cutHeightCm: 7, cutWidthCm: 220 } })],
+    });
+    const data = buildQuotationData(doc, [machineBlock]);
+    expect(data.machineSections[0].titleBlockHtml).toContain("Height 7cm, width 220cm");
+  });
+
+  it("exposes specSentence on the machine section for a parseable M-Series code", () => {
+    const doc = baseDoc({ items: [baseItem({ code: "M3390", seriesCode: "M" })] });
+    const data = buildQuotationData(doc, [machineBlock]);
+    expect(data.machineSections[0].specSentence).toBe(
+      "M-Series Cutting Machine, 3cm compressed lay height, 390cm cutting width"
+    );
+  });
+
+  it("exposes specSentence for an L-Series code even with no matching content block", () => {
+    const doc = baseDoc({ items: [baseItem({ code: "L-320", seriesCode: "L", name: "L-320 Cutting System" })] });
+    const data = buildQuotationData(doc, []);
+    expect(data.machineSections[0].specSentence).toBe("L-Series Cutting Machine with 320cm cutting width");
+    // No `machine.*`/etc. content block covers L-Series at all — verify the
+    // blockless-item case still surfaces a real spec sentence rather than
+    // being left null/blank.
+    expect(data.machineSections[0].titleBlockHtml).toBeNull();
+  });
+
+  it("leaves specSentence null for a non-spec-encoding series (e.g. software)", () => {
+    const doc = baseDoc({ items: [baseItem({ code: "PTW(S)", seriesCode: "SW", name: "PathWorks" })] });
+    const data = buildQuotationData(doc, []);
+    expect(data.machineSections[0].specSentence).toBeNull();
+  });
+});
+
 describe("buildQuotationData", () => {
   it("resolves a machine title block with substituted vars", () => {
     // `model` is substituted with the raw `item.code` (e.g. "M5180") as-is —

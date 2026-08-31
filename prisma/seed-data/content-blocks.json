@@ -315,8 +315,9 @@
   ],
   "placeholders": {
     "model": "Machine model/series code (e.g. 450, X-450) — used for the main machine and Fabric Master/Fabric Pro model suffixes",
-    "cutHeightCm": "Maximum compressed cutting height, in cm",
-    "cutWidthCm": "Maximum cutting width, in cm",
+    "cutHeightCm": "Maximum compressed lay cutting height, in cm — derived automatically from the product code for M-Series/X-Calibre (e.g. \"M3390\" -> 3), where the code has no height segment (e.g. L-Series) this is manually maintained on the product's specs instead",
+    "cutWidthCm": "Maximum cutting width, in cm — derived automatically from the product code for M-Series/X-Calibre/L-Series (e.g. \"M3390\" -> 390, \"L-320\" -> 320); code parsing is authoritative over the catalog description, which can be wrong",
+    "specSentence": "Auto-generated one-line spec summary derived purely from the product code (e.g. \"M-Series Cutting Machine, 3cm compressed lay height, 390cm cutting width\" or \"L-Series Cutting Machine with 320cm cutting width\") — blank when the code doesn't match its series' known scheme",
     "price": "Base machine price (AUD)",
     "metres": "MTS (Machine Transfer System) machine travel distance, in metres",
     "tables": "MTS (Machine Transfer System) number of lay-up tables serviced",

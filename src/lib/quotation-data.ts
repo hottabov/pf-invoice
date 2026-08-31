@@ -11,6 +11,7 @@
 // `DocumentForBuilder` satisfies `QuotationDataDoc` without either file
 // importing the other, as long as `DocumentForBuilder`'s items carry the
 // extra fields (`specs`, `seriesCode`, `serialNumber`) this module needs.
+import { machineSpecSentence, parseMachineSpecs } from "./machine-specs";
 import { renderMarkdown } from "./markdown";
 import {
   toSheetData,
@@ -189,6 +190,17 @@ export function productBlockKey(productCode: string, seriesCode: string | null):
  */
 const MACHINE_SERIES_CODES = new Set(["M", "XC", "L", "P", "LNS"]);
 
+/**
+ * Display name per series code, for the one piece of prose
+ * `machineSpecSentence` needs that the code itself doesn't encode — e.g.
+ * "M3390" parses to a height+width but has no way to know it should read
+ * "M-Series" rather than "M". Limited to the three series
+ * `parseMachineSpecs` actually recognises; any other series code falls back
+ * to the raw code itself (moot in practice, since `machineSpecSentence`
+ * returns `null` for those series regardless of the name it's given).
+ */
+const SERIES_DISPLAY_NAMES: Record<string, string> = { M: "M-Series", XC: "X-Calibre", L: "L-Series" };
+
 // --- substitutePlaceholders ------------------------------------------------
 
 const PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
@@ -218,9 +230,18 @@ export type QuotationOptionBlock = {
 export type QuotationMachineSection = {
   itemId: string;
   /** Rendered `machine.*`/`equipment.*`/`software.*` block for this item's
-   * product, with `{{model}}`/`{{price}}`/`{{cutHeightCm}}`/`{{cutWidthCm}}`
-   * substituted — `null` when `productBlockKey` found no matching block. */
+   * product, with `{{model}}`/`{{price}}`/`{{cutHeightCm}}`/`{{cutWidthCm}}`/
+   * `{{specSentence}}` substituted — `null` when `productBlockKey` found no
+   * matching block, in which case the sheet renders `specSentence`
+   * (alongside the item's name/price from `lineSummary`) as a minimal
+   * auto-generated section instead — see quotation-sheet.tsx. */
   titleBlockHtml: string | null;
+  /** One-line spec summary derived purely from the product code (see
+   * `machineSpecSentence` in src/lib/machine-specs.ts) — e.g. "M-Series
+   * Cutting Machine, 3cm compressed lay height, 390cm cutting width".
+   * `null` when the series/code isn't one `parseMachineSpecs` recognises
+   * (most non-cutting-machine products, or a malformed code). */
+  specSentence: string | null;
   /** One rendered `option.*` block per OPTION line whose code resolves to a
    * block (see `optionBlockKey`) — a line with no matching block is simply
    * omitted, never rendered as a raw/blank entry. */
@@ -335,6 +356,21 @@ export function buildQuotationData(
       throw new Error(`buildQuotationData: no sheet item for document item ${item.id}`);
     }
 
+    // Code parsing is authoritative for a machine's cutting specs (per the
+    // owner's domain rule — catalog descriptions can be wrong, e.g. some
+    // "220"-width codes are mis-described as "227cm" in the source
+    // catalog). Only fall back to the item's stored `specs` JSON when the
+    // code doesn't parse against its series' known scheme (an unrecognised
+    // series, or a malformed code) — that's the pre-existing behavior this
+    // module had before code parsing existed, preserved as-is.
+    const parsedSpecs = parseMachineSpecs(item.seriesCode, item.code);
+    const cutHeightCm =
+      parsedSpecs?.heightCm !== undefined ? String(parsedSpecs.heightCm) : specString(item.specs, "cutHeightCm");
+    const cutWidthCm =
+      parsedSpecs?.widthCm !== undefined ? String(parsedSpecs.widthCm) : specString(item.specs, "cutWidthCm");
+    const seriesDisplayName = item.seriesCode ? (SERIES_DISPLAY_NAMES[item.seriesCode] ?? item.seriesCode) : "";
+    const specSentence = machineSpecSentence(seriesDisplayName, item.seriesCode, item.code);
+
     const blockKey = productBlockKey(item.code, item.seriesCode);
     const block = blockKey ? resolved.get(blockKey) : undefined;
     const titleBlockHtml = block
@@ -342,8 +378,9 @@ export function buildQuotationData(
           substitutePlaceholders(block.body, {
             model: item.code,
             price: item.unitPrice,
-            cutHeightCm: specString(item.specs, "cutHeightCm"),
-            cutWidthCm: specString(item.specs, "cutWidthCm"),
+            cutHeightCm,
+            cutWidthCm,
+            ...(specSentence ? { specSentence } : {}),
           })
         )
       : null;
@@ -360,7 +397,7 @@ export function buildQuotationData(
       });
     }
 
-    return { itemId: item.id, titleBlockHtml, optionBlocksHtml, lineSummary };
+    return { itemId: item.id, titleBlockHtml, specSentence, optionBlocksHtml, lineSummary };
   });
 
   const bankDetailsText = sheet.entity.bankDetails.map((row) => `${row.label}: ${row.value}`).join("\n");

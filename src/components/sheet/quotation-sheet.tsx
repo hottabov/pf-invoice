@@ -95,8 +95,22 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                 {section.titleBlockHtml ? (
                   <div className="pq-block-body" dangerouslySetInnerHTML={{ __html: section.titleBlockHtml }} />
                 ) : (
-                  <div className="pq-block-missing">
-                    {section.lineSummary.name} <span className="pq-item-code">{section.lineSummary.code}</span>
+                  // No admin-authored content block matched this item's
+                  // product (e.g. L-Series has none — see
+                  // src/lib/quotation-data.ts's `productBlockKey`) — render
+                  // a minimal auto-generated section from what's already
+                  // known about the item instead of just its bare name/code,
+                  // so every machine item still gets a real write-up.
+                  <div className="pq-block-missing pq-auto-summary">
+                    <div className="pq-auto-summary-name">
+                      {section.lineSummary.name} <span className="pq-item-code">{section.lineSummary.code}</span>
+                    </div>
+                    {section.specSentence ? (
+                      <div className="pq-auto-summary-spec">{section.specSentence}</div>
+                    ) : null}
+                    <div className="pq-auto-summary-price">
+                      {formatMoney(section.lineSummary.total, totals.currency)}
+                    </div>
                   </div>
                 )}
                 {section.optionBlocksHtml.length > 0 ? (
@@ -452,6 +466,19 @@ const SHEET_CSS = `
   }
   .pq-block-missing {
     color: #2b304f;
+    font-weight: 700;
+  }
+  .pq-auto-summary-name {
+    font-weight: 700;
+  }
+  .pq-auto-summary-spec {
+    margin-top: 4px;
+    color: #444444;
+    font-weight: 400;
+  }
+  .pq-auto-summary-price {
+    margin-top: 6px;
+    color: #243478;
     font-weight: 700;
   }
   .pq-flow-block {
