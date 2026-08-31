@@ -84,6 +84,7 @@ export function ItemOptionsEditor({
   compatibleOptions,
   currency,
   setOptionsAction,
+  showOptionIcons = true,
   readOnly = false,
 }: {
   itemId: string;
@@ -91,6 +92,13 @@ export function ItemOptionsEditor({
   compatibleOptions: CompatibleOption[];
   currency: string;
   setOptionsAction: (itemId: string, selections: OptionSelectionInput[]) => Promise<ActionResult>;
+  /** "ui.showOptionIcons" app setting (see `getShowOptionIcons`,
+   * src/lib/queries/settings.ts), read server-side and threaded down through
+   * ItemsList/ItemsSection. Gates only the small per-option icon in this
+   * editor's list — the summary chips on the item card stay text-only either
+   * way. Defaults to `true` so a caller that forgets to pass it (e.g. a
+   * future test) doesn't silently hide icons. */
+  showOptionIcons?: boolean;
   readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -301,6 +309,14 @@ export function ItemOptionsEditor({
                               onChange={() => toggle(option.code)}
                               className="mt-0.5 size-5 shrink-0 rounded border-slate-300 accent-brand"
                             />
+                            {showOptionIcons && option.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={option.imageUrl}
+                                alt=""
+                                className="mt-0.5 size-6 shrink-0 rounded object-contain"
+                              />
+                            ) : null}
                             <span className="flex min-w-0 flex-1 flex-col justify-center">
                               <span className="flex flex-wrap items-baseline gap-2">
                                 <span className="font-mono text-xs text-brand-dark">{option.code}</span>

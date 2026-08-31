@@ -11,6 +11,9 @@ import {
   mapPrices,
   mapCompatibility,
   mapContentBlocks,
+  shouldMigrateBlock,
+  BLOCK_BODY_MIGRATIONS,
+  M_SERIES_OLD_BODY,
 } from "../prisma/seed-lib";
 
 const catalog = catalogData as Catalog;
@@ -176,5 +179,28 @@ describe("mapContentBlocks", () => {
       expect(block.title.trim().length, `expected "${block.key}" to have a non-empty title`).toBeGreaterThan(0);
       expect(block.sortOrder).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe("shouldMigrateBlock / BLOCK_BODY_MIGRATIONS", () => {
+  it("returns true when the existing body exactly matches the old body", () => {
+    expect(shouldMigrateBlock("old text", "old text")).toBe(true);
+  });
+
+  it("returns false when the existing body differs at all (admin-edited, or already migrated)", () => {
+    expect(shouldMigrateBlock("old text, tweaked", "old text")).toBe(false);
+    expect(shouldMigrateBlock("new text", "old text")).toBe(false);
+    expect(shouldMigrateBlock("", "old text")).toBe(false);
+  });
+
+  it("machine.m-series's registered old body differs from the current seed-data body", () => {
+    // Guards against the migration entry going stale: the hardcoded
+    // M_SERIES_OLD_BODY (captured pre-315e089) must not equal what
+    // content-blocks.json seeds today, or shouldMigrateBlock would never
+    // fire for an already-current-format DB.
+    const current = contentBlocksJson.blocks.find((b) => b.key === "machine.m-series");
+    expect(current).toBeDefined();
+    expect(current!.body).not.toBe(M_SERIES_OLD_BODY);
+    expect(shouldMigrateBlock(M_SERIES_OLD_BODY, BLOCK_BODY_MIGRATIONS["machine.m-series"].oldBody)).toBe(true);
   });
 });

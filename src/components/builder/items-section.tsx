@@ -28,6 +28,7 @@ export function ItemsSection({
   setItemDiscountAction,
   setItemShowImageAction,
   reorderItemsAction,
+  showOptionIcons = true,
   readOnly = false,
 }: {
   documentId: string;
@@ -41,6 +42,9 @@ export function ItemsSection({
   setItemDiscountAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
   setItemShowImageAction: (itemId: string, show: boolean) => Promise<ActionResult>;
   reorderItemsAction: (documentId: string, orderedItemIds: string[]) => Promise<ActionResult>;
+  /** "ui.showOptionIcons" app setting, read server-side by the builder page
+   * and threaded down to `ItemOptionsEditor` — see its own doc comment. */
+  showOptionIcons?: boolean;
   readOnly?: boolean;
 }) {
   return (
@@ -58,6 +62,7 @@ export function ItemsSection({
           setItemDiscountAction={setItemDiscountAction}
           setItemShowImageAction={setItemShowImageAction}
           reorderItemsAction={reorderItemsAction}
+          showOptionIcons={showOptionIcons}
           readOnly={readOnly}
         />
       )}

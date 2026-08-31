@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   quoteValidityDaysSchema,
+  showOptionIconsSchema,
   isAllowedSettingKey,
   ALLOWED_SETTING_KEYS,
 } from "../src/lib/validation/settings";
@@ -45,6 +46,32 @@ describe("quoteValidityDaysSchema", () => {
     // Coerced via Number(null) === 0, which then fails the min(1) bound —
     // still a rejection, just via the range check rather than a type error.
     expect(quoteValidityDaysSchema.safeParse(null).success).toBe(false);
+  });
+});
+
+describe("showOptionIconsSchema", () => {
+  it("accepts the literal string \"true\" and transforms to boolean true", () => {
+    const result = showOptionIconsSchema.safeParse("true");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe(true);
+  });
+
+  it("accepts the literal string \"false\" and transforms to boolean false", () => {
+    const result = showOptionIconsSchema.safeParse("false");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe(false);
+  });
+
+  it("rejects a native boolean (only the two literal strings are accepted)", () => {
+    expect(showOptionIconsSchema.safeParse(true).success).toBe(false);
+    expect(showOptionIconsSchema.safeParse(false).success).toBe(false);
+  });
+
+  it("rejects an arbitrary string, null, or undefined", () => {
+    expect(showOptionIconsSchema.safeParse("on").success).toBe(false);
+    expect(showOptionIconsSchema.safeParse("").success).toBe(false);
+    expect(showOptionIconsSchema.safeParse(null).success).toBe(false);
+    expect(showOptionIconsSchema.safeParse(undefined).success).toBe(false);
   });
 });
 

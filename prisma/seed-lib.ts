@@ -340,3 +340,49 @@ export function mapContentBlocks(json: ContentBlocksJson): ContentBlockPayload[]
     sortOrder: b.sortOrder,
   }));
 }
+
+// --- targeted content-block body migrations -------------------------------
+
+/**
+ * Exact body of the "machine.m-series" content block as seeded before commit
+ * 315e089 ("fix: quotation renders heading and all options for every item
+ * section"), which removed a duplicate inline "## Pathfinder {{model}}
+ * Cutting System" heading from the body — the quotation renderer already
+ * prints its own heading from the block's `title`, so the old body produced
+ * a duplicate heading on the rendered quotation. Captured verbatim via
+ * `git show 8d4c4de:prisma/seed-data/content-blocks.json` (the commit
+ * immediately before 315e089). prisma/seed.ts's normal content-block seeding
+ * never overwrites an existing row (an admin's own edits always win), so any
+ * DB seeded before 315e089 is stuck showing the duplicate heading forever
+ * without this targeted migration.
+ */
+export const M_SERIES_OLD_BODY =
+  "## Pathfinder {{model}} Cutting System\n\nModel {{model}} conveyorised computer controlled cutting system. Maximum compressed cutting height {{cutHeightCm}}cm. Maximum cutting width {{cutWidthCm}}cm.\n\n- Conveyorised precision cutting table\n- High efficiency vacuum generator\n- Vacuum VSD (Variable Speed Device) - computer controlled vacuum level for optimising cut quality and reducing power consumption.\n- VRB (Vacuum Recovery Blind) - computer controlled blind that reduces vacuum loss and power consumption.\n- Unloading conveyor\n- Roll holder (used for plastic overlay)\n- Operator console with utility drawer\n- Touch screen with wireless keyboard and mouse\n\n### Software\n\n- Windows 10™ operating system\n- PathCut™ cutting software V12.x (graphic user interface)\n\n### Accessories\n\n- Operator manual\n- Operator tool kit\n- 1 roll plastic overlay\n- 1 roll perforated paper\n- 10 knives\n- 1 diamond sharpening stone\n\n**Price: {{price}}**";
+
+/**
+ * Content-block keys with a targeted, exact-match body migration for
+ * existing DBs — distinct from the seed's normal "never touch an existing
+ * row" rule for content blocks (see prisma/seed.ts's content-blocks step): a
+ * key listed here gets its title+body force-updated by prisma/seed.ts's
+ * migration step, but only when the existing row's body is byte-for-byte
+ * `oldBody` (see `shouldMigrateBlock`) — i.e. still exactly what an older
+ * version of the seed itself put there, never touched by an admin. Add a new
+ * entry here (and nowhere else — prisma/seed.ts's migration loop iterates
+ * this map generically) whenever a future seed-data body/title edit needs
+ * the same safe, targeted forward-fix treatment.
+ */
+export const BLOCK_BODY_MIGRATIONS: Record<string, { oldBody: string }> = {
+  "machine.m-series": { oldBody: M_SERIES_OLD_BODY },
+};
+
+/**
+ * True when `existingBody` (a `ContentBlock` row's current body, read from
+ * the DB) is exactly `oldBody` (a migration's hardcoded pre-change string,
+ * see `BLOCK_BODY_MIGRATIONS`) — i.e. safe to force-update to the new
+ * seed-data title/body without clobbering an admin's own edit. Any
+ * difference at all (an admin edit, or a row already migrated to the new
+ * body) means this returns false and the row must be left alone.
+ */
+export function shouldMigrateBlock(existingBody: string, oldBody: string): boolean {
+  return existingBody === oldBody;
+}

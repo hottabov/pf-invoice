@@ -513,6 +513,11 @@ export type CompatibleOption = {
    * helper) since this is unvalidated admin-entered JSON. */
   attributeSchema: unknown;
   price: { amount: string; needsReview: boolean } | null;
+  /** `Option.imageUrl`, rendered as a small icon next to the option in the
+   * builder's options editor when present and the "ui.showOptionIcons" app
+   * setting is on (see `getShowOptionIcons`, src/lib/queries/settings.ts) —
+   * `null` (most options today) shows no icon and no placeholder. */
+  imageUrl: string | null;
 };
 
 /**
@@ -550,6 +555,7 @@ export async function listCompatibleOptions(
       shortDescription: o.shortDescription,
       attributeSchema: o.attributeSchema,
       price: price ? { amount: price.amount.toString(), needsReview: price.needsReview } : null,
+      imageUrl: o.imageUrl,
     };
   });
 }

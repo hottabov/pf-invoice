@@ -3,9 +3,10 @@ import Link from "next/link";
 import { FileText, MapPin, Users } from "lucide-react";
 import { auth } from "@/auth";
 import { getRegionById } from "@/lib/queries/catalog";
-import { getQuoteValidityDays } from "@/lib/queries/settings";
+import { getQuoteValidityDays, getShowOptionIcons } from "@/lib/queries/settings";
 import { updateSetting } from "@/lib/actions/settings";
 import { QuoteValidityForm } from "@/components/settings/quote-validity-form";
+import { ShowOptionIconsForm } from "@/components/settings/show-option-icons-form";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,9 +19,10 @@ export default async function SettingsPage() {
   // redirects unauthenticated requests, so a session is always present here.
   const session = (await auth())!;
   const isAdmin = session.user.role === "ADMIN";
-  const [region, quoteValidityDays] = await Promise.all([
+  const [region, quoteValidityDays, showOptionIcons] = await Promise.all([
     getRegionById(session.user.regionId),
     getQuoteValidityDays(),
+    getShowOptionIcons(),
   ]);
 
   return (
@@ -53,15 +55,27 @@ export default async function SettingsPage() {
         description="Defaults applied across the app."
       >
         {isAdmin ? (
-          <QuoteValidityForm
-            action={updateSetting.bind(null, "quote.validityDays")}
-            defaultValue={quoteValidityDays}
-          />
+          <div className="flex flex-col gap-4">
+            <QuoteValidityForm
+              action={updateSetting.bind(null, "quote.validityDays")}
+              defaultValue={quoteValidityDays}
+            />
+            <div className="border-t border-slate-100 pt-4">
+              <ShowOptionIconsForm
+                action={updateSetting.bind(null, "ui.showOptionIcons")}
+                defaultValue={showOptionIcons}
+              />
+            </div>
+          </div>
         ) : (
-          <dl>
+          <dl className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
               <dt className="text-sm text-slate-500">Quote validity (days)</dt>
               <dd className="text-sm font-medium text-brand-dark">{quoteValidityDays}</dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-sm text-slate-500">Show option icons</dt>
+              <dd className="text-sm font-medium text-brand-dark">{showOptionIcons ? "On" : "Off"}</dd>
             </div>
           </dl>
         )}

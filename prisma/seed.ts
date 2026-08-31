@@ -29,6 +29,8 @@ import {
   mapContentBlocks,
   mapUsPrices,
   missingUsPriceCodes,
+  BLOCK_BODY_MIGRATIONS,
+  shouldMigrateBlock,
 } from "./seed-lib";
 
 const catalog = catalogData as Catalog;
@@ -479,6 +481,37 @@ async function main() {
     }
   }
 
+  // 9b. Targeted content-block body migrations -- see `BLOCK_BODY_MIGRATIONS`
+  // (prisma/seed-lib.ts) for why this is separate from step 9's "never
+  // overwrite an existing row" rule. Handles the "machine.m-series" case
+  // today: commit 315e089 removed a duplicate inline heading from its body
+  // (the quotation renderer already prints its own heading from the block's
+  // title), so any DB seeded before that commit still has the old,
+  // duplicate-heading body. Force-updates title+body to the new seed-data
+  // value, but only when the existing row's body is byte-for-byte the known
+  // old value (`shouldMigrateBlock`) -- an admin edit (body differs from
+  // both the old *and* new seeded value) is left untouched and warned about.
+  let blockMigratedCount = 0;
+  let blockMigrationSkipped = 0;
+  for (const [key, migration] of Object.entries(BLOCK_BODY_MIGRATIONS)) {
+    const newBlock = contentBlocksJson.blocks.find((b) => b.key === key);
+    if (!newBlock) continue; // shouldn't happen -- defensive, content-blocks.json always has every migrated key
+    const existing = await db.contentBlock.findFirst({ where: { key, regionId: null } });
+    if (!existing) continue; // never seeded on this DB, or just created fresh (with the new body) by step 9 above
+    if (!shouldMigrateBlock(existing.body, migration.oldBody)) {
+      if (existing.body !== newBlock.body) {
+        console.warn(`seed: content block "${key}" was admin-edited -- skipped body migration`);
+        blockMigrationSkipped++;
+      }
+      continue;
+    }
+    await db.contentBlock.update({
+      where: { id: existing.id },
+      data: { title: newBlock.title, body: newBlock.body },
+    });
+    blockMigratedCount++;
+  }
+
   console.log("seed: done");
   console.log(`  regions:        ${regionIdByCode.size}`);
   console.log(`  renamed XC->X series: ${renamedSeriesCount}`);
@@ -492,6 +525,9 @@ async function main() {
   console.log(`  prices (US):    ${usPriceCount}`);
   console.log(`  compatibility:  ${compatCount} ensured, ${compatDeletedCount} stale removed`);
   console.log(`  content blocks: ${contentBlockCreated} created, ${contentBlockSkipped} skipped (already seeded)`);
+  console.log(
+    `  content block migrations: ${blockMigratedCount} migrated, ${blockMigrationSkipped} skipped (admin-edited)`
+  );
 }
 
 main()

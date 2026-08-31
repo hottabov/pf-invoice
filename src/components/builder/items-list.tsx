@@ -41,6 +41,19 @@ function arrayMove<T>(list: T[], from: number, to: number): T[] {
  *   accessible fallback for touch devices (native HTML5 DnD doesn't work on
  *   mobile browsers) and for keyboard/screen-reader users, since the drag
  *   handle itself isn't keyboard-operable.
+ *
+ * Each card is independently collapsible (owner: cards get huge once an
+ * item has many options, and collapsed cards are easier to drag-reorder).
+ * Collapse state lives in `collapsedByItemId`, a `Map<itemId, boolean>` kept
+ * in this component (not per-card local state) so it survives reordering —
+ * keyed by `item.id` rather than array index, a reorder never shuffles which
+ * card is collapsed. Absent from the map means expanded (the default for a
+ * newly added item). The header row (drag handle, name, code, options-count
+ * chip, item total, up/down, remove, chevron) is always visible and — apart
+ * from its own interactive controls, which stop propagation — clicking
+ * anywhere on it toggles the card; the body (options editor, discount,
+ * show-image toggle) collapses via a `grid-template-rows` transition so it
+ * animates smoothly without knowing its own height up front.
  */
 export function ItemsList({
   documentId,
@@ -52,6 +65,7 @@ export function ItemsList({
   setItemDiscountAction,
   setItemShowImageAction,
   reorderItemsAction,
+  showOptionIcons = true,
   readOnly = false,
 }: {
   documentId: string;
@@ -63,6 +77,7 @@ export function ItemsList({
   setItemDiscountAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
   setItemShowImageAction: (itemId: string, show: boolean) => Promise<ActionResult>;
   reorderItemsAction: (documentId: string, orderedItemIds: string[]) => Promise<ActionResult>;
+  showOptionIcons?: boolean;
   readOnly?: boolean;
 }) {
   const router = useRouter();
@@ -75,6 +90,27 @@ export function ItemsList({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const cardNodes = useRef(new Map<string, HTMLDivElement>());
+  const [collapsedByItemId, setCollapsedByItemId] = useState<Map<string, boolean>>(new Map());
+
+  function isCollapsed(itemId: string) {
+    return collapsedByItemId.get(itemId) ?? false;
+  }
+
+  function toggleCollapsed(itemId: string) {
+    setCollapsedByItemId((prev) => {
+      const next = new Map(prev);
+      next.set(itemId, !(prev.get(itemId) ?? false));
+      return next;
+    });
+  }
+
+  function collapseAll() {
+    setCollapsedByItemId(new Map(optimisticItems.map((item) => [item.id, true])));
+  }
+
+  function expandAll() {
+    setCollapsedByItemId(new Map());
+  }
 
   function commitOrder(newOrder: BuilderItem[]) {
     startTransition(async () => {
@@ -109,10 +145,34 @@ export function ItemsList({
 
   return (
     <div className="flex flex-col gap-3">
+      {optimisticItems.length > 1 ? (
+        <div className="flex justify-end gap-3 text-xs font-medium text-slate-500">
+          <button
+            type="button"
+            onClick={collapseAll}
+            className="focus-ring rounded transition-colors hover:text-brand"
+          >
+            Collapse all
+          </button>
+          <span aria-hidden="true" className="text-slate-300">
+            |
+          </span>
+          <button
+            type="button"
+            onClick={expandAll}
+            className="focus-ring rounded transition-colors hover:text-brand"
+          >
+            Expand all
+          </button>
+        </div>
+      ) : null}
+
       {optimisticItems.map((item, index) => {
         const compatKey = item.productId ?? (item.seriesId ? `series:${item.seriesId}` : null);
         const isDragging = draggingId === item.id;
         const isDropTarget = dropTargetId === item.id && draggingId !== item.id;
+        const collapsed = isCollapsed(item.id);
+        const optionCount = item.lines.filter((line) => line.kind === "OPTION").length;
 
         return (
           <div
@@ -139,10 +199,22 @@ export function ItemsList({
               isDropTarget && "ring-2 ring-brand"
             )}
           >
-            <div className="flex items-start justify-between gap-3">
+            {/* Header: always visible, clicking anywhere on it (other than
+                the drag/reorder controls and remove button, which stop
+                propagation) toggles the card's collapsed state. The chevron
+                button is the keyboard/screen-reader-accessible affordance —
+                it carries no handler of its own and relies on its native
+                click event bubbling up to this row. */}
+            <div
+              onClick={() => toggleCollapsed(item.id)}
+              className="flex cursor-pointer select-none items-start justify-between gap-3"
+            >
               <div className="flex min-w-0 items-start gap-2">
                 {!readOnly && (
-                  <div className="flex shrink-0 flex-col items-center gap-0.5">
+                  <div
+                    onClick={(event) => event.stopPropagation()}
+                    className="flex shrink-0 flex-col items-center gap-0.5"
+                  >
                     <button
                       type="button"
                       draggable
@@ -192,9 +264,16 @@ export function ItemsList({
                     className="size-12 shrink-0 rounded-lg border border-slate-200 object-contain"
                   />
                 ) : null}
-                <div className="flex min-w-0 flex-col">
-                  <span className="truncate text-sm font-medium text-brand-dark">{item.name}</span>
-                  <span className="font-mono text-xs text-slate-500">{item.code}</span>
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate text-sm font-medium text-brand-dark">{item.name}</span>
+                    <span className="font-mono text-xs text-slate-500">{item.code}</span>
+                  </div>
+                  {optionCount > 0 ? (
+                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                      {optionCount} option{optionCount === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <div className="flex shrink-0 items-start gap-1">
@@ -202,37 +281,63 @@ export function ItemsList({
                   {formatMoney(item.total, currency)}
                 </span>
                 {!readOnly && (
-                  <RemoveItemButton action={removeItemAction.bind(null, item.id)} itemName={item.name} />
+                  <span onClick={(event) => event.stopPropagation()}>
+                    <RemoveItemButton action={removeItemAction.bind(null, item.id)} itemName={item.name} />
+                  </span>
                 )}
+                <button
+                  type="button"
+                  aria-label={collapsed ? `Expand ${item.name}` : `Collapse ${item.name}`}
+                  aria-expanded={!collapsed}
+                  className="focus-ring flex size-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                >
+                  <ChevronDown
+                    className={cn(
+                      "size-4 transition-transform duration-150 motion-reduce:transition-none",
+                      collapsed && "-rotate-90"
+                    )}
+                    aria-hidden="true"
+                  />
+                </button>
               </div>
             </div>
 
-            <ItemOptionsEditor
-              itemId={item.id}
-              currentLines={item.lines
-                .filter((line) => line.kind === "OPTION")
-                .map((line) => ({ code: line.code, qty: line.qty, attributes: line.attributes }))}
-              compatibleOptions={compatKey ? (compatibleOptionsByItemKey[compatKey] ?? []) : []}
-              currency={currency}
-              setOptionsAction={setItemOptionsAction}
-              readOnly={readOnly}
-            />
-
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-              <ItemDiscountField
-                itemId={item.id}
-                discountPct={item.discountPct}
-                maxDiscountPct={item.maxDiscountPct}
-                setDiscountAction={setItemDiscountAction}
-                readOnly={readOnly}
-              />
-              {!readOnly && item.productHasImage ? (
-                <ItemShowImageToggle
+            <div
+              className={cn(
+                "grid transition-[grid-template-rows] duration-150 ease-in-out motion-reduce:transition-none",
+                collapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
+              )}
+            >
+              <div className="overflow-hidden">
+                <ItemOptionsEditor
                   itemId={item.id}
-                  showImage={item.showImage}
-                  setShowImageAction={setItemShowImageAction}
+                  currentLines={item.lines
+                    .filter((line) => line.kind === "OPTION")
+                    .map((line) => ({ code: line.code, qty: line.qty, attributes: line.attributes }))}
+                  compatibleOptions={compatKey ? (compatibleOptionsByItemKey[compatKey] ?? []) : []}
+                  currency={currency}
+                  setOptionsAction={setItemOptionsAction}
+                  showOptionIcons={showOptionIcons}
+                  readOnly={readOnly}
                 />
-              ) : null}
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                  <ItemDiscountField
+                    itemId={item.id}
+                    discountPct={item.discountPct}
+                    maxDiscountPct={item.maxDiscountPct}
+                    setDiscountAction={setItemDiscountAction}
+                    readOnly={readOnly}
+                  />
+                  {!readOnly && item.productHasImage ? (
+                    <ItemShowImageToggle
+                      itemId={item.id}
+                      showImage={item.showImage}
+                      setShowImageAction={setItemShowImageAction}
+                    />
+                  ) : null}
+                </div>
+              </div>
             </div>
           </div>
         );

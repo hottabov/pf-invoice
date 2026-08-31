@@ -11,6 +11,7 @@ import {
   type CompatibleOption,
   type DocumentForBuilder,
 } from "@/lib/queries/documents";
+import { getShowOptionIcons } from "@/lib/queries/settings";
 import {
   addCustomLine,
   addItem,
@@ -71,9 +72,10 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
   const isDraft = document.status === "DRAFT";
   const isAdmin = session.user.role === "ADMIN";
 
-  const [companies, catalog] = await Promise.all([
+  const [companies, catalog, showOptionIcons] = await Promise.all([
     listClientPickerCompanies(session.user),
     getItemPickerCatalog(document.regionCode),
+    getShowOptionIcons(),
   ]);
 
   // Compatible options are preloaded once per distinct (productId, seriesId)
@@ -131,6 +133,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
             setItemDiscountAction={setItemDiscount}
             setItemShowImageAction={setItemShowImage}
             reorderItemsAction={reorderItems}
+            showOptionIcons={showOptionIcons}
             readOnly={!isDraft}
           />
 

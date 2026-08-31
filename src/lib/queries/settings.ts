@@ -26,3 +26,27 @@ export async function getQuoteValidityDays(): Promise<number> {
   const rawValue = setting?.value;
   return typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : DEFAULT_QUOTE_VALIDITY_DAYS;
 }
+
+const SHOW_OPTION_ICONS_SETTING_KEY = "ui.showOptionIcons";
+
+/** Default used when no `Setting` row exists for "ui.showOptionIcons" (or
+ * its stored value isn't a boolean) — icons are shown by default. */
+export const DEFAULT_SHOW_OPTION_ICONS = true;
+
+/**
+ * Whether the builder's per-item options editor (`ItemOptionsEditor`) shows
+ * each compatible option's small icon, read from the `Setting` table (key
+ * "ui.showOptionIcons"). Falls back to `DEFAULT_SHOW_OPTION_ICONS` when no
+ * row exists yet or its stored value isn't a boolean (defensive — the only
+ * writer, `updateSetting` in src/lib/actions/settings.ts, always validates
+ * through `showOptionIconsSchema` first).
+ *
+ * Read server-side by the document builder page, which passes the result
+ * down through `ItemsSection` -> `ItemsList` -> `ItemOptionsEditor`, and by
+ * the main /settings page (which displays/edits it).
+ */
+export async function getShowOptionIcons(): Promise<boolean> {
+  const setting = await db.setting.findUnique({ where: { key: SHOW_OPTION_ICONS_SETTING_KEY } });
+  const rawValue = setting?.value;
+  return typeof rawValue === "boolean" ? rawValue : DEFAULT_SHOW_OPTION_ICONS;
+}
