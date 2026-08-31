@@ -2,9 +2,9 @@
   "blocks": [
     {
       "key": "machine.m-series",
-      "title": "Pathfinder M-Series Cutting System",
+      "title": "Pathfinder {{model}} Cutting System",
       "sortOrder": 1,
-      "body": "## Pathfinder {{model}} Cutting System\n\nModel {{model}} conveyorised computer controlled cutting system. Maximum compressed cutting height {{cutHeightCm}}cm. Maximum cutting width {{cutWidthCm}}cm.\n\n- Conveyorised precision cutting table\n- High efficiency vacuum generator\n- Vacuum VSD (Variable Speed Device) - computer controlled vacuum level for optimising cut quality and reducing power consumption.\n- VRB (Vacuum Recovery Blind) - computer controlled blind that reduces vacuum loss and power consumption.\n- Unloading conveyor\n- Roll holder (used for plastic overlay)\n- Operator console with utility drawer\n- Touch screen with wireless keyboard and mouse\n\n### Software\n\n- Windows 10™ operating system\n- PathCut™ cutting software V12.x (graphic user interface)\n\n### Accessories\n\n- Operator manual\n- Operator tool kit\n- 1 roll plastic overlay\n- 1 roll perforated paper\n- 10 knives\n- 1 diamond sharpening stone\n\n**Price: {{price}}**"
+      "body": "Model {{model}} conveyorised computer controlled cutting system. Maximum compressed cutting height {{cutHeightCm}}cm. Maximum cutting width {{cutWidthCm}}cm.\n\n- Conveyorised precision cutting table\n- High efficiency vacuum generator\n- Vacuum VSD (Variable Speed Device) - computer controlled vacuum level for optimising cut quality and reducing power consumption.\n- VRB (Vacuum Recovery Blind) - computer controlled blind that reduces vacuum loss and power consumption.\n- Unloading conveyor\n- Roll holder (used for plastic overlay)\n- Operator console with utility drawer\n- Touch screen with wireless keyboard and mouse\n\n### Software\n\n- Windows 10™ operating system\n- PathCut™ cutting software V12.x (graphic user interface)\n\n### Accessories\n\n- Operator manual\n- Operator tool kit\n- 1 roll plastic overlay\n- 1 roll perforated paper\n- 10 knives\n- 1 diamond sharpening stone\n\n**Price: {{price}}**"
     },
     {
       "key": "option.OFD",

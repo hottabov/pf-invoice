@@ -356,7 +356,7 @@ describe("buildQuotationData", () => {
     expect(data.showOptionPrices).toBe(false);
   });
 
-  it("resolves OPTION lines to option blocks using line attributes, skips lines with no match", () => {
+  it("resolves OPTION lines to option blocks using line attributes, falls back for lines with no match", () => {
     const doc = baseDoc({
       items: [
         baseItem({
@@ -388,6 +388,122 @@ describe("buildQuotationData", () => {
     const data = buildQuotationData(doc, [machineBlock, mtsBlock]);
     expect(data.machineSections[0].optionBlocksHtml).toHaveLength(1);
     expect(data.machineSections[0].optionBlocksHtml[0].bodyHtml).toContain("Travel 4m over 2 tables");
+    // A line whose code matches no option.* block is never silently
+    // dropped — it lands in fallbackOptions instead (owner: "no selected
+    // option may be silently omitted").
+    expect(data.machineSections[0].fallbackOptions).toHaveLength(1);
+    expect(data.machineSections[0].fallbackOptions[0]).toMatchObject({
+      code: "ZZZ-NOPE",
+      name: "Unknown option",
+      qty: 1,
+    });
+  });
+
+  it("no selected option is ever omitted: 3 options (1 with a block, 2 without) all appear across the two lists", () => {
+    const doc = baseDoc({
+      showOptionPrices: true,
+      items: [
+        baseItem({
+          lines: [
+            {
+              id: "line-1",
+              kind: "OPTION",
+              code: "MTS",
+              name: "Machine Transfer System",
+              description: null,
+              qty: 1,
+              unitPrice: "5000.00",
+              attributes: { metres: 4, tables: 2 },
+            },
+            {
+              id: "line-2",
+              kind: "OPTION",
+              code: "UNMATCHED-1",
+              name: "First unmatched option",
+              description: null,
+              qty: 2,
+              unitPrice: "570.00",
+              attributes: null,
+            },
+            {
+              id: "line-3",
+              kind: "OPTION",
+              code: null,
+              name: "Second unmatched option",
+              description: null,
+              qty: 1,
+              unitPrice: "100.00",
+              attributes: { colour: "Blue" },
+            },
+          ],
+        }),
+      ],
+    });
+    const data = buildQuotationData(doc, [machineBlock, mtsBlock]);
+    const section = data.machineSections[0];
+
+    expect(section.optionBlocksHtml.map((b) => b.key)).toEqual(["option.MTS"]);
+    expect(section.fallbackOptions.map((o) => o.name)).toEqual([
+      "First unmatched option",
+      "Second unmatched option",
+    ]);
+    // All 3 selected options are accounted for, across both lists.
+    expect(section.optionBlocksHtml.length + section.fallbackOptions.length).toBe(3);
+
+    // qty >1 and price (gated by showOptionPrices) both surface on the
+    // fallback entry.
+    expect(section.fallbackOptions[0].qty).toBe(2);
+    expect(section.fallbackOptions[0].price).toBe("$1,140");
+    // Attribute values surface too, when present.
+    expect(section.fallbackOptions[1].attributes).toEqual([{ key: "colour", value: "Blue" }]);
+    expect(section.fallbackOptions[1].code).toBeNull();
+  });
+
+  it("hides fallback option prices when showOptionPrices is off", () => {
+    const doc = baseDoc({
+      showOptionPrices: false,
+      items: [
+        baseItem({
+          lines: [
+            {
+              id: "line-1",
+              kind: "OPTION",
+              code: "UNMATCHED",
+              name: "Unmatched option",
+              description: null,
+              qty: 1,
+              unitPrice: "100.00",
+              attributes: null,
+            },
+          ],
+        }),
+      ],
+    });
+    const data = buildQuotationData(doc, []);
+    expect(data.machineSections[0].fallbackOptions[0].price).toBeNull();
+  });
+
+  it("carries qty onto a block-rendered option (for the sheet's ×N badge)", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({
+          lines: [
+            {
+              id: "line-1",
+              kind: "OPTION",
+              code: "MTS",
+              name: "Machine Transfer System",
+              description: null,
+              qty: 3,
+              unitPrice: "5000.00",
+              attributes: { metres: 4, tables: 2 },
+            },
+          ],
+        }),
+      ],
+    });
+    const data = buildQuotationData(doc, [machineBlock, mtsBlock]);
+    expect(data.machineSections[0].optionBlocksHtml[0].qty).toBe(3);
   });
 
   it("substitutes bankDetails into terms blocks and sorts terms/conditions by sortOrder", () => {
@@ -488,5 +604,77 @@ describe("buildQuotationData", () => {
     });
     const data = buildQuotationData(doc, []);
     expect(data.rsp.coverageRows).toEqual([{ name: "Fabric Master", serialNumber: "SN-FM-1", rspUnitCost: "TBA" }]);
+  });
+});
+
+// --- buildQuotationData: sectionTitle — every section gets a heading -------
+//
+// Root cause of the owner-reported missing headings: `titleBlockHtml` used
+// to be the ONLY thing quotation-sheet.tsx rendered for a matched block, and
+// whether that carried a visible heading depended entirely on whether the
+// block's own markdown BODY happened to start with a "##" line.
+// machine.m-series's real seed body did (coincidentally, since it also
+// repeated the model in its own template); equipment.easy-loader,
+// equipment.fabric-pro, software.pathworks-s/-i and equipment.punchline
+// never did, so those sections rendered with no heading at all — and a
+// blockless item (e.g. L-Series) only got one via the separate auto-summary
+// fallback path. `sectionTitle` replaces all of that with one computation
+// that always runs, for every section, block or no block.
+describe("buildQuotationData — sectionTitle", () => {
+  it("uses the matched content block's title, unchanged, when it has no placeholder", () => {
+    const data = buildQuotationData(baseDoc({ items: [baseItem({ code: "M450" })] }), [machineBlock]);
+    expect(data.machineSections[0].sectionTitle).toBe("M-Series");
+  });
+
+  it("substitutes placeholders in the block's title (e.g. {{model}}), same vars as the body", () => {
+    const modelTitleBlock: ContentBlockRow = {
+      key: "machine.m-series",
+      regionId: null,
+      title: "Pathfinder {{model}} Cutting System",
+      body: "Model {{model}}.",
+      sortOrder: 1,
+    };
+    const data = buildQuotationData(baseDoc({ items: [baseItem({ code: "X-5180", seriesCode: "X" })] }), [
+      modelTitleBlock,
+    ]);
+    expect(data.machineSections[0].sectionTitle).toBe("Pathfinder X-5180 Cutting System");
+  });
+
+  it("falls back to the item's name when no content block matches the product", () => {
+    const doc = baseDoc({ items: [baseItem({ seriesCode: "EF", code: "EF-100", name: "EF-100 Accessory" })] });
+    const data = buildQuotationData(doc, [machineBlock]);
+    expect(data.machineSections[0].sectionTitle).toBe("EF-100 Accessory");
+  });
+
+  it("falls back to the item's name for a blockless series (e.g. L-Series)", () => {
+    const doc = baseDoc({ items: [baseItem({ code: "L-320", seriesCode: "L", name: "L-320 Cutting System" })] });
+    const data = buildQuotationData(doc, []);
+    expect(data.machineSections[0].sectionTitle).toBe("L-320 Cutting System");
+  });
+
+  it("falls back to the item's name when the matched block has a title but no body-matching text (null title)", () => {
+    const noTitleBlock: ContentBlockRow = {
+      key: "machine.m-series",
+      regionId: null,
+      title: null,
+      body: "Model {{model}}.",
+      sortOrder: 1,
+    };
+    const doc = baseDoc({ items: [baseItem({ name: "M5180 Cutting System" })] });
+    const data = buildQuotationData(doc, [noTitleBlock]);
+    expect(data.machineSections[0].sectionTitle).toBe("M5180 Cutting System");
+  });
+
+  it("falls back to the item's name when the title's only content is an unresolved placeholder", () => {
+    const unresolvedTitleBlock: ContentBlockRow = {
+      key: "machine.m-series",
+      regionId: null,
+      title: "{{rspUnitCost}}",
+      body: "Model {{model}}.",
+      sortOrder: 1,
+    };
+    const doc = baseDoc({ items: [baseItem({ name: "M5180 Cutting System" })] });
+    const data = buildQuotationData(doc, [unresolvedTitleBlock]);
+    expect(data.machineSections[0].sectionTitle).toBe("M5180 Cutting System");
   });
 });

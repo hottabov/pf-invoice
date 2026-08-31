@@ -132,19 +132,28 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                     legitimately spill onto the next page even when the
                     title+image pair itself must not split. */}
                 <div className="pq-title-image-group">
+                  {/* Section heading — ALWAYS rendered, one consistent tier
+                      for every machine/equipment/software item, whether or
+                      not a content block matched (see
+                      src/lib/quotation-data.ts's `sectionTitle` — this used
+                      to be missing entirely for Easy-Loader/Fabric
+                      Pro/PathWorks sections, whose content blocks never
+                      carried an inline "##" heading the way machine.m-series
+                      happened to). Item code always follows as a muted mono
+                      suffix, matching the investment summary's item-name
+                      styling. */}
+                  <h2 className="pq-product-title">
+                    {section.sectionTitle} <span className="pq-item-code">{section.lineSummary.code}</span>
+                  </h2>
                   {section.titleBlockHtml ? (
                     <div className="pq-block-body" dangerouslySetInnerHTML={{ __html: section.titleBlockHtml }} />
                   ) : (
                     // No admin-authored content block matched this item's
                     // product (e.g. L-Series has none — see
                     // src/lib/quotation-data.ts's `productBlockKey`) — render
-                    // a minimal auto-generated section from what's already
-                    // known about the item instead of just its bare name/code,
-                    // so every machine item still gets a real write-up.
+                    // a minimal auto-generated spec/price line underneath the
+                    // heading above instead of just leaving the section bare.
                     <div className="pq-block-missing pq-auto-summary">
-                      <div className="pq-auto-summary-name">
-                        {section.lineSummary.name} <span className="pq-item-code">{section.lineSummary.code}</span>
-                      </div>
                       {section.specSentence ? (
                         <div className="pq-auto-summary-spec">{section.specSentence}</div>
                       ) : null}
@@ -164,15 +173,35 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                     />
                   ) : null}
                 </div>
-                {section.optionBlocksHtml.length > 0 ? (
+                {section.optionBlocksHtml.length > 0 || section.fallbackOptions.length > 0 ? (
                   <div className="pq-options">
                     {section.optionBlocksHtml.map((option) => (
-                      <div
-                        className="pq-block-body pq-option-block"
-                        key={option.key}
-                        dangerouslySetInnerHTML={{ __html: option.bodyHtml }}
-                      />
+                      <div className="pq-option-block" key={option.key}>
+                        {option.qty > 1 ? <div className="pq-option-qty-badge">× {option.qty}</div> : null}
+                        <div className="pq-block-body" dangerouslySetInnerHTML={{ __html: option.bodyHtml }} />
+                      </div>
                     ))}
+                    {section.fallbackOptions.length > 0 ? (
+                      <ul className="pq-fallback-options">
+                        {section.fallbackOptions.map((option) => (
+                          <li className="pq-fallback-option" key={option.id}>
+                            <span className="pq-fallback-option-name">
+                              {option.code ? `${option.code} — ${option.name}` : option.name}
+                            </span>
+                            {option.qty > 1 ? (
+                              <span className="pq-fallback-option-qty"> × {option.qty}</span>
+                            ) : null}
+                            {option.attributes.length > 0 ? (
+                              <span className="pq-fallback-option-attrs">
+                                {" "}
+                                ({option.attributes.map((a) => `${a.key}: ${a.value}`).join(", ")})
+                              </span>
+                            ) : null}
+                            {option.price ? <span className="pq-fallback-option-price"> — {option.price}</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -582,19 +611,38 @@ const SHEET_CSS = `
   .pq-option-block:first-child {
     margin-top: 0;
   }
+  /* "×N" badge on a block-rendered option whose qty is >1 — the option.*
+     block body itself has no way to know the selected qty (it's purely a
+     rendered content-block template), so the sheet stamps it on separately,
+     matching the qty a fallback entry (.pq-fallback-option-qty) always
+     shows. */
+  .pq-option-qty-badge {
+    display: inline-block;
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #555555;
+    background: #eef0f7;
+    border-radius: 3px;
+    padding: 1px 6px;
+    margin-bottom: 4px;
+  }
   .pq-block-missing {
     color: #333333;
   }
-  /* Auto-generated item title (no admin-authored content block matched —
-     see quotation-data.ts's productBlockKey) — styled to match the
-     prominence of a real .pq-block-body heading below, so every machine
-     item's name reads as a real heading rather than blending into the
-     surrounding text (owner: "product names blend with the text"). */
-  .pq-auto-summary-name {
+  /* Section heading — one consistent tier for EVERY machine/equipment/
+     software/service section (owner: "every item section must have a
+     consistent prominent heading"), rendered explicitly outside the
+     admin-authored block body rather than relying on that body carrying its
+     own markdown heading (fragile — most content blocks never did; see
+     src/lib/quotation-data.ts's sectionTitle computation). Same size/weight/color tier
+     as .pq-block-body h1/h2 and .pq-section-title, so a product/section name
+     is unmistakable at a glance. */
+  .pq-product-title {
     font-size: 15px;
     font-weight: 700;
     letter-spacing: 0.3px;
     color: #243478;
+    margin: 0 0 6px 0;
     page-break-after: avoid;
     break-after: avoid;
   }
@@ -605,6 +653,33 @@ const SHEET_CSS = `
   }
   .pq-auto-summary-price {
     margin-top: 6px;
+    color: #243478;
+    font-weight: 700;
+  }
+  /* Compact fallback entries for selected options with no matching
+     option.* content block (owner: "no selected option may be silently
+     omitted") — one bullet per option, visually consistent with the rest of
+     the sheet's list styling (.pq-block-body ul) but distinct enough to read
+     as auto-generated rather than admin-authored prose. */
+  .pq-fallback-options {
+    margin: 8px 0 0 0;
+    padding-left: 18px;
+  }
+  .pq-fallback-option {
+    margin-bottom: 4px;
+    color: #333333;
+  }
+  .pq-fallback-option-name {
+    font-weight: 700;
+    color: #2b304f;
+  }
+  .pq-fallback-option-qty {
+    color: #555555;
+  }
+  .pq-fallback-option-attrs {
+    color: #666666;
+  }
+  .pq-fallback-option-price {
     color: #243478;
     font-weight: 700;
   }

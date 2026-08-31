@@ -266,17 +266,56 @@ export function substitutePlaceholders(body: string, vars: PlaceholderVars): str
 
 export type QuotationOptionBlock = {
   key: string;
+  /** This option line's qty (from `DocSheetLine.qty`, matched by line id) —
+   * the sheet renders a "×N" badge next to a block-rendered option when this
+   * is >1, mirroring the qty display a fallback entry (see
+   * `QuotationFallbackOption`) always gets. */
+  qty: number;
   bodyHtml: string;
+};
+
+/** One selected OPTION line whose code matched no `option.*` content block
+ * (see `optionBlockKey`) — rendered as a compact fallback entry instead of
+ * being silently dropped, per the owner's rule that no selected option may
+ * ever go missing from the rendered quotation. */
+export type QuotationFallbackOption = {
+  id: string;
+  code: string | null;
+  name: string;
+  qty: number;
+  /** `formatMoney`-formatted line total, gated by `showOptionPrices` (same
+   * toggle an option row in the investment summary uses) — `null` hides the
+   * price entirely rather than showing a blank/zero figure. */
+  price: string | null;
+  /** `line.attributes` flattened to display pairs (e.g. `{ metres: 4 }` ->
+   * `[{ key: "metres", value: "4" }]`) — empty when the line carries no
+   * attributes. */
+  attributes: { key: string; value: string }[];
 };
 
 export type QuotationMachineSection = {
   itemId: string;
-  /** Rendered `machine.*`/`equipment.*`/`software.*` block for this item's
-   * product, with `{{model}}`/`{{price}}`/`{{cutHeightCm}}`/`{{cutWidthCm}}`/
-   * `{{specSentence}}` substituted — `null` when `productBlockKey` found no
-   * matching block, in which case the sheet renders `specSentence`
-   * (alongside the item's name/price from `lineSummary`) as a minimal
-   * auto-generated section instead — see quotation-sheet.tsx. */
+  /** The section's heading text — ALWAYS present, one consistent tier
+   * (`.pq-product-title` in quotation-sheet.tsx) for every machine/
+   * equipment/software/service item, whether or not a content block matched.
+   * Prefers the matched content block's own `title` (placeholders
+   * substituted, e.g. "Pathfinder {{model}} Cutting System" ->
+   * "Pathfinder X-5180 Cutting System"), falling back to the item's own
+   * `name` when there's no block, the block has no title, or the title's
+   * only content was an unresolved placeholder (line-stripped to ""). The
+   * item's code renders alongside this separately, as a muted mono suffix —
+   * see quotation-sheet.tsx. */
+  sectionTitle: string;
+  /** Rendered `machine.*`/`equipment.*`/`software.*` block BODY for this
+   * item's product, with `{{model}}`/`{{price}}`/`{{cutHeightCm}}`/
+   * `{{cutWidthCm}}`/`{{specSentence}}` substituted — `null` when
+   * `productBlockKey` found no matching block, in which case the sheet
+   * renders `specSentence` (alongside `sectionTitle` and the item's price
+   * from `lineSummary`) as a minimal auto-generated section instead — see
+   * quotation-sheet.tsx. No longer carries its own top-level heading (that's
+   * `sectionTitle`'s job now, rendered once, consistently, outside this
+   * HTML) — see the `machine.m-series` seed body, which used to open with
+   * its own "## Pathfinder {{model}} Cutting System" line. */
   titleBlockHtml: string | null;
   /** One-line spec summary derived purely from the product code (see
    * `machineSpecSentence` in src/lib/machine-specs.ts) — e.g. "M-Series
@@ -285,9 +324,14 @@ export type QuotationMachineSection = {
    * (most non-cutting-machine products, or a malformed code). */
   specSentence: string | null;
   /** One rendered `option.*` block per OPTION line whose code resolves to a
-   * block (see `optionBlockKey`) — a line with no matching block is simply
-   * omitted, never rendered as a raw/blank entry. */
+   * block (see `optionBlockKey`) — a line with no matching block instead
+   * lands in `fallbackOptions` below; no selected option is ever omitted
+   * from both lists. */
   optionBlocksHtml: QuotationOptionBlock[];
+  /** OPTION lines whose code resolved to no `option.*` content block (or
+   * that carried no code at all) — one compact fallback entry per line, so
+   * every selected option still appears somewhere in the section. */
+  fallbackOptions: QuotationFallbackOption[];
   /** This item's own row from `DocSheetData.items` (name/price/lines/total)
    * — reused as-is for the investment-summary table rather than
    * recomputed. */
@@ -364,6 +408,14 @@ function attributeVars(attributes: Record<string, string | number> | null): Plac
   return vars;
 }
 
+/** Flattens a line's `attributes` to display pairs for a
+ * `QuotationFallbackOption` — same source data as `attributeVars`, just
+ * shaped for direct rendering instead of `{{token}}` substitution. */
+function attributeEntries(attributes: Record<string, string | number> | null): { key: string; value: string }[] {
+  if (!attributes) return [];
+  return Object.entries(attributes).map(([key, value]) => ({ key, value: String(value) }));
+}
+
 function collectByPrefix(
   resolved: Map<string, ResolvedContentBlock>,
   prefix: string,
@@ -426,49 +478,82 @@ export function buildQuotationData(
     const seriesDisplayName = item.seriesCode ? (SERIES_DISPLAY_NAMES[item.seriesCode] ?? item.seriesCode) : "";
     const specSentence = machineSpecSentence(seriesDisplayName, item.seriesCode, item.code);
 
+    // Shared placeholder vars for both the block BODY and the block TITLE
+    // (see `sectionTitle` below) — one computation, one source of truth, so
+    // a title referencing e.g. `{{model}}` (machine.m-series's seed title is
+    // now "Pathfinder {{model}} Cutting System", matching its body) resolves
+    // identically to the body's own substitution.
+    const vars: PlaceholderVars = {
+      model: item.code,
+      cutHeightCm,
+      cutWidthCm,
+      ...(specSentence ? { specSentence } : {}),
+      // Resolve width placeholders from product code for series that don't
+      // encode specs in the code itself (EL, P).
+      ...extraSpecVars(item.seriesCode ?? "", item.code),
+      // The item's own TOTAL — qty * unit price plus every attached option,
+      // exactly the figure `lineSummary.total` already carries from the
+      // pricing engine (`totals.itemTotals`, see getDocumentForBuilder) —
+      // not the bare unit price, and always currency-formatted via
+      // formatMoney, never a raw decimal string. Gated by the same toggle as
+      // everywhere else an item amount shows; when hidden, `OMIT` makes
+      // substitutePlaceholders strip the whole "**Price: {{price}}**" line
+      // out of machine.m-series entirely (never a blank "Price: ____"). No
+      // option.* block currently references {{price}} at all — an option's
+      // price only ever shows in the investment summary table (gated
+      // separately there by `showOptionPrices`), so there's nothing
+      // analogous to thread through `attributeVars` below.
+      price: itemPriceVisible ? formatMoney(lineSummary.total, sheet.totals.currency) : OMIT,
+    };
+
     const blockKey = productBlockKey(item.code, item.seriesCode);
     const block = blockKey ? resolved.get(blockKey) : undefined;
-    const titleBlockHtml = block
-      ? renderMarkdown(
-          substitutePlaceholders(block.body, {
-            model: item.code,
-            cutHeightCm,
-            cutWidthCm,
-            ...(specSentence ? { specSentence } : {}),
-            // Resolve width placeholders from product code for series that
-            // don't encode specs in the code itself (EL, P).
-            ...extraSpecVars(item.seriesCode ?? "", item.code),
-            // The item's own TOTAL — qty * unit price plus every attached
-            // option, exactly the figure `lineSummary.total` already carries
-            // from the pricing engine (`totals.itemTotals`, see
-            // getDocumentForBuilder) — not the bare unit price, and always
-            // currency-formatted via formatMoney, never a raw decimal string.
-            // Gated by the same toggle as everywhere else an item amount
-            // shows; when hidden, `OMIT` makes substitutePlaceholders strip
-            // the whole "**Price: {{price}}**" line out of machine.m-series
-            // entirely (never a blank "Price: ____"). No option.* block
-            // currently references {{price}} at all — an option's price only
-            // ever shows in the investment summary table (gated separately
-            // there by `showOptionPrices`), so there's nothing analogous to
-            // thread through `attributeVars` below.
-            price: itemPriceVisible ? formatMoney(lineSummary.total, sheet.totals.currency) : OMIT,
-          })
-        )
-      : null;
+    const titleBlockHtml = block ? renderMarkdown(substitutePlaceholders(block.body, vars)) : null;
+
+    // The section heading — ALWAYS computed, never conditional on a block
+    // matching (root cause of the owner-reported missing headings: only
+    // machine.m-series's body happened to carry its own inline "##" heading;
+    // equipment.easy-loader/fabric-pro, software.pathworks-*, and
+    // equipment.punchline never did, so those sections rendered their body
+    // with no heading at all). Prefers the matched block's own `title` with
+    // the same placeholders substituted as the body; a title with only an
+    // unresolved token line-strips to "" (see substitutePlaceholders), which
+    // — like no block at all — falls back to the item's own name.
+    const sectionTitle = (block?.title ? substitutePlaceholders(block.title, vars).trim() : "") || item.name;
 
     const optionBlocksHtml: QuotationOptionBlock[] = [];
+    const fallbackOptions: QuotationFallbackOption[] = [];
+    const docLinesById = new Map(lineSummary.lines.map((docLine) => [docLine.id, docLine]));
     for (const line of item.lines) {
-      if (line.kind !== "OPTION" || !line.code) continue;
-      const candidates = optionBlockKey(line.code);
+      if (line.kind !== "OPTION") continue;
+      const docLine = docLinesById.get(line.id);
+      const candidates = line.code ? optionBlockKey(line.code) : [];
       const found = candidates.map((key) => resolved.get(key)).find((b) => b !== undefined);
-      if (!found) continue;
-      optionBlocksHtml.push({
-        key: found.key,
-        bodyHtml: renderMarkdown(substitutePlaceholders(found.body, attributeVars(line.attributes))),
+
+      if (found) {
+        optionBlocksHtml.push({
+          key: found.key,
+          qty: docLine?.qty ?? line.qty,
+          bodyHtml: renderMarkdown(substitutePlaceholders(found.body, attributeVars(line.attributes))),
+        });
+        continue;
+      }
+
+      // No `option.*` content block covers this line (unmatched code, or no
+      // code at all) — the owner's rule is that no selected option may ever
+      // be silently omitted, so it still renders as a compact fallback entry
+      // rather than simply being skipped.
+      fallbackOptions.push({
+        id: line.id,
+        code: line.code,
+        name: docLine?.name ?? line.name,
+        qty: docLine?.qty ?? line.qty,
+        price: doc.showOptionPrices ? formatMoney(docLine?.lineTotal ?? "0", sheet.totals.currency) : null,
+        attributes: attributeEntries(line.attributes),
       });
     }
 
-    return { itemId: item.id, titleBlockHtml, specSentence, optionBlocksHtml, lineSummary };
+    return { itemId: item.id, sectionTitle, titleBlockHtml, specSentence, optionBlocksHtml, fallbackOptions, lineSummary };
   });
 
   // `terms.*` blocks reference these standard-terms figures — auto-filled
