@@ -63,7 +63,13 @@ export function ClientSection({
 
   function handleCompanyChange(nextCompanyId: string) {
     setCompanyId(nextCompanyId);
-    setContactId("");
+    // Mirror the server's auto-primary-contact resolution (setDocumentClient)
+    // for an immediate UI reflection: `contacts` is already ordered isPrimary
+    // desc, firstName asc (see listClientPickerCompanies), so [0] is exactly
+    // the contact the server will assign when no contactId is submitted.
+    const nextCompany = companies.find((c) => c.id === nextCompanyId) ?? null;
+    const autoContactId = nextCompany?.contacts[0]?.id ?? "";
+    setContactId(autoContactId);
     if (nextCompanyId) {
       runSetClient(nextCompanyId, "");
       setPicking(false);

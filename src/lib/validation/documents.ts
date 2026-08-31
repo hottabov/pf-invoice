@@ -19,8 +19,9 @@ export const documentTypeSchema = z.enum(["QUOTE", "INVOICE"]);
 export type DocumentTypeInput = z.infer<typeof documentTypeSchema>;
 
 /** Optional variant of idSchema: missing/blank/`null` collapses to
- * `undefined` (used for `contactId?` on setDocumentClient — clearing the
- * contact is a valid choice, not an error). */
+ * `undefined` (used for `contactId?` on setDocumentClient — an absent
+ * contact isn't an error, it tells the action to auto-assign the company's
+ * primary contact instead of failing validation). */
 export const optionalIdSchema = z.preprocess(
   (value) =>
     value === null || value === undefined || (typeof value === "string" && value.trim() === "")

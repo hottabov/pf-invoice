@@ -214,6 +214,15 @@ export async function deleteDocument(documentId: string): Promise<ActionResult> 
  * here — never trust a companyId/contactId submitted from the client as-is:
  * the company must satisfy `companyWhereForUser`, and the contact (if any)
  * must actually belong to that company. Only DRAFT documents are editable.
+ *
+ * When `contactId` is omitted/empty, the company's primary contact is
+ * auto-assigned instead of leaving the document contact-less: `isPrimary`
+ * first, else the first contact by the same ordering the client picker uses
+ * (`isPrimary` desc, `firstName` asc — see `listClientPickerCompanies`), or
+ * `null` if the company has no contacts at all. This is what lets the
+ * builder's company select persist a usable contact in one step — the
+ * explicit contact dropdown then still overrides it by passing a concrete
+ * `contactId`.
  */
 export async function setDocumentClient(
   documentId: string,
@@ -246,6 +255,12 @@ export async function setDocumentClient(
     });
     if (!contact) return { error: "Contact not found" };
     resolvedContactId = contact.id;
+  } else {
+    const primaryContact = await db.contact.findFirst({
+      where: { companyId: company.id },
+      orderBy: [{ isPrimary: "desc" }, { firstName: "asc" }],
+    });
+    resolvedContactId = primaryContact?.id ?? null;
   }
 
   await db.document.update({

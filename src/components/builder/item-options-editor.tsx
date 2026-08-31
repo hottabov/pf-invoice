@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronDown, ChevronUp, Minus, Plus } from "lucide-react";
+import { ChevronDown, Minus, Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fieldInputClass } from "@/components/ui-kit";
 import { formatMoney } from "@/lib/format";
@@ -221,21 +221,35 @@ export function ItemOptionsEditor({
         {chips.length === 0 && readOnly ? (
           <span className="text-xs text-slate-500">No options</span>
         ) : null}
-        {!readOnly && (
+      </div>
+
+      {!readOnly && (
+        <div className="mt-2">
+          {/* A real secondary button, not a link-styled trigger — bordered,
+              44px-tall tap target, full-width on mobile so it's easy to hit
+              on the phone this builder primarily targets. The option count
+              renders as a small badge, and the chevron rotates (plus the
+              label swaps to "Close options") to reflect panel state. */}
           <button
             type="button"
             onClick={() => (open ? setOpen(false) : openPanel())}
-            className="focus-ring inline-flex min-h-11 items-center gap-1 rounded-md text-xs font-medium text-brand hover:underline"
+            aria-expanded={open}
+            className="focus-ring inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:border-brand/40 hover:bg-slate-50 active:bg-slate-100 sm:w-auto"
           >
-            Edit options
-            {open ? (
-              <ChevronUp className="size-3" aria-hidden="true" />
-            ) : (
-              <ChevronDown className="size-3" aria-hidden="true" />
-            )}
+            <SlidersHorizontal className="size-4 text-slate-500" aria-hidden="true" />
+            <span>{open ? "Close options" : "Edit options"}</span>
+            {chips.length > 0 ? (
+              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-brand/10 px-1.5 py-0.5 text-xs font-semibold text-brand">
+                {chips.length}
+              </span>
+            ) : null}
+            <ChevronDown
+              className={cn("size-4 text-slate-400 transition-transform", open && "rotate-180")}
+              aria-hidden="true"
+            />
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {open && !readOnly ? (
         <div className="mt-2 flex max-h-[70dvh] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
