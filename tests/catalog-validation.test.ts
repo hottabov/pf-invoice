@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { productSchema, optionSchema, priceInputSchema, compatDiff } from "../src/lib/validation/catalog";
+import {
+  productSchema,
+  optionSchema,
+  priceInputSchema,
+  compatDiff,
+  maxDiscountPctSchema,
+} from "../src/lib/validation/catalog";
 
 describe("productSchema", () => {
   const base = {
@@ -301,5 +307,51 @@ describe("compatDiff", () => {
 
   it("handles adding to an empty current list", () => {
     expect(compatDiff([], ["M", "L"])).toEqual({ toAdd: ["M", "L"], toRemove: [] });
+  });
+});
+
+describe("maxDiscountPctSchema", () => {
+  it("collapses an empty string to null (no cap)", () => {
+    const result = maxDiscountPctSchema.safeParse("");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBeNull();
+  });
+
+  it("collapses a missing/null value to null", () => {
+    expect(maxDiscountPctSchema.safeParse(null).success).toBe(true);
+    expect(maxDiscountPctSchema.safeParse(undefined).success).toBe(true);
+  });
+
+  it("accepts an integer percentage", () => {
+    const result = maxDiscountPctSchema.safeParse("10");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe(10);
+  });
+
+  it("accepts up to 2 decimal places", () => {
+    const result = maxDiscountPctSchema.safeParse("12.5");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe(12.5);
+  });
+
+  it("accepts the boundary values 0 and 100", () => {
+    expect(maxDiscountPctSchema.safeParse("0").success).toBe(true);
+    expect(maxDiscountPctSchema.safeParse("100").success).toBe(true);
+  });
+
+  it("rejects more than 2 decimal places", () => {
+    expect(maxDiscountPctSchema.safeParse("10.555").success).toBe(false);
+  });
+
+  it("rejects a value above 100", () => {
+    expect(maxDiscountPctSchema.safeParse("101").success).toBe(false);
+  });
+
+  it("rejects a negative value", () => {
+    expect(maxDiscountPctSchema.safeParse("-5").success).toBe(false);
+  });
+
+  it("rejects a non-numeric string", () => {
+    expect(maxDiscountPctSchema.safeParse("abc").success).toBe(false);
   });
 });

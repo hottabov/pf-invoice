@@ -20,6 +20,13 @@ export type FinalizableDocument = {
   lines: { itemId: string | null }[];
 };
 
+/** The two roles that can ever call `finalizeDocument` — kept as a local
+ * string-literal union rather than importing Prisma's generated `Role` enum,
+ * for the same "no `@/lib/db`-adjacent import" reason as everything else in
+ * this file (the enum itself has no runtime/env dependency, but there's no
+ * need to couple this pure module to `@prisma/client` either). */
+export type FinalizerRole = "ADMIN" | "MANAGER";
+
 /**
  * Returns a human-readable reason the document can't be finalized, or
  * `null` when it's ready. Checked in this order so a caller only ever sees
@@ -30,11 +37,18 @@ export type FinalizableDocument = {
  *      discount can end up violating its cap after the fact if an admin
  *      lowers `Series.maxDiscountPct` later — see the NOTE on
  *      `recalcDocument` in src/lib/actions/documents.ts — so this must be
- *      re-checked at finalize time, not just at save time).
+ *      re-checked at finalize time, not just at save time) — but ONLY for a
+ *      MANAGER. An ADMIN may finalize over a discount-cap violation (they
+ *      can already set an over-cap item discount in the first place — see
+ *      `setItemDiscount` — so blocking them again at finalize time would
+ *      just be a second copy of a rule that's already role-gated upstream);
+ *      the caller (`finalizeDocument`) is responsible for logging that an
+ *      admin overrode a violation.
  */
 export function validateFinalizable(
   doc: FinalizableDocument,
-  violations: EngineViolation[]
+  violations: EngineViolation[],
+  role: FinalizerRole
 ): string | null {
   if (!doc.companyId) {
     return "Select a client before finalizing";
@@ -45,7 +59,7 @@ export function validateFinalizable(
     return "Add at least one item or line before finalizing";
   }
 
-  if (violations.length > 0) {
+  if (violations.length > 0 && role !== "ADMIN") {
     const detail = violations
       .map((v) => `item ${v.itemIndex + 1} (max ${v.allowedPct}%)`)
       .join(", ");

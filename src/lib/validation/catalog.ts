@@ -149,6 +149,36 @@ export const priceInputSchema = z.object({
 
 export type PriceInput = z.infer<typeof priceInputSchema>;
 
+// --- series max discount ------------------------------------------------
+
+const MAX_DISCOUNT_PCT_REGEX = /^\d{1,3}(\.\d{1,2})?$/;
+
+/**
+ * A series' `maxDiscountPct` cap, edited inline on /catalog (admin only —
+ * see `updateSeriesMaxDiscount` in actions/catalog.ts). Same shape as
+ * `discountPctSchema` in validation/documents.ts (0..100, at most 2 decimal
+ * places, empty means "no cap"/`null`) but kept as its own schema here
+ * rather than a cross-import — this module owns every catalog-admin field,
+ * that one owns every document-builder field, and the two happen to need
+ * the same percentage shape rather than actually depending on each other.
+ */
+export const maxDiscountPctSchema = z.preprocess(
+  (value) =>
+    value === null || value === undefined || (typeof value === "string" && value.trim() === "")
+      ? null
+      : value,
+  z.union([
+    z.null(),
+    z
+      .string()
+      .trim()
+      .regex(MAX_DISCOUNT_PCT_REGEX, "Max discount must be a number between 0 and 100 with at most 2 decimal places")
+      .transform((value) => Number(value))
+      .refine((value) => value >= 0 && value <= 100, "Max discount must be between 0 and 100"),
+  ])
+);
+export type MaxDiscountPctInput = z.infer<typeof maxDiscountPctSchema>;
+
 // --- compatibility diff -----------------------------------------------------
 
 export type CompatDiff = { toAdd: string[]; toRemove: string[] };

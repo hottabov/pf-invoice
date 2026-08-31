@@ -24,7 +24,14 @@ import {
 } from "@/lib/validation/documents";
 import { buildInvoiceCopyPayload, type QuoteForCopy } from "@/lib/invoice-from-quote";
 
-export type ActionResult = { error?: string };
+/**
+ * `warning` is set on an otherwise-successful save that an ADMIN pushed
+ * through over a rule a MANAGER would have been blocked by (currently just
+ * `setItemDiscount` exceeding a series' cap — see its own comment) — the
+ * caller shows it as a non-blocking toast rather than the inline `error`
+ * treatment, since the save itself did succeed.
+ */
+export type ActionResult = { error?: string; warning?: string };
 
 const NOT_FOUND_ERROR = "Not found";
 const FALLBACK_REGION_CODE = "AU";
@@ -160,6 +167,43 @@ export async function deleteDraft(documentId: string): Promise<ActionResult> {
 
   revalidatePath("/documents");
   redirect("/documents");
+}
+
+/**
+ * Permanently deletes a document of any status, from the /documents list.
+ * Items/lines cascade via `onDelete: Cascade` (schema.prisma); any invoice
+ * that was copied *from* this document as a source quote keeps existing —
+ * `Document.sourceQuoteId` is `onDelete: SetNull`, so deleting a quote only
+ * clears that back-reference on its invoice(s), never blocks the delete or
+ * cascades into them.
+ *
+ * Scoped like every other action here (`documentWhereForUser`: a MANAGER
+ * only ever finds their own documents, an ADMIN finds any), plus one extra
+ * rule this action alone enforces: a FINAL document — one that was issued a
+ * permanent, never-reused number (see numbering.ts) — may only be deleted by
+ * an ADMIN, regardless of who authored it. A DRAFT has no such restriction
+ * beyond the usual scope check.
+ */
+export async function deleteDocument(documentId: string): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedId = idSchema.safeParse(documentId);
+  if (!parsedId.success) return { error: NOT_FOUND_ERROR };
+
+  const document = await db.document.findFirst({
+    where: { id: parsedId.data, ...documentWhereForUser(session.user) },
+    select: { id: true, status: true },
+  });
+  if (!document) return { error: NOT_FOUND_ERROR };
+
+  if (document.status === "FINAL" && session.user.role !== "ADMIN") {
+    return { error: "Only an admin can delete a finalized document" };
+  }
+
+  await db.document.delete({ where: { id: document.id } });
+
+  revalidatePath("/documents");
+  return {};
 }
 
 // --- client step -----------------------------------------------------------
@@ -568,13 +612,17 @@ export async function removeLine(lineId: string): Promise<ActionResult> {
 
 /**
  * Sets (or, given an empty `pct`, clears) an item's discount percentage.
- * The item's series cap (`Series.maxDiscountPct`) is enforced *before*
- * persisting: unlike the pricing engine's own violation reporting (which
- * happily computes with whatever percentage is already stored and just
- * flags it — see EngineViolation), this action refuses the save outright
- * when the requested pct exceeds the cap, so a violating discount is never
- * actually written for a new save. A series with no cap configured
- * (`maxDiscountPct` null) allows any 0..100 discount.
+ * The item's series cap (`Series.maxDiscountPct`, admin-editable on
+ * /catalog — see `updateSeriesMaxDiscount`) is enforced *before* persisting
+ * — unlike the pricing engine's own violation reporting (which happily
+ * computes with whatever percentage is already stored and just flags it,
+ * see `EngineViolation`) — but ONLY for a MANAGER: a save that exceeds the
+ * cap is refused outright for them, so a violating discount is never
+ * actually written by a manager's save. An ADMIN may exceed the cap; the
+ * save still succeeds but comes back with `warning` set (rather than
+ * `error`) so the caller can surface a non-blocking "exceeds cap" toast
+ * instead of rejecting the save. A series with no cap configured
+ * (`maxDiscountPct` null) allows any 0..100 discount for either role.
  */
 export async function setItemDiscount(itemId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -595,9 +643,15 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
   if (!item) return { error: NOT_FOUND_ERROR };
 
   const cap = item.product?.series.maxDiscountPct ? Number(item.product.series.maxDiscountPct) : null;
-  if (parsedPct.data !== null && cap !== null && parsedPct.data > cap) {
+  const exceedsCap = parsedPct.data !== null && cap !== null && parsedPct.data > cap;
+
+  let warning: string | undefined;
+  if (exceedsCap) {
     const seriesName = item.product?.series.name ?? "this series";
-    return { error: `Max discount for ${seriesName} is ${cap}%` };
+    if (session.user.role !== "ADMIN") {
+      return { error: `Max discount for ${seriesName} is ${cap}%` };
+    }
+    warning = `Exceeds series cap of ${cap}%`;
   }
 
   await db.documentItem.update({
@@ -608,7 +662,7 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
   await recalcDocument(item.documentId);
 
   revalidatePath(`/documents/${item.documentId}`);
-  return {};
+  return warning ? { warning } : {};
 }
 
 /**

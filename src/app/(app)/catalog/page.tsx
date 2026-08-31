@@ -1,14 +1,22 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Package, Puzzle } from "lucide-react";
+import { auth } from "@/auth";
 import { listSeriesWithCounts, countOptions } from "@/lib/queries/catalog";
+import { updateSeriesMaxDiscount } from "@/lib/actions/catalog";
+import { SeriesDiscountEditor } from "@/components/catalog/series-discount-editor";
 import { PageHeader, StatusBadge } from "@/components/ui-kit";
 
 export const metadata: Metadata = { title: "Catalog" };
 export const dynamic = "force-dynamic";
 
 export default async function CatalogPage() {
-  const [series, optionsCount] = await Promise.all([listSeriesWithCounts(), countOptions()]);
+  const [session, series, optionsCount] = await Promise.all([
+    auth(),
+    listSeriesWithCounts(),
+    countOptions(),
+  ]);
+  const isAdmin = session?.user?.role === "ADMIN";
 
   return (
     <div className="flex flex-col gap-6">
@@ -16,27 +24,43 @@ export default async function CatalogPage() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {series.map((s) => (
-          <Link
+          <div
             key={s.id}
-            href={`/catalog/${encodeURIComponent(s.code)}`}
-            className="focus-ring flex min-h-12 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-brand-accent-ink hover:bg-slate-50 active:bg-slate-100"
+            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-brand-accent-ink hover:bg-slate-50"
           >
-            <div className="flex items-start justify-between gap-2">
-              <span className="flex min-w-0 items-center gap-2 font-medium text-brand-dark">
-                <Package className="size-5 shrink-0 text-brand" aria-hidden="true" />
-                <span className="truncate">{s.name}</span>
+            <Link
+              href={`/catalog/${encodeURIComponent(s.code)}`}
+              className="focus-ring flex min-h-12 flex-col gap-2 rounded-lg active:bg-slate-100"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="flex min-w-0 items-center gap-2 font-medium text-brand-dark">
+                  <Package className="size-5 shrink-0 text-brand" aria-hidden="true" />
+                  <span className="truncate">{s.name}</span>
+                </span>
+                {s.maxDiscountPct !== null ? (
+                  <StatusBadge tone="slate" className="shrink-0">
+                    max {s.maxDiscountPct}%
+                  </StatusBadge>
+                ) : null}
+              </div>
+              <span className="font-mono text-xs text-slate-500">{s.code}</span>
+              <span className="text-sm text-slate-500">
+                {s.productCount} {s.productCount === 1 ? "product" : "products"}
               </span>
-              {s.maxDiscountPct !== null ? (
-                <StatusBadge tone="slate" className="shrink-0">
-                  max {s.maxDiscountPct}%
-                </StatusBadge>
-              ) : null}
-            </div>
-            <span className="font-mono text-xs text-slate-500">{s.code}</span>
-            <span className="text-sm text-slate-500">
-              {s.productCount} {s.productCount === 1 ? "product" : "products"}
-            </span>
-          </Link>
+            </Link>
+            {isAdmin ? (
+              // Deliberately outside the <Link> above — a nested interactive
+              // edit form inside an <a> is invalid HTML and would fight the
+              // link for clicks, so this sits as its own row underneath it.
+              <div className="border-t border-slate-100 pt-2">
+                <SeriesDiscountEditor
+                  seriesId={s.id}
+                  maxDiscountPct={s.maxDiscountPct}
+                  action={updateSeriesMaxDiscount}
+                />
+              </div>
+            ) : null}
+          </div>
         ))}
 
         {/* Distinct accent border sets the global "Options" entry apart from

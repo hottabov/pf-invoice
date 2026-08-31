@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { fieldInputClass } from "@/components/ui-kit";
+import { fieldInputClass, useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
 
@@ -12,9 +12,14 @@ const initialState: ActionResult = {};
  * Inline "Discount %" field on an item card. Submits `setItemDiscount`
  * directly (a real `<form>`, so it works with `useActionState` and shows
  * its own pending/error state) — an empty field clears the discount. The
- * item's series cap (if any) is shown as a hint; a save that exceeds it is
- * rejected server-side with a "Max discount for <series> is <cap>%" error
- * shown here rather than silently clamped.
+ * item's series cap (if any) is shown as a hint.
+ *
+ * A save that exceeds the cap behaves differently by role (enforced
+ * server-side in `setItemDiscount`, not here): for a MANAGER it's rejected
+ * outright with a "Max discount for <series> is <cap>%" `error` shown
+ * inline; for an ADMIN it still saves, and the action instead comes back
+ * with `warning` set, surfaced here as a non-blocking toast rather than
+ * blocking the save.
  */
 export function ItemDiscountField({
   itemId,
@@ -29,10 +34,19 @@ export function ItemDiscountField({
   setDiscountAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
   readOnly?: boolean;
 }) {
+  const toast = useToast();
   const [state, formAction, pending] = useActionState(
     (_prevState: ActionResult, formData: FormData) => setDiscountAction(itemId, formData),
     initialState
   );
+  const lastWarning = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (state.warning && state.warning !== lastWarning.current) {
+      toast.info(state.warning);
+    }
+    lastWarning.current = state.warning;
+  }, [state.warning, toast]);
 
   if (readOnly) {
     return discountPct ? (

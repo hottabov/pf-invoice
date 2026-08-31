@@ -3,9 +3,10 @@ import type { Metadata } from "next";
 import { FileText, Receipt, Plus, Search } from "lucide-react";
 import { auth } from "@/auth";
 import { listDocuments, type DocumentListItem } from "@/lib/queries/documents";
-import { createDraft } from "@/lib/actions/documents";
+import { createDraft, deleteDocument } from "@/lib/actions/documents";
 import { formatMoney, relativeDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { DeleteDocumentButton } from "@/components/documents/delete-document-button";
 import {
   PageHeader,
   TableShell,
@@ -156,17 +157,28 @@ export default async function DocumentsPage({
                   <th scope="col" className="px-4 py-3">
                     Updated
                   </th>
+                  <th scope="col" className="px-4 py-3">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {documents.map((d) => (
-                  <DocumentRow key={d.id} document={d} />
+                  <DocumentRow
+                    key={d.id}
+                    document={d}
+                    canDelete={session.user.role === "ADMIN" || d.status === "DRAFT"}
+                  />
                 ))}
               </tbody>
             </table>
           }
           cards={documents.map((d) => (
-            <DocumentCard key={d.id} document={d} />
+            <DocumentCard
+              key={d.id}
+              document={d}
+              canDelete={session.user.role === "ADMIN" || d.status === "DRAFT"}
+            />
           ))}
         />
       )}
@@ -174,77 +186,152 @@ export default async function DocumentsPage({
   );
 }
 
-function DocumentRow({ document: d }: { document: DocumentListItem }) {
+/**
+ * One cell of a clickable document row. Each `<td>` gets its own full-cell
+ * `<Link>` (padding moved off the `<td>` and onto the `<a>`, so the link's
+ * box exactly fills the cell) rather than a single `absolute inset-0` link
+ * positioned against the `<tr>` — `position: relative` on a `<tr>` isn't a
+ * reliable containing block for an absolutely-positioned child across
+ * browsers/table layout modes, which was the actual bug (clicking the
+ * Number cell's own text didn't navigate: the overlay link was being sized/
+ * positioned against whatever ancestor *did* establish a containing block,
+ * not the row directly). A real, normal-flow link per cell has no such
+ * ambiguity and needs no absolute positioning at all.
+ *
+ * Only the first cell in a row (`primary`) is announced/focusable as a link
+ * — the rest are `aria-hidden`/`tabIndex={-1}` so mouse users get full-row
+ * click coverage while keyboard/screen-reader users still see exactly one
+ * "Open {number}" stop per row, same as before.
+ */
+function RowCell({
+  href,
+  children,
+  primary,
+  align,
+}: {
+  href: string;
+  children: React.ReactNode;
+  primary?: string;
+  align?: "right";
+}) {
+  return (
+    <td className="p-0 align-middle">
+      <Link
+        href={href}
+        aria-label={primary}
+        aria-hidden={primary ? undefined : true}
+        tabIndex={primary ? undefined : -1}
+        className={cn("focus-ring block px-4 py-3", align === "right" && "text-right")}
+      >
+        {children}
+      </Link>
+    </td>
+  );
+}
+
+function DocumentRow({ document: d, canDelete }: { document: DocumentListItem; canDelete: boolean }) {
+  const typeLabel = d.type === "QUOTE" ? "Quote" : "Invoice";
+  const statusLabel = d.status === "DRAFT" ? "Draft" : "Final";
+  const numberLabel = d.number ?? `${typeLabel} draft`;
+  const href = `/documents/${d.id}`;
+
+  return (
+    <tr className={tableRowClassName}>
+      <RowCell href={href} primary={`Open ${numberLabel}`}>
+        <span aria-hidden="true" className="font-mono text-sm text-brand-dark">
+          {numberLabel}
+        </span>
+      </RowCell>
+      <RowCell href={href}>
+        <span className="inline-flex items-center gap-1.5 text-sm text-slate-600">
+          {d.type === "QUOTE" ? (
+            <FileText className="size-3.5 text-brand" aria-hidden="true" />
+          ) : (
+            <Receipt className="size-3.5 text-brand" aria-hidden="true" />
+          )}
+          {typeLabel}
+        </span>
+      </RowCell>
+      <RowCell href={href}>
+        <span className="text-sm text-slate-700">{d.companyName ?? "No client"}</span>
+      </RowCell>
+      <RowCell href={href} align="right">
+        <span className="text-sm font-medium tabular-nums text-brand-dark">
+          {formatMoney(d.total, d.currency)}
+        </span>
+      </RowCell>
+      <RowCell href={href}>
+        <StatusBadge tone={STATUS_TONE[d.status]}>{statusLabel}</StatusBadge>
+      </RowCell>
+      <RowCell href={href}>
+        <span className="text-sm text-slate-500">{relativeDate(d.updatedAt)}</span>
+      </RowCell>
+      {/* Deliberately its own plain `<td>` (no `RowCell`/`Link`) — a delete
+          button nested inside an `<a>` would be invalid HTML and would fire
+          both the button's click and the row's navigation. */}
+      <td className="p-0 align-middle">
+        {canDelete ? (
+          <div className="flex justify-end px-2">
+            <DeleteDocumentButton
+              documentId={d.id}
+              numberLabel={numberLabel}
+              status={d.status}
+              action={deleteDocument}
+            />
+          </div>
+        ) : null}
+      </td>
+    </tr>
+  );
+}
+
+function DocumentCard({ document: d, canDelete }: { document: DocumentListItem; canDelete: boolean }) {
   const typeLabel = d.type === "QUOTE" ? "Quote" : "Invoice";
   const statusLabel = d.status === "DRAFT" ? "Draft" : "Final";
   const numberLabel = d.number ?? `${typeLabel} draft`;
 
   return (
-    <tr className={cn(tableRowClassName, "relative")}>
-      <td className="px-4 py-3 align-middle">
-        <Link
-          href={`/documents/${d.id}`}
-          className="absolute inset-0 focus-visible:z-10 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
-        >
-          <span className="sr-only">Open {numberLabel}</span>
-        </Link>
-        <span aria-hidden="true" className="relative font-mono text-sm text-brand-dark">
-          {numberLabel}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-sm text-slate-600">
-        <span className="inline-flex items-center gap-1.5">
-          {d.type === "QUOTE" ? (
-            <FileText className="size-3.5 text-brand" aria-hidden="true" />
-          ) : (
-            <Receipt className="size-3.5 text-brand" aria-hidden="true" />
-          )}
-          {typeLabel}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-sm text-slate-700">{d.companyName ?? "No client"}</td>
-      <td className="px-4 py-3 text-right text-sm font-medium tabular-nums text-brand-dark">
-        {formatMoney(d.total, d.currency)}
-      </td>
-      <td className="px-4 py-3">
-        <StatusBadge tone={STATUS_TONE[d.status]}>{statusLabel}</StatusBadge>
-      </td>
-      <td className="px-4 py-3 text-sm text-slate-500">{relativeDate(d.updatedAt)}</td>
-    </tr>
-  );
-}
-
-function DocumentCard({ document: d }: { document: DocumentListItem }) {
-  const typeLabel = d.type === "QUOTE" ? "Quote" : "Invoice";
-  const statusLabel = d.status === "DRAFT" ? "Draft" : "Final";
-
-  return (
-    <Link
-      href={`/documents/${d.id}`}
-      className="focus-ring flex min-h-12 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-colors active:bg-slate-100"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
-          {d.type === "QUOTE" ? (
-            <FileText className="size-3.5 text-brand" aria-hidden="true" />
-          ) : (
-            <Receipt className="size-3.5 text-brand" aria-hidden="true" />
-          )}
-          {typeLabel}
-        </span>
-        <StatusBadge tone={STATUS_TONE[d.status]}>{statusLabel}</StatusBadge>
-      </div>
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate font-medium text-brand-dark">{d.companyName ?? "No client"}</p>
-          <p className="font-mono text-xs text-slate-500">
-            {d.number ?? `${typeLabel} draft`} · {relativeDate(d.updatedAt)}
-          </p>
+    <div className="relative rounded-xl border border-slate-200 bg-white p-4">
+      <Link
+        href={`/documents/${d.id}`}
+        className={cn(
+          "focus-ring flex min-h-12 flex-col gap-2 rounded-lg transition-colors active:bg-slate-100",
+          canDelete && "pr-12"
+        )}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+            {d.type === "QUOTE" ? (
+              <FileText className="size-3.5 text-brand" aria-hidden="true" />
+            ) : (
+              <Receipt className="size-3.5 text-brand" aria-hidden="true" />
+            )}
+            {typeLabel}
+          </span>
+          <StatusBadge tone={STATUS_TONE[d.status]}>{statusLabel}</StatusBadge>
         </div>
-        <span className="shrink-0 text-sm font-medium tabular-nums text-brand-dark">
-          {formatMoney(d.total, d.currency)}
-        </span>
-      </div>
-    </Link>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate font-medium text-brand-dark">{d.companyName ?? "No client"}</p>
+            <p className="font-mono text-xs text-slate-500">
+              {numberLabel} · {relativeDate(d.updatedAt)}
+            </p>
+          </div>
+          <span className="shrink-0 text-sm font-medium tabular-nums text-brand-dark">
+            {formatMoney(d.total, d.currency)}
+          </span>
+        </div>
+      </Link>
+      {canDelete ? (
+        <div className="absolute top-3 right-3">
+          <DeleteDocumentButton
+            documentId={d.id}
+            numberLabel={numberLabel}
+            status={d.status}
+            action={deleteDocument}
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }

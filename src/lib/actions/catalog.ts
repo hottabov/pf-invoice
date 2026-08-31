@@ -6,7 +6,13 @@ import { Prisma } from "@prisma/client";
 import type { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/authz";
-import { productSchema, optionSchema, priceInputSchema, compatDiff } from "@/lib/validation/catalog";
+import {
+  productSchema,
+  optionSchema,
+  priceInputSchema,
+  compatDiff,
+  maxDiscountPctSchema,
+} from "@/lib/validation/catalog";
 import { IMAGE_URL_PATTERN } from "@/lib/uploads";
 
 export type ActionResult = { error?: string };
@@ -126,6 +132,33 @@ export async function updateProduct(productId: string, formData: FormData): Prom
   redirect(
     `/catalog/${encodeURIComponent(existing.series.code)}/${encodeURIComponent(parsed.data.code)}`
   );
+}
+
+/**
+ * Sets (or, given an empty `pct`, clears) a series' discount cap — the
+ * per-series `Max discount: X% [edit]` control on /catalog. Admin-only, like
+ * every catalog mutation here; the cap this writes is what
+ * `setItemDiscount` (src/lib/actions/documents.ts) enforces against a
+ * MANAGER's item discounts (an ADMIN may exceed it there) and what
+ * `recalcDocument`/`validateFinalizable` re-check at finalize time.
+ */
+export async function updateSeriesMaxDiscount(seriesId: string, formData: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = maxDiscountPctSchema.safeParse(formData.get("maxDiscountPct"));
+  if (!parsed.success) return { error: flattenZodError(parsed.error) };
+
+  const existing = await db.series.findUnique({ where: { id: seriesId } });
+  if (!existing) return { error: "Series not found" };
+
+  await db.series.update({
+    where: { id: seriesId },
+    data: { maxDiscountPct: parsed.data === null ? null : new Prisma.Decimal(parsed.data) },
+  });
+
+  revalidatePath("/catalog");
+  revalidatePath(`/catalog/${encodeURIComponent(existing.code)}`);
+  return {};
 }
 
 export async function deleteProduct(productId: string): Promise<ActionResult> {

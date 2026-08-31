@@ -66,9 +66,23 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
 
   const validationError = validateFinalizable(
     { companyId: document.companyId, items: document.items, lines: document.lines },
-    violations
+    violations,
+    session.user.role
   );
   if (validationError) return { error: validationError };
+
+  // An ADMIN is allowed to finalize over a discount-cap violation (see
+  // validateFinalizable's header comment) — this is the "logged in report"
+  // half of that: a structured server-log line naming who overrode it and
+  // by how much, since there's no dedicated admin-activity report to write
+  // it into yet. Grep-able by the "[finalize] admin override" prefix.
+  if (violations.length > 0 && session.user.role === "ADMIN") {
+    console.warn("[finalize] admin override: discount-cap violation(s) finalized anyway", {
+      documentId: document.id,
+      adminUserId: session.user.id,
+      violations,
+    });
+  }
 
   // Only quotes carry a validity window; read the org-wide default once
   // (fallback applies both when the Setting row is missing and when its
