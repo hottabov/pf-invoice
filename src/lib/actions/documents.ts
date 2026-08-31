@@ -293,30 +293,36 @@ export async function addItem(documentId: string, productCode: string): Promise<
     return { error: `Price required for ${product.code} in ${document.region.code}` };
   }
 
-  const maxSortOrder = await db.documentItem.aggregate({
-    where: { documentId: document.id },
-    _max: { sortOrder: true },
-  });
+  // Atomically read max sortOrder and create item in a single transaction to
+  // prevent concurrent adds from duplicating sortOrder, which would later
+  // corrupt quote→invoice line correlation. Interactive transaction ensures
+  // the aggregate(max) and create are not interleaved with other writes.
+  await db.$transaction(async (tx) => {
+    const maxSortOrder = await tx.documentItem.aggregate({
+      where: { documentId: document.id },
+      _max: { sortOrder: true },
+    });
 
-  await db.documentItem.create({
-    data: {
-      documentId: document.id,
-      productId: product.id,
-      sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
-      code: product.code,
-      name: product.name,
-      description: product.description,
-      unitPrice: price.amount,
-      imageUrl: product.imageUrl,
-      // Quotation-first default (behavior change): a newly added item with a
-      // product image starts with its image already switched on for display
-      // — the owner's quotes almost always show it (full-width, right under
-      // the product title — see quotation-sheet.tsx), so requiring an extra
-      // manual toggle on every single item added defeats the point. Still
-      // author-togglable afterwards via `setItemShowImage`, and a product
-      // with no image simply has nothing to default on (`false` either way).
-      showImage: Boolean(product.imageUrl),
-    },
+    await tx.documentItem.create({
+      data: {
+        documentId: document.id,
+        productId: product.id,
+        sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
+        code: product.code,
+        name: product.name,
+        description: product.description,
+        unitPrice: price.amount,
+        imageUrl: product.imageUrl,
+        // Quotation-first default (behavior change): a newly added item with a
+        // product image starts with its image already switched on for display
+        // — the owner's quotes almost always show it (full-width, right under
+        // the product title — see quotation-sheet.tsx), so requiring an extra
+        // manual toggle on every single item added defeats the point. Still
+        // author-togglable afterwards via `setItemShowImage`, and a product
+        // with no image simply has nothing to default on (`false` either way).
+        showImage: Boolean(product.imageUrl),
+      },
+    });
   });
 
   await recalcDocument(document.id);
@@ -809,6 +815,17 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<ActionRes
   });
   if (!quote) return { error: NOT_FOUND_ERROR };
 
+  // Defensively re-normalize source items' sortOrder in-memory to handle any
+  // historical duplicates caused by non-transactional concurrent adds. Sort by
+  // (sortOrder, id) to get a canonical order, then assign sequential indices.
+  // This ensures the correlation Map keys are unique and stable.
+  const normalizedItems = quote.items
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
+    .map((item, index) => ({
+      ...item,
+      sortOrder: index,
+    }));
+
   const quoteForCopy: QuoteForCopy = {
     id: quote.id,
     companyId: quote.companyId,
@@ -821,7 +838,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<ActionRes
     notes: quote.notes,
     showItemPrices: quote.showItemPrices,
     showOptionPrices: quote.showOptionPrices,
-    items: quote.items.map((item) => ({
+    items: normalizedItems.map((item) => ({
       productId: item.productId,
       sortOrder: item.sortOrder,
       code: item.code,
@@ -896,12 +913,15 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<ActionRes
       include: { items: true },
     });
 
-    const newItemIdBySortOrder = new Map(invoice.items.map((item) => [item.sortOrder, item.id]));
+    // Map from normalized sortOrder (0, 1, 2, ...) to new item IDs. Safe because
+    // normalizedItems above ensured sortOrder is unique and sequential, matching
+    // each item's index. This map is keyed by index, not by original duplicate sortOrder.
+    const newItemIdByIndex = new Map(invoice.items.map((item) => [item.sortOrder, item.id]));
 
     const itemLineRows: Prisma.DocumentLineCreateManyInput[] = payload.items.flatMap((item) => {
-      const newItemId = newItemIdBySortOrder.get(item.sortOrder);
-      // Defensive only — every payload item was just created above with this
-      // exact sortOrder, so it's always found in practice.
+      const newItemId = newItemIdByIndex.get(item.sortOrder);
+      // Always found — every payload item was just created above with this
+      // exact normalized sortOrder (which is guaranteed unique).
       if (!newItemId) return [];
       return item.lines.map((line) => ({
         documentId: invoice.id,
