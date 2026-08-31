@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/format";
+import { renderStoredRichText } from "@/lib/rich-text";
 import type { DocSheetData, DocSheetLine } from "@/lib/sheet-data";
 
 /**
@@ -12,7 +13,10 @@ import type { DocSheetData, DocSheetLine } from "@/lib/sheet-data";
  * component: no Tailwind classes (Gotenberg's Chromium never sees this
  * app's compiled Tailwind stylesheet — only whatever HTML string is
  * actually posted to it), no data fetching, no `async`, nothing from
- * `@/lib/db` — every style needed to render correctly standalone lives in
+ * `@/lib/db` (the one exception, `renderStoredRichText` for `data.notes`
+ * below, is a pure `@/lib/rich-text` helper with the same no-db/no-next
+ * discipline as `renderMarkdown` always had) — every style needed to
+ * render correctly standalone lives in
  * the one embedded `<style>` block below (plus a handful of inline `style`
  * attributes for values that come from data, e.g. the watermark rotation
  * anchor). It receives an already-fully-resolved `DocSheetData` — see
@@ -202,12 +206,23 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
           </div>
         </div>
 
-        {/* Free-text notes (Document.notes) — small, before bank details;
-            never shown at all when the author left it blank. */}
+        {/* Free-text notes (Document.notes, rich text from the builder's
+            Notes section — HTML from the WYSIWYG editor, or legacy markdown
+            for a pre-migration row, either way rendered through
+            `renderStoredRichText`, same as the quotation sheet's own notes
+            section) — small, before bank details; never shown at all when
+            the author left it blank. Content is admin-authored and
+            sanitized on write (see setDocumentNotes), and sanitized again
+            here defensively, same treatment `QuotationSheet` gives every
+            other rich-text field — so `dangerouslySetInnerHTML` is safe by
+            construction. */}
         {data.notes ? (
           <div className="pq-notes">
             <div className="pq-notes-title">Notes</div>
-            <div className="pq-notes-text">{data.notes}</div>
+            <div
+              className="pq-notes-text"
+              dangerouslySetInnerHTML={{ __html: renderStoredRichText(data.notes) }}
+            />
           </div>
         ) : null}
 
@@ -391,7 +406,27 @@ const SHEET_CSS = `
   .pq-notes-text {
     color: #555555;
     font-size: 10px;
-    white-space: pre-line;
+  }
+  .pq-notes-text p {
+    margin: 0 0 6px 0;
+  }
+  .pq-notes-text p:last-child {
+    margin-bottom: 0;
+  }
+  .pq-notes-text ul,
+  .pq-notes-text ol {
+    margin: 0 0 6px 0;
+    padding-left: 16px;
+  }
+  .pq-notes-text ul:last-child,
+  .pq-notes-text ol:last-child {
+    margin-bottom: 0;
+  }
+  .pq-notes-text strong {
+    color: #333333;
+  }
+  .pq-notes-text a {
+    color: #243478;
   }
   .pq-items {
     width: 100%;

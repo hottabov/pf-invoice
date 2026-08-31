@@ -16,11 +16,14 @@ import type { DocSheetLine } from "@/lib/sheet-data";
  *
  * It receives an already-fully-assembled `QuotationData` — see
  * `buildQuotationData` in src/lib/quotation-data.ts, the pure assembler that
- * resolves content blocks, substitutes `{{placeholders}}`, and renders
- * markdown to HTML — and does no further data work of its own, just JSX.
- * Every block body reaches this component as trusted, already-escaped HTML
- * (renderMarkdown HTML-escapes its input before any markdown transform
- * runs), so `dangerouslySetInnerHTML` here is safe by construction.
+ * resolves content blocks, substitutes `{{placeholders}}`, and renders each
+ * body to HTML via `renderStoredRichText` (src/lib/rich-text.ts) — and does
+ * no further data work of its own, just JSX. Every block body reaches this
+ * component as trusted, already-sanitized HTML (`renderStoredRichText`
+ * either sanitizes already-HTML content through an allowlist, or runs
+ * legacy markdown through `renderMarkdown`, which HTML-escapes its input
+ * before any markdown transform runs), so `dangerouslySetInnerHTML` here is
+ * safe by construction.
  */
 export function QuotationSheet({ data }: { data: QuotationData }) {
   const { totals } = data;

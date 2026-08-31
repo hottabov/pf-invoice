@@ -13,7 +13,7 @@
 // extra fields (`specs`, `seriesCode`, `serialNumber`) this module needs.
 import { formatMoney } from "./format";
 import { machineSpecSentence, parseMachineSpecs, extraSpecVars } from "./machine-specs";
-import { renderMarkdown } from "./markdown";
+import { renderStoredRichText } from "./rich-text";
 import {
   dedupeDescription,
   formatBankDetails,
@@ -252,7 +252,7 @@ const UNRESOLVED_MARKER = "@@QUOTATION_UNRESOLVED@@";
  * `{{price}}`) simply doesn't exist in the rendered output.
  *
  * The strip runs on the raw markdown source, one `\n`-delimited line at a
- * time, *before* `renderMarkdown` ever sees it — so a whole markdown
+ * time, *before* `renderStoredRichText` ever sees it — so a whole markdown
  * paragraph/list-item/heading line disappears cleanly instead of leaving a
  * dangling `<p>`/`<li>` with blank content. A resolved multi-line value
  * (e.g. `{{bankDetails}}` — see `formatBankDetails`) substitutes in as-is,
@@ -421,7 +421,7 @@ export type QuotationData = {
    * `DocSheetPreparedBy`. Relabels the existing `client` block "Prepared
    * for" alongside it (see quotation-sheet.tsx). */
   preparedBy: DocSheetPreparedBy;
-  /** `Document.notes`, rendered to HTML via `renderMarkdown` — `null` when
+  /** `Document.notes`, rendered to HTML via `renderStoredRichText` — `null` when
    * there's nothing to show, in which case the sheet renders no Notes
    * section at all. */
   notesHtml: string | null;
@@ -499,7 +499,7 @@ function collectByPrefix(
     .map((block) => ({
       key: block.key,
       title: block.title,
-      bodyHtml: renderMarkdown(substitutePlaceholders(block.body, vars)),
+      bodyHtml: renderStoredRichText(substitutePlaceholders(block.body, vars)),
     }));
 }
 
@@ -580,7 +580,7 @@ export function buildQuotationData(
 
     const blockKey = productBlockKey(item.code, item.seriesCode);
     const block = blockKey ? resolved.get(blockKey) : undefined;
-    const titleBlockHtml = block ? renderMarkdown(substitutePlaceholders(block.body, vars)) : null;
+    const titleBlockHtml = block ? renderStoredRichText(substitutePlaceholders(block.body, vars)) : null;
 
     // Structural section price (see `QuotationMachineSection.sectionPrice`'s
     // doc comment) — the same figure substituted into `vars.price` above,
@@ -624,10 +624,10 @@ export function buildQuotationData(
       const found = candidates.map((key) => resolved.get(key)).find((b) => b !== undefined);
 
       const descriptionHtml = found
-        ? renderMarkdown(substitutePlaceholders(found.body, attributeVars(line.attributes)))
+        ? renderStoredRichText(substitutePlaceholders(found.body, attributeVars(line.attributes)))
         : (() => {
             const raw = dedupeDescription(name, docLine?.description ?? line.description);
-            return raw ? renderMarkdown(raw) : null;
+            return raw ? renderStoredRichText(raw) : null;
           })();
 
       optionRows.push({
@@ -672,7 +672,9 @@ export function buildQuotationData(
   const conditionsSections = collectByPrefix(resolved, "conditions", globalVars);
 
   const rspAgreement = resolved.get("rsp.agreement");
-  const agreementHtml = rspAgreement ? renderMarkdown(substitutePlaceholders(rspAgreement.body, globalVars)) : null;
+  const agreementHtml = rspAgreement
+    ? renderStoredRichText(substitutePlaceholders(rspAgreement.body, globalVars))
+    : null;
 
   const coverageRows: QuotationRspRow[] = doc.items
     .filter((item) => MACHINE_SERIES_CODES.has(item.seriesCode ?? "") || Boolean(item.serialNumber))
@@ -686,7 +688,7 @@ export function buildQuotationData(
       rspUnitCost: "TBA",
     }));
 
-  const notesHtml = doc.notes ? renderMarkdown(doc.notes) : null;
+  const notesHtml = doc.notes ? renderStoredRichText(doc.notes) : null;
 
   return {
     isDraft: sheet.isDraft,

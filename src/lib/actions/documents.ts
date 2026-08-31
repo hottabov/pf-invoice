@@ -9,6 +9,7 @@ import { requireSession } from "@/lib/authz";
 import { companyWhereForUser, documentWhereForUser } from "@/lib/scope";
 import { compatibilityOrFilter } from "@/lib/catalog-compat";
 import { computeTotals, type EngineInput, type EngineViolation } from "@/lib/pricing";
+import { isHtmlContent, sanitizeRichText } from "@/lib/rich-text";
 import {
   customLineSchema,
   discountPctSchema,
@@ -806,14 +807,19 @@ export async function setPriceDisplay(documentId: string, input: unknown): Promi
 
 /**
  * Sets (or, given a blank body, clears) `Document.notes` — the builder's
- * freeform Notes section (markdown, rendered on both the quotation sheet via
- * `renderMarkdown` and the plain document/invoice sheet as plain text — see
- * `QuotationData.notesHtml`/`DocSheetData.notes`). DRAFT-only and scoped like
- * every other document mutation in this file; purely a display field, so
- * unlike `setItemDiscount`/`setDocumentDiscount` there's no `recalcDocument`
- * call here (mirrors `setItemShowImage`/`setPriceDisplay`). Applies to both
- * QUOTE and INVOICE documents — the builder renders this SectionCard for
- * either type.
+ * freeform Notes section (HTML from the `RichTextEditor`, or legacy markdown
+ * for a row a pre-migration editor saved and nobody has re-opened since;
+ * rendered on both the quotation sheet and the plain document/invoice sheet
+ * via `renderStoredRichText` — see `QuotationData.notesHtml`/
+ * `DocSheetData.notes`). HTML content is allowlist-sanitized before it ever
+ * reaches the database (`sanitizeRichText`) — the read-side `renderStoredRichText`
+ * sanitizes again defensively, but the write boundary is the one place that
+ * actually stops something unwanted from being persisted at all. DRAFT-only
+ * and scoped like every other document mutation in this file; purely a
+ * display field, so unlike `setItemDiscount`/`setDocumentDiscount` there's
+ * no `recalcDocument` call here (mirrors `setItemShowImage`/
+ * `setPriceDisplay`). Applies to both QUOTE and INVOICE documents — the
+ * builder renders this SectionCard for either type.
  */
 export async function setDocumentNotes(documentId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -829,9 +835,12 @@ export async function setDocumentNotes(documentId: string, formData: FormData): 
   });
   if (!document) return { error: NOT_FOUND_ERROR };
 
+  const notes =
+    parsedNotes.data !== null && isHtmlContent(parsedNotes.data) ? sanitizeRichText(parsedNotes.data) : parsedNotes.data;
+
   await db.document.update({
     where: { id: document.id },
-    data: { notes: parsedNotes.data },
+    data: { notes },
   });
 
   revalidatePath(`/documents/${document.id}`);

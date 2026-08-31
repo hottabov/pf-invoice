@@ -109,12 +109,14 @@ export type ToSheetDataDoc = {
    * `DocSheetPreparedBy`). Always present: `Document.authorId` is a required
    * field. */
   author: ToSheetAuthorInput;
-  /** `Document.notes` exactly as stored — free-text, admin-authored markdown
-   * (see the builder's Notes section), rendered by the quotation sheet via
-   * `renderMarkdown` (src/lib/quotation-data.ts's `notesHtml`) and by the
-   * plain document sheet as-is (`DocumentSheet` has no markdown renderer of
-   * its own — see its own doc comment on why it stays dependency-light).
-   * `null` when the author hasn't written any. */
+  /** `Document.notes` exactly as stored — free-text, admin-authored rich
+   * text (HTML from the WYSIWYG editor, or legacy markdown for a
+   * pre-migration row — see src/lib/rich-text.ts's `isHtmlContent`),
+   * rendered by both the quotation sheet and the plain document sheet via
+   * `renderStoredRichText` (src/lib/quotation-data.ts's `notesHtml` /
+   * `DocumentSheet`'s own call — see its doc comment on why the rendering
+   * happens there rather than in this dependency-light mapper). `null` when
+   * the author hasn't written any. */
   notes: string | null;
 };
 

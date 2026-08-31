@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import type { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/authz";
+import { isHtmlContent, sanitizeRichText } from "@/lib/rich-text";
 import { contentBlockSchema, regionCodeSchema, CONTENT_KEY_REGEX } from "@/lib/validation/content";
 
 export type ActionResult = { error?: string };
@@ -59,6 +60,14 @@ async function resolveRegionId(regionCode: string | null): Promise<{ error: stri
  * concurrent create (two admins saving the same new override at once) is
  * retried as an update against the row the other request just created,
  * rather than failing the whole save.
+ *
+ * `body` is HTML from the WYSIWYG `RichTextEditor` (or legacy markdown for a
+ * key nobody has re-saved through the new editor yet — `contentBlockSchema`
+ * accepts either shape, it's just a 1-20000 char string) — HTML content is
+ * allowlist-sanitized via `sanitizeRichText` before it's written, the one
+ * place that actually stops something unwanted from being persisted (the
+ * read-side `renderStoredRichText` sanitizes again defensively, but by then
+ * the row already exists).
  */
 export async function updateContentBlock(
   key: string,
@@ -80,7 +89,7 @@ export async function updateContentBlock(
 
   const data = {
     title: parsed.data.title ?? null,
-    body: parsed.data.body,
+    body: isHtmlContent(parsed.data.body) ? sanitizeRichText(parsed.data.body) : parsed.data.body,
     sortOrder: parsed.data.sortOrder,
   };
 
@@ -109,6 +118,12 @@ export async function updateContentBlock(
  * admin then edits it independently via `updateContentBlock`. Fails if the
  * default block doesn't exist (nothing to copy from) or an override for
  * this region already exists.
+ *
+ * `defaultBlock.body` is copied verbatim except for one defensive pass: if
+ * it's HTML, it's re-sanitized via `sanitizeRichText` on the way into the
+ * new row (cheap idempotent re-check, not a trust boundary this action
+ * itself introduces — the default row was already sanitized when
+ * `updateContentBlock` wrote it) rather than assumed clean.
  */
 export async function createRegionOverride(key: string, regionCode: string): Promise<ActionResult> {
   await requireAdmin();
@@ -134,7 +149,7 @@ export async function createRegionOverride(key: string, regionCode: string): Pro
         key,
         regionId: region.id,
         title: defaultBlock.title,
-        body: defaultBlock.body,
+        body: isHtmlContent(defaultBlock.body) ? sanitizeRichText(defaultBlock.body) : defaultBlock.body,
         sortOrder: defaultBlock.sortOrder,
       },
     });
