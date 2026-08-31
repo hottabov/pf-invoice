@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { dedupeDescription, toSheetData, type ToSheetDataDoc, type ToSheetItemInput } from "../src/lib/sheet-data";
+import {
+  dedupeDescription,
+  formatBankDetails,
+  toSheetData,
+  type ToSheetDataDoc,
+  type ToSheetItemInput,
+} from "../src/lib/sheet-data";
 
 // Pure mapper — this file imports nothing from src/lib/queries/documents.ts
 // or @/lib/db (see sheet-data.ts's header comment for why), so it never
@@ -312,5 +318,26 @@ describe("toSheetData — totals passthrough", () => {
       taxAmount: "90.00",
       total: "990.00",
     });
+  });
+});
+
+describe("formatBankDetails", () => {
+  it("joins each row as 'Label: value', one per line, in order", () => {
+    const text = formatBankDetails([
+      { label: "Bank", value: "ANZ Westfield" },
+      { label: "BSB", value: "013 442" },
+      { label: "Account No.", value: "4405 63886" },
+    ]);
+    expect(text).toBe("Bank: ANZ Westfield\nBSB: 013 442\nAccount No.: 4405 63886");
+  });
+
+  it("returns an empty string for no rows", () => {
+    expect(formatBankDetails([])).toBe("");
+  });
+
+  it("shares the same label mapping toSheetData uses for entity.bankDetails", () => {
+    const doc = baseDoc({ bankDetails: { bank: "Live Bank", bsb: "000 000", accountNo: "111 111" } });
+    const sheet = toSheetData(doc);
+    expect(formatBankDetails(sheet.entity.bankDetails)).toBe("Bank: Live Bank\nBSB: 000 000\nAccount No.: 111 111");
   });
 });

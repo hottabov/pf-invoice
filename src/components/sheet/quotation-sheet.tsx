@@ -547,6 +547,14 @@ const SHEET_CSS = `
     page-break-inside: avoid;
     break-inside: avoid;
     margin-bottom: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #e0e4f0;
+  }
+  /* No separator above the very first item — the total banner above it
+     already provides the visual break. */
+  .pq-machine-section:first-child {
+    padding-top: 0;
+    border-top: none;
   }
   .pq-machine-section:last-child {
     margin-bottom: 0;
@@ -575,11 +583,20 @@ const SHEET_CSS = `
     margin-top: 0;
   }
   .pq-block-missing {
-    color: #2b304f;
-    font-weight: 700;
+    color: #333333;
   }
+  /* Auto-generated item title (no admin-authored content block matched —
+     see quotation-data.ts's productBlockKey) — styled to match the
+     prominence of a real .pq-block-body heading below, so every machine
+     item's name reads as a real heading rather than blending into the
+     surrounding text (owner: "product names blend with the text"). */
   .pq-auto-summary-name {
+    font-size: 15px;
     font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #243478;
+    page-break-after: avoid;
+    break-after: avoid;
   }
   .pq-auto-summary-spec {
     margin-top: 4px;
@@ -618,14 +635,37 @@ const SHEET_CSS = `
   .pq-block-body p:last-child {
     margin-bottom: 0;
   }
+  /* Top-level block heading (e.g. machine.m-series's "## Pathfinder {{model}}
+     Cutting System", rsp.agreement's "## Pathfinder Remote Support Program")
+     — same size/weight/color tier as .pq-section-title and
+     .pq-auto-summary-name so a product/section name is unmistakable at a
+     glance rather than blending into the body text underneath it, and never
+     orphaned from the content it introduces across a page break. */
   .pq-block-body h1,
-  .pq-block-body h2,
-  .pq-block-body h3 {
-    color: #2b304f;
-    margin: 10px 0 6px 0;
+  .pq-block-body h2 {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #243478;
+    margin: 12px 0 8px 0;
+    page-break-after: avoid;
+    break-after: avoid;
   }
   .pq-block-body h1:first-child,
-  .pq-block-body h2:first-child,
+  .pq-block-body h2:first-child {
+    margin-top: 0;
+  }
+  /* Sub-heading within a block (e.g. "### Software", "### Accessories") —
+     one tier down, matching .pq-block-title's size/color so the hierarchy
+     stays consistent across every content-block section. */
+  .pq-block-body h3 {
+    font-size: 12px;
+    font-weight: 700;
+    color: #2b304f;
+    margin: 10px 0 6px 0;
+    page-break-after: avoid;
+    break-after: avoid;
+  }
   .pq-block-body h3:first-child {
     margin-top: 0;
   }
@@ -687,6 +727,7 @@ const SHEET_CSS = `
     color: #2b304f;
   }
   .pq-item-code {
+    font-family: "Courier New", Courier, monospace;
     font-weight: 400;
     color: #888888;
     font-size: 10px;

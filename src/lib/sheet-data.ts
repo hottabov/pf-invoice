@@ -267,6 +267,22 @@ function toBankRows(bankDetails: unknown): BankDetailRow[] {
     .map(([key, value]) => ({ label: humanizeBankKey(key), value }));
 }
 
+/**
+ * Formats already-resolved bank detail rows (see `DocSheetEntity.bankDetails`
+ * / `toBankRows`) into a single newline-joined "Label: value" text block —
+ * for a caller that needs bank details as plain multi-line text rather than
+ * `document-sheet.tsx`'s own `.pq-bank-row` markup, e.g. quotation-data.ts's
+ * `{{bankDetails}}` placeholder substitution. Takes the already-resolved
+ * `BankDetailRow[]` (not the raw `Json` column) rather than re-deriving from
+ * scratch, so it can never disagree with `toSheetData`'s FINAL-vs-DRAFT
+ * snapshot resolution (`entitySnapshot` vs. the region's live fields) —
+ * every caller shares the exact same label-mapped, already-resolved rows.
+ * Markdown-safe: no character `renderMarkdown` treats specially.
+ */
+export function formatBankDetails(rows: BankDetailRow[]): string {
+  return rows.map((row) => `${row.label}: ${row.value}`).join("\n");
+}
+
 function toClientAddressLines(company: ToSheetCompanyInput): string[] {
   const lines: string[] = [];
   if (company.street) lines.push(company.street);

@@ -11,9 +11,11 @@
 // `DocumentForBuilder` satisfies `QuotationDataDoc` without either file
 // importing the other, as long as `DocumentForBuilder`'s items carry the
 // extra fields (`specs`, `seriesCode`, `serialNumber`) this module needs.
+import { formatMoney } from "./format";
 import { machineSpecSentence, parseMachineSpecs } from "./machine-specs";
 import { renderMarkdown } from "./markdown";
 import {
+  formatBankDetails,
   toSheetData,
   type DocSheetClient,
   type DocSheetData,
@@ -212,18 +214,52 @@ const SERIES_DISPLAY_NAMES: Record<string, string> = { M: "M-Series", X: "X-Cali
 const PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
 
 /**
- * Replaces every `{{token}}` in `body` with `vars[token]`; a token with no
- * entry in `vars` (or an empty-string value) renders as `"____"` — a plain,
- * unmistakably-unfilled blank the author can spot and fill in by hand
- * (RSP unit cost, delivery weeks, and similar figures this module has no
- * data source for) rather than silently dropping the placeholder or leaking
- * the raw `{{token}}` syntax into a customer-facing PDF.
+ * Sentinel a caller passes as a var's value to explicitly withhold a token
+ * — e.g. `{{price}}` in a machine title block when neither price-display
+ * toggle is on (see `buildQuotationData`). Distinguishes "this token is
+ * deliberately hidden right now" from a token with no entry in `vars` at
+ * all (a genuinely-unresolved one, e.g. `{{rspYear2Cost}}`, which this
+ * module simply has no data source for) only in the caller's intent —
+ * `substitutePlaceholders` treats the two identically.
  */
-export function substitutePlaceholders(body: string, vars: Record<string, string>): string {
-  return body.replace(PLACEHOLDER_PATTERN, (_match, token: string) => {
+export const OMIT = Symbol("quotation-data.OMIT");
+
+export type PlaceholderVars = Record<string, string | typeof OMIT>;
+
+// A value that can never legitimately appear in a content block's own
+// authored text, used to mark a substituted-in token as unresolved so the
+// line-strip pass below can find it after substitution has already run.
+const UNRESOLVED_MARKER = "@@QUOTATION_UNRESOLVED@@";
+
+/**
+ * Replaces every `{{token}}` in `body` with `vars[token]`, then strips (in
+ * full) any output line that still contains an unresolved or explicitly
+ * `OMIT`-ed token. The owner's rule (raw "____" blanks scattered through a
+ * customer-facing quotation are unacceptable — fields must fill themselves
+ * in automatically) means this module never prints a fill-in-the-blank
+ * marker any more: a line whose only content was a figure with no data
+ * source (or one the caller deliberately withheld, like a hidden
+ * `{{price}}`) simply doesn't exist in the rendered output.
+ *
+ * The strip runs on the raw markdown source, one `\n`-delimited line at a
+ * time, *before* `renderMarkdown` ever sees it — so a whole markdown
+ * paragraph/list-item/heading line disappears cleanly instead of leaving a
+ * dangling `<p>`/`<li>` with blank content. A resolved multi-line value
+ * (e.g. `{{bankDetails}}` — see `formatBankDetails`) substitutes in as-is,
+ * embedded `\n`s and all, so each of its own lines becomes its own output
+ * line exactly as if they'd been written directly into the block body.
+ */
+export function substitutePlaceholders(body: string, vars: PlaceholderVars): string {
+  const substituted = body.replace(PLACEHOLDER_PATTERN, (_match, token: string) => {
     const value = vars[token];
-    return value !== undefined && value !== "" ? value : "____";
+    if (value === undefined || value === OMIT || value === "") return UNRESOLVED_MARKER;
+    return value;
   });
+
+  return substituted
+    .split("\n")
+    .filter((line) => !line.includes(UNRESOLVED_MARKER))
+    .join("\n");
 }
 
 // --- buildQuotationData ----------------------------------------------------
@@ -319,9 +355,9 @@ function specString(specs: unknown, key: string): string {
   return String(value);
 }
 
-function attributeVars(attributes: Record<string, string | number> | null): Record<string, string> {
+function attributeVars(attributes: Record<string, string | number> | null): PlaceholderVars {
   if (!attributes) return {};
-  const vars: Record<string, string> = {};
+  const vars: PlaceholderVars = {};
   for (const [key, value] of Object.entries(attributes)) {
     vars[key] = String(value);
   }
@@ -331,7 +367,7 @@ function attributeVars(attributes: Record<string, string | number> | null): Reco
 function collectByPrefix(
   resolved: Map<string, ResolvedContentBlock>,
   prefix: string,
-  vars: Record<string, string>
+  vars: PlaceholderVars
 ): QuotationBlockSection[] {
   return Array.from(resolved.values())
     .filter((block) => block.key === prefix || block.key.startsWith(`${prefix}.`))
@@ -399,16 +435,20 @@ export function buildQuotationData(
             cutHeightCm,
             cutWidthCm,
             ...(specSentence ? { specSentence } : {}),
-            // Only fed in when the price toggle allows it — an admin-authored
-            // block like machine.m-series bakes "**Price: {{price}}**"
-            // straight into its markdown, so this is the only lever that
-            // controls whether that line renders a real figure or the
-            // standard "____" blank-data marker (see substitutePlaceholders).
-            // No option.* block currently references {{price}} at all — an
-            // option's price only ever shows in the investment summary table
-            // (gated separately there by `showOptionPrices`), so there's
-            // nothing analogous to thread through `attributeVars` below.
-            ...(itemPriceVisible ? { price: item.unitPrice } : {}),
+            // The item's own TOTAL — qty * unit price plus every attached
+            // option, exactly the figure `lineSummary.total` already carries
+            // from the pricing engine (`totals.itemTotals`, see
+            // getDocumentForBuilder) — not the bare unit price, and always
+            // currency-formatted via formatMoney, never a raw decimal string.
+            // Gated by the same toggle as everywhere else an item amount
+            // shows; when hidden, `OMIT` makes substitutePlaceholders strip
+            // the whole "**Price: {{price}}**" line out of machine.m-series
+            // entirely (never a blank "Price: ____"). No option.* block
+            // currently references {{price}} at all — an option's price only
+            // ever shows in the investment summary table (gated separately
+            // there by `showOptionPrices`), so there's nothing analogous to
+            // thread through `attributeVars` below.
+            price: itemPriceVisible ? formatMoney(lineSummary.total, sheet.totals.currency) : OMIT,
           })
         )
       : null;
@@ -428,8 +468,19 @@ export function buildQuotationData(
     return { itemId: item.id, titleBlockHtml, specSentence, optionBlocksHtml, lineSummary };
   });
 
-  const bankDetailsText = sheet.entity.bankDetails.map((row) => `${row.label}: ${row.value}`).join("\n");
-  const globalVars: Record<string, string> = { bankDetails: bankDetailsText };
+  // `terms.*` blocks reference these standard-terms figures — auto-filled
+  // from the original Word template's own defaults (owner: fields must fill
+  // themselves in, never leave a "____" blank for something this
+  // predictable) rather than left to line-strip as genuinely unresolved.
+  // Any of these a future region/override actually wants to vary can simply
+  // stop matching the token; there's no per-region source for them today.
+  const globalVars: PlaceholderVars = {
+    deliveryWeeks: "14",
+    installationDays: "2",
+    trainingDays: "3",
+    warrantyMonths: "12",
+    bankDetails: formatBankDetails(sheet.entity.bankDetails),
+  };
 
   const termsSections = collectByPrefix(resolved, "terms", globalVars);
   const conditionsSections = collectByPrefix(resolved, "conditions", globalVars);
@@ -442,7 +493,11 @@ export function buildQuotationData(
     .map((item) => ({
       name: item.name,
       serialNumber: item.serialNumber ?? "",
-      rspUnitCost: "____",
+      // Not a markdown line `substitutePlaceholders`'s line-strip rule can
+      // apply to — this is a plain table cell (see quotation-sheet.tsx's
+      // `.pq-rsp-table`), so an as-yet-unpriced row reads "TBA" rather than
+      // the retired "____" blank marker.
+      rspUnitCost: "TBA",
     }));
 
   return {

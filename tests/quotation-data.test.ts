@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildQuotationData,
+  OMIT,
   optionBlockKey,
   productBlockKey,
   resolveBlocks,
@@ -99,16 +100,51 @@ describe("substitutePlaceholders", () => {
     expect(substitutePlaceholders("Model M{{model}}", { model: "450" })).toBe("Model M450");
   });
 
-  it("replaces an unresolved token with the blank marker", () => {
-    expect(substitutePlaceholders("Cost: {{rspUnitCost}}", {})).toBe("Cost: ____");
-  });
-
-  it("treats an empty-string value as unresolved too", () => {
-    expect(substitutePlaceholders("Cost: {{rspUnitCost}}", { rspUnitCost: "" })).toBe("Cost: ____");
-  });
-
   it("replaces multiple distinct tokens in one body", () => {
     expect(substitutePlaceholders("{{a}} and {{b}}", { a: "1", b: "2" })).toBe("1 and 2");
+  });
+
+  // --- line-strip rule (owner: raw "____" blanks are never acceptable —
+  // fields must fill themselves in automatically; anything this module
+  // genuinely can't fill in disappears entirely, one whole line at a time,
+  // rather than leaving a fill-in-the-blank marker) -----------------------
+
+  it("strips the entire body when its only line is unresolved", () => {
+    expect(substitutePlaceholders("Cost: {{rspUnitCost}}", {})).toBe("");
+  });
+
+  it("strips only the line containing an unresolved token, keeping the rest", () => {
+    const result = substitutePlaceholders("Line one\nCost: {{rspUnitCost}}\nLine three", {});
+    expect(result).toBe("Line one\nLine three");
+  });
+
+  it("treats an empty-string value as unresolved too (strips its line)", () => {
+    const result = substitutePlaceholders("Keep this\nValue: {{x}}", { x: "" });
+    expect(result).toBe("Keep this");
+  });
+
+  it("strips a line containing an explicitly OMIT-ed token", () => {
+    const result = substitutePlaceholders("Keep this\nPrice: {{price}}\nAlso keep", { price: OMIT });
+    expect(result).toBe("Keep this\nAlso keep");
+  });
+
+  it("does not strip a line whose token resolved to a non-empty value", () => {
+    const result = substitutePlaceholders("Price: {{price}}\nOther line", { price: "$100" });
+    expect(result).toBe("Price: $100\nOther line");
+  });
+
+  it("passes a multi-line resolved value through as multiple output lines (e.g. bankDetails)", () => {
+    const result = substitutePlaceholders("Before\n{{bankDetails}}\nAfter", {
+      bankDetails: "Bank: ANZ Westfield\nBSB: 013 442",
+    });
+    expect(result).toBe("Before\nBank: ANZ Westfield\nBSB: 013 442\nAfter");
+  });
+
+  it("strips a line only when it still contains an unresolved token after substituting the rest of it", () => {
+    // A line can carry both a resolved and an unresolved token — any single
+    // unresolved token strips the whole line, not just its own token.
+    const result = substitutePlaceholders("{{known}} plus {{unknown}}\nSafe line", { known: "1" });
+    expect(result).toBe("Safe line");
   });
 });
 
@@ -166,11 +202,16 @@ function baseDoc(overrides: Partial<QuotationDataDoc> = {}): QuotationDataDoc {
   };
 }
 
+// `{{price}}` deliberately lives on its own line/paragraph (blank line
+// before it) — mirrors the real machine.m-series seed body's own
+// "**Price: {{price}}**" paragraph (see prisma/seed-data/content-blocks.json)
+// so hiding the price strips only that one line, never the model/height/
+// width line above it.
 const machineBlock: ContentBlockRow = {
   key: "machine.m-series",
   regionId: null,
   title: "M-Series",
-  body: "Model {{model}}. Height {{cutHeightCm}}cm, width {{cutWidthCm}}cm. Price {{price}}.",
+  body: "Model {{model}}. Height {{cutHeightCm}}cm, width {{cutWidthCm}}cm.\n\nPrice: {{price}}",
   sortOrder: 1,
 };
 
@@ -270,22 +311,42 @@ describe("buildQuotationData", () => {
     expect(data.machineSections[0].titleBlockHtml).toBeNull();
   });
 
-  it("blanks a machine title block's {{price}} token when both price-display toggles are off", () => {
-    const doc = baseDoc({ showItemPrices: false, showOptionPrices: false });
+  it("strips the entire Price line (never a blank) when both price-display toggles are off", () => {
+    // code "M450" deliberately doesn't match the M/X code pattern (see
+    // machine-specs.ts) so height/width fall back to the item's stored
+    // `specs` (18/180) — same fixture shape as the "resolves a machine title
+    // block" test above — keeping this test's height/width assertion
+    // independent of code-parsing behaviour.
+    const doc = baseDoc({
+      showItemPrices: false,
+      showOptionPrices: false,
+      items: [baseItem({ code: "M450" })],
+    });
     const data = buildQuotationData(doc, [machineBlock]);
-    expect(data.machineSections[0].titleBlockHtml).toContain("Price ____");
+    expect(data.machineSections[0].titleBlockHtml).not.toContain("Price");
+    expect(data.machineSections[0].titleBlockHtml).not.toContain("____");
+    // The rest of the block (a separate line) still renders untouched.
+    expect(data.machineSections[0].titleBlockHtml).toContain("Height 18cm, width 180cm");
   });
 
-  it("substitutes the real price into a machine title block when showItemPrices is on", () => {
-    const doc = baseDoc({ showItemPrices: true, showOptionPrices: false });
+  it("substitutes the item's TOTAL (incl. options), currency-formatted, when showItemPrices is on", () => {
+    const doc = baseDoc({
+      showItemPrices: true,
+      showOptionPrices: false,
+      items: [baseItem({ unitPrice: "175000.00", total: "180000.00" })],
+    });
     const data = buildQuotationData(doc, [machineBlock]);
-    expect(data.machineSections[0].titleBlockHtml).toContain("Price 175000.00");
+    // Uses the pricing engine's per-item TOTAL (180000, incl. an option),
+    // not the bare unit price (175000) — and formatted via formatMoney, not
+    // a raw decimal string.
+    expect(data.machineSections[0].titleBlockHtml).toContain("Price: $180,000");
+    expect(data.machineSections[0].titleBlockHtml).not.toContain("175000");
   });
 
   it("substitutes the real price when only showOptionPrices is on (implies item prices visible)", () => {
     const doc = baseDoc({ showItemPrices: false, showOptionPrices: true });
     const data = buildQuotationData(doc, [machineBlock]);
-    expect(data.machineSections[0].titleBlockHtml).toContain("Price 175000.00");
+    expect(data.machineSections[0].titleBlockHtml).toContain("Price: $175,000");
   });
 
   it("passes both price-display toggles through onto the returned QuotationData", () => {
@@ -332,16 +393,66 @@ describe("buildQuotationData", () => {
   it("substitutes bankDetails into terms blocks and sorts terms/conditions by sortOrder", () => {
     const data = buildQuotationData(baseDoc(), [termsBlock, conditionsBlock]);
     expect(data.termsSections).toHaveLength(1);
-    expect(data.termsSections[0].bodyHtml).toContain("ANZ Westfield");
+    // Multi-line: each bank field (bank/bsb/accountNo, per baseDoc's fixture)
+    // renders as its own line, not squashed onto one.
+    expect(data.termsSections[0].bodyHtml).toContain("Bank: ANZ Westfield");
+    expect(data.termsSections[0].bodyHtml).toContain("BSB: 013 442");
+    expect(data.termsSections[0].bodyHtml).toContain("Account No.: 4405 63886");
     expect(data.conditionsSections).toHaveLength(1);
     expect(data.conditionsSections[0].key).toBe("conditions.1");
   });
 
-  it("builds an RSP coverage row per item with unresolved unit cost", () => {
+  it("auto-fills the standard-terms defaults (deliveryWeeks/installationDays/trainingDays/warrantyMonths)", () => {
+    const deliveryBlock: ContentBlockRow = {
+      key: "terms.delivery",
+      regionId: null,
+      title: "Delivery",
+      body: "Included in sale price. (Estimated {{deliveryWeeks}} weeks.)",
+      sortOrder: 6,
+    };
+    const scheduleBlock: ContentBlockRow = {
+      key: "terms.schedule",
+      regionId: null,
+      title: "Schedule",
+      body: "- Installation approx. {{installationDays}} days.\n- Operator training approx. {{trainingDays}} days.",
+      sortOrder: 7,
+    };
+    const warrantyBlock: ContentBlockRow = {
+      key: "terms.warranty",
+      regionId: null,
+      title: "Warranty",
+      body: "{{warrantyMonths}}-month parts warranty.",
+      sortOrder: 8,
+    };
+    const data = buildQuotationData(baseDoc(), [deliveryBlock, scheduleBlock, warrantyBlock]);
+    const bodies = data.termsSections.map((t) => t.bodyHtml).join("\n");
+    // None of these are wired up from any per-document source today — every
+    // one must come from the auto-fill default, with no "____"/stripped line.
+    expect(bodies).toContain("Estimated 14 weeks");
+    expect(bodies).toContain("Installation approx. 2 days");
+    expect(bodies).toContain("Operator training approx. 3 days");
+    expect(bodies).toContain("12-month parts warranty");
+  });
+
+  it("still line-strips a genuinely-unknown terms token (e.g. rspYear2Cost) with no default", () => {
+    const rspTermsBlock: ContentBlockRow = {
+      key: "terms.rsp",
+      regionId: null,
+      title: "RSP",
+      body: "Customer agrees to 2nd year RSP.\n\n- 1st Year: 100% discount.\n- 2nd Year: {{rspYear2Cost}} + GST.",
+      sortOrder: 9,
+    };
+    const data = buildQuotationData(baseDoc(), [rspTermsBlock]);
+    expect(data.termsSections[0].bodyHtml).toContain("1st Year: 100% discount");
+    expect(data.termsSections[0].bodyHtml).not.toContain("2nd Year");
+    expect(data.termsSections[0].bodyHtml).not.toContain("____");
+  });
+
+  it("builds an RSP coverage row per item with a 'TBA' unit cost (table cell, not a markdown line — never '____')", () => {
     const doc = baseDoc({ items: [baseItem({ name: "M5180 Cutting System", serialNumber: "SN-001" })] });
     const data = buildQuotationData(doc, [rspAgreementBlock]);
     expect(data.rsp.agreementHtml).toContain("Remote support program");
-    expect(data.rsp.coverageRows).toEqual([{ name: "M5180 Cutting System", serialNumber: "SN-001", rspUnitCost: "____" }]);
+    expect(data.rsp.coverageRows).toEqual([{ name: "M5180 Cutting System", serialNumber: "SN-001", rspUnitCost: "TBA" }]);
   });
 
   it("blanks serialNumber when unset rather than rendering null", () => {
@@ -376,6 +487,6 @@ describe("buildQuotationData", () => {
       items: [baseItem({ name: "Fabric Master", seriesCode: null, serialNumber: "SN-FM-1" })],
     });
     const data = buildQuotationData(doc, []);
-    expect(data.rsp.coverageRows).toEqual([{ name: "Fabric Master", serialNumber: "SN-FM-1", rspUnitCost: "____" }]);
+    expect(data.rsp.coverageRows).toEqual([{ name: "Fabric Master", serialNumber: "SN-FM-1", rspUnitCost: "TBA" }]);
   });
 });
