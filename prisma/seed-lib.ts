@@ -215,6 +215,76 @@ export function mapCompatibility(catalog: Catalog): CompatPayload[] {
   return out;
 }
 
+// --- US region prices (prisma/seed-data/prices-us.json) -----------------
+
+/** Shape of prisma/seed-data/prices-us.json, written by
+ *  scripts/extract-us-prices.ts. `unmatched` isn't consumed here -- it's
+ *  purely informational (services, per-width crate rows, etc. with no
+ *  catalog code to attach to) and stays in the JSON file for the report. */
+export interface UsPricesJson {
+  extractedAt: string;
+  prices: { code: string; amountUsd: number }[];
+  unmatched: { sheet: string; label: string; price: number }[];
+}
+
+export interface UsPricesMapping {
+  /** One Price payload per prices-us.json entry whose code matched a real
+   *  catalog product or option, always against region "US" with
+   *  needsReview: false -- unlike AU's price:null convention, the US price
+   *  list is a real, published, authoritative retail price for the codes it
+   *  covers, so there's no "amount 0, flagged for review" case here. */
+  payloads: PricePayload[];
+  /** prices-us.json codes that don't exist in the given catalog at all --
+   *  should be empty in practice (scripts/extract-us-prices.ts already
+   *  validates every code it writes against the catalog it was run
+   *  against), but the catalog and the price file can drift apart if one is
+   *  regenerated without the other, so this is surfaced rather than
+   *  silently dropped. */
+  unknownCodes: string[];
+}
+
+/**
+ * Resolves each prices-us.json entry's code against the catalog's products
+ * and options (a code is exactly one or the other, never both -- product
+ * and option codes are drawn from disjoint namespaces) to produce US Price
+ * payloads. Pure function of its inputs, like every other mapper in this
+ * file -- prisma/seed.ts is the only place that turns `payloads` into
+ * upserts and reports `unknownCodes`.
+ */
+export function mapUsPrices(catalog: Catalog, usPrices: UsPricesJson): UsPricesMapping {
+  const productCodes = new Set(catalog.series.flatMap((s) => s.products.map((p) => p.code)));
+  const optionCodes = new Set(catalog.options.map((o) => o.code));
+
+  const payloads: PricePayload[] = [];
+  const unknownCodes: string[] = [];
+
+  for (const { code, amountUsd } of usPrices.prices) {
+    if (productCodes.has(code)) {
+      payloads.push({ kind: "product", code, regionCode: "US", amount: amountUsd, needsReview: false });
+    } else if (optionCodes.has(code)) {
+      payloads.push({ kind: "option", code, regionCode: "US", amount: amountUsd, needsReview: false });
+    } else {
+      unknownCodes.push(code);
+    }
+  }
+
+  return { payloads, unknownCodes };
+}
+
+/** Every product/option code in the catalog that prices-us.json's matched
+ *  entries don't cover -- i.e. it simply has no US price yet. Purely
+ *  informational (mirrors scripts/extract-us-prices.ts's own "catalog codes
+ *  with no US price" summary line), used by prisma/seed.ts to log a warning
+ *  per missing code rather than leave the gap silent. */
+export function missingUsPriceCodes(catalog: Catalog, usPrices: UsPricesJson): string[] {
+  const pricedCodes = new Set(usPrices.prices.map((p) => p.code));
+  const allCodes = [
+    ...catalog.series.flatMap((s) => s.products.map((p) => p.code)),
+    ...catalog.options.map((o) => o.code),
+  ];
+  return allCodes.filter((code) => !pricedCodes.has(code)).sort((a, b) => a.localeCompare(b, "en"));
+}
+
 // --- content blocks ------------------------------------------------------
 
 /** One entry of prisma/seed-data/content-blocks.json's `blocks` array. */

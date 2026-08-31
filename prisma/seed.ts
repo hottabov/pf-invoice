@@ -15,9 +15,11 @@ import "dotenv/config";
 import { Prisma } from "@prisma/client";
 import catalogData from "./seed-data/catalog.json";
 import contentBlocksData from "./seed-data/content-blocks.json";
+import usPricesData from "./seed-data/prices-us.json";
 import {
   type Catalog,
   type ContentBlocksJson,
+  type UsPricesJson,
   REGIONS,
   mapSeries,
   mapProducts,
@@ -25,10 +27,13 @@ import {
   mapPrices,
   mapCompatibility,
   mapContentBlocks,
+  mapUsPrices,
+  missingUsPriceCodes,
 } from "./seed-lib";
 
 const catalog = catalogData as Catalog;
 const contentBlocksJson = contentBlocksData as ContentBlocksJson;
+const usPricesJson = usPricesData as UsPricesJson;
 
 /**
  * Option codes retired by the EasyLoader/EasyFeeder/Software reclassification
@@ -220,6 +225,52 @@ async function main() {
     priceCount++;
   }
 
+  // 7b. Prices (US region) -- from prisma/seed-data/prices-us.json, written
+  // by `npm run extract:us-prices` (RAW/Price List North America
+  // (01-06-2026).xlsx). Unlike step 7's AU prices, these are always
+  // upserted regardless of whether a row already exists: the US price list
+  // is the authoritative source for every code it covers, never a
+  // provisional/needsReview placeholder, so a re-run always brings the DB
+  // back in line with the file rather than leaving a stale value in place.
+  const usMapping = mapUsPrices(catalog, usPricesJson);
+  if (usMapping.unknownCodes.length) {
+    console.warn(
+      `seed: prices-us.json has ${usMapping.unknownCodes.length} code(s) not found in catalog.json (skipped): ` +
+        usMapping.unknownCodes.join(", ")
+    );
+  }
+  let usPriceCount = 0;
+  const usRegionId = regionIdByCode.get("US");
+  if (!usRegionId) throw new Error(`seed: US price references unknown region US`);
+  for (const price of usMapping.payloads) {
+    if (price.kind === "product") {
+      const productId = productIdByCode.get(price.code);
+      if (!productId) throw new Error(`seed: US price references unknown product ${price.code}`);
+      await db.price.upsert({
+        where: { productId_regionId: { productId, regionId: usRegionId } },
+        update: { amount: price.amount, needsReview: price.needsReview },
+        create: { productId, regionId: usRegionId, amount: price.amount, needsReview: price.needsReview },
+      });
+    } else {
+      const optionId = optionIdByCode.get(price.code);
+      if (!optionId) throw new Error(`seed: US price references unknown option ${price.code}`);
+      await db.price.upsert({
+        where: { optionId_regionId: { optionId, regionId: usRegionId } },
+        update: { amount: price.amount, needsReview: price.needsReview },
+        create: { optionId, regionId: usRegionId, amount: price.amount, needsReview: price.needsReview },
+      });
+    }
+    usPriceCount++;
+  }
+  // Purely informational: catalog codes that simply have no US price yet
+  // (services/new-width variants etc. that scripts/extract-us-prices.ts
+  // deliberately left out of prices-us.json's `prices` array are not
+  // catalog codes at all, so they never appear here).
+  const missingUs = missingUsPriceCodes(catalog, usPricesJson);
+  if (missingUs.length) {
+    console.warn(`seed: ${missingUs.length} catalog code(s) have no US price yet: ${missingUs.join(", ")}`);
+  }
+
   // 8. Option <-> Series/Product compatibility. Each row is series-level
   // (seriesId set, productId null) or product-level (productId set, seriesId
   // null) — never both, mirroring the two partial unique indexes in
@@ -317,7 +368,8 @@ async function main() {
   console.log(`  renamed XC->X products: ${renamedXCount}`);
   console.log(`  products:       ${productIdByCode.size}`);
   console.log(`  options:        ${optionIdByCode.size}`);
-  console.log(`  prices:         ${priceCount}`);
+  console.log(`  prices (AU):    ${priceCount}`);
+  console.log(`  prices (US):    ${usPriceCount}`);
   console.log(`  compatibility:  ${compatCount}`);
   console.log(`  content blocks: ${contentBlockCreated} created, ${contentBlockSkipped} skipped (already seeded)`);
 }

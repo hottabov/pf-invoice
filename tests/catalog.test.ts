@@ -55,13 +55,19 @@ describe('Catalog Extraction Validation', () => {
       expect(catalog.series).toHaveLength(9);
     });
 
-    it('should have exactly 54 total products across all series', () => {
+    // Total grew from 54 to 64 with the North America USD price-list
+    // extraction: 10 genuinely new products confirmed by that sheet with no
+    // AU-sheet equivalent (M3300/M5300/M7300/M10300, L-320E, PTW(I),
+    // EL-3220/EL-4030, EF-3220, FP-300) were added via NA_PRODUCTS in
+    // scripts/extract-catalog.ts -- see that file's header comment on
+    // NA_PRODUCTS for the evidence behind each one.
+    it('should have exactly 64 total products across all series', () => {
       const totalProducts = catalog.series.reduce((sum, series) => sum + series.products.length, 0);
-      expect(totalProducts).toBe(54);
+      expect(totalProducts).toBe(64);
     });
 
-    it('M series should have 12 products', () => {
-      expect(mSeries.products).toHaveLength(12);
+    it('M series should have 16 products (12 original + NA-only M3300/M5300/M7300/M10300)', () => {
+      expect(mSeries.products).toHaveLength(16);
     });
 
     it('L series maxDiscountPct should be 10', () => {
@@ -72,45 +78,53 @@ describe('Catalog Extraction Validation', () => {
     // options-only sheets (0 products each), which made their machines and
     // software modules impossible to add to a document. Re-verified against
     // the source sheets and reclassified -- see scripts/extract-catalog.ts.
-    it('EasyLoader (EL) should have 2 products (one per width: drive module base machine)', () => {
+    it('EasyLoader (EL) should have 4 products (2020/2420 + NA-only 3220/4030 drive modules)', () => {
       const el = catalog.series.find((s) => s.seriesCode === 'EL')!;
-      expect(el.products).toHaveLength(2);
+      expect(el.products).toHaveLength(4);
     });
 
-    it('EasyFeeder (EF) should have 4 products (2020/2420/4030 + manual HDRF)', () => {
+    it('EasyFeeder (EF) should have 5 products (2020/2420/4030 + manual HDRF + NA-only EF-3220)', () => {
       const ef = catalog.series.find((s) => s.seriesCode === 'EF')!;
-      expect(ef.products).toHaveLength(4);
+      expect(ef.products).toHaveLength(5);
     });
 
-    it('FabricPro (FP) should have 3 products (FP-180/FP-220 + manual FP-TROLLEY)', () => {
+    it('FabricPro (FP) should have 4 products (FP-180/FP-220 + manual FP-TROLLEY + NA-only FP-300)', () => {
       const fp = catalog.series.find((s) => s.seriesCode === 'FP')!;
-      expect(fp.products).toHaveLength(3);
+      expect(fp.products).toHaveLength(4);
     });
 
-    it('Software (SW) should have 10 products', () => {
+    it('Software (SW) should have 11 products (10 original + NA-only PTW(I))', () => {
       const sw = catalog.series.find((s) => s.seriesCode === 'SW')!;
-      expect(sw.products).toHaveLength(10);
+      expect(sw.products).toHaveLength(11);
     });
   });
 
   describe('XC and M Series Code Mapping', () => {
-    it('XC series should have same product count as M series', () => {
-      expect(xcSeries.products).toHaveLength(mSeries.products.length);
+    // XC is cloned from M-Series' products BEFORE the NA-only M3300/M5300/
+    // M7300/M10300 products are appended (see scripts/extract-catalog.ts's
+    // main()) -- there's no NA evidence of a matching X-3300-style product
+    // (the NA X-series sheet only prices X10180/X10220), so XC intentionally
+    // stays at its original 12 rather than growing to 16 alongside M.
+    it('XC series should have 12 products (unaffected by the NA-only M-series widths)', () => {
+      expect(xcSeries.products).toHaveLength(12);
     });
 
-    it('every XC product code should match pattern X- + M code without leading M', () => {
-      mSeries.products.forEach((mProduct, index) => {
-        const xcProduct = xcSeries.products[index];
-        const expectedXcCode = 'X-' + mProduct.code.substring(1);
-        expect(xcProduct.code).toBe(expectedXcCode);
+    it('every XC product should correspond to an M product of the same spec (X-<code> <-> M<code>)', () => {
+      xcSeries.products.forEach((xcProduct) => {
+        const expectedMCode = 'M' + xcProduct.code.substring(2);
+        const mProduct = mSeries.products.find((p) => p.code === expectedMCode);
+        expect(mProduct, `expected M product "${expectedMCode}" for XC product "${xcProduct.code}"`).toBeDefined();
       });
     });
 
-    it('XC and M products should be in same order', () => {
-      mSeries.products.forEach((mProduct, index) => {
-        const xcProduct = xcSeries.products[index];
-        expect(xcProduct.code).toBe('X-' + mProduct.code.substring(1));
-      });
+    it('every original M product (excluding the NA-only 300cm-width tier) has an XC clone', () => {
+      const naOnlyMCodes = new Set(['M3300', 'M5300', 'M7300', 'M10300']);
+      mSeries.products
+        .filter((p) => !naOnlyMCodes.has(p.code))
+        .forEach((mProduct) => {
+          const expectedXcCode = 'X-' + mProduct.code.substring(1);
+          expect(xcSeries.products.some((p) => p.code === expectedXcCode)).toBe(true);
+        });
     });
   });
 

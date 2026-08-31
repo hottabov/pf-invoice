@@ -613,6 +613,153 @@ const MANUAL_PRODUCTS: Record<string, CatalogItem[]> = {
 };
 
 // ---------------------------------------------------------------------------
+// North America (NA) products
+//
+// Hand-authored products confirmed to exist by
+// RAW/Price List North America (01-06-2026).xlsx (see scripts/extract-us-prices.ts)
+// but with no row at all in the AU price list this catalog is otherwise
+// extracted from -- so, like MANUAL_PRODUCTS above, they can't come from any
+// extract*() function here. Kept as a separate, dedicated list (per spec)
+// rather than folded into MANUAL_PRODUCTS, so its NA provenance stays
+// traceable. Every entry here is price: null / needsReview: true for AU --
+// exactly the MANUAL_PRODUCTS convention -- because the AU price genuinely
+// doesn't exist yet; that is distinct from "no price at all". Each has a
+// real US price captured separately, by scripts/extract-us-prices.ts, into
+// prisma/seed-data/prices-us.json and applied only to the US region's Price
+// rows by prisma/seed.ts -- never written into this file's AU price/
+// needsReview fields.
+//
+// Evidence (sheet, and the NA row this was read from):
+//  - M3300/M5300/M7300/M10300: M-series sheet rows 7/11/15/19 -- a "300cm
+//    cutting width" tier that doesn't exist at all in the AU M-series sheet
+//    (AU only has 180/220/390). Every one of the 3/5/7/10cm height variants
+//    gets this new width, not just M3300 -- all four are genuinely new
+//    machines, not a single isolated addition.
+//  - L-320E: L-Series sheet row 7, an "Extended" 320cm-width variant with
+//    its own row (and its own price) distinct from the existing L-320/
+//    L-320F. (Note: its NA description literally says "Width 226cm" --
+//    that's not a NA-specific typo; the AU sheet's own existing L-320 row
+//    carries the exact same "226cm" text, so it's reproduced here verbatim
+//    rather than silently corrected, per this script's usual policy of
+//    trusting source text as-is.)
+//  - PTW(I): Software sheet row 7, coded "PTW (I)" (normalized to "PTW(I)",
+//    stripping the space before the parenthesis) -- a standalone SW-series
+//    product distinct from the existing "PTW(S)" SW product and from the
+//    unrelated cross-series "PTW" GlobalOption (M/XC/L-compatible, sourced
+//    from the AU M-series/L-Series sheets) -- per spec, this is added as a
+//    new product, not merged into that option.
+//  - EL-3220/EL-4030: EasyLoader sheet has FOUR width sections in the NA
+//    file (2020/2420/3220/4030), not the two (2020/2420) in the AU sheet --
+//    each headed by its own priced "Drive Module (first 1.2M)" row, exactly
+//    like the two existing EL products. The 3220/4030 sections' accessory
+//    rows (Additional lengths, Static table, Electrical Runner, Travel
+//    platform, Crate, Installation) have no equivalent options in the
+//    existing catalog and are NOT added as options here -- see
+//    scripts/extract-us-prices.ts's unmatched[] output, they're reported,
+//    not invented.
+//  - EF-3220: EasyFeed sheet has FOUR width sections (2020/2420/3220/4030)
+//    vs. the catalog's existing 3 EF products (2020/2420/4030) -- 3220 is
+//    the missing one.
+//  - FP-300: FabricPro sheet has a third FP-300 section (68000) beyond the
+//    existing FP-180/FP-220.
+//
+// Not added despite a "300"-width pattern: X-Calibre. The X-series sheet
+// only prices two machine codes at all (X10180, X10220 -- both already
+// mapped to existing X-10180/X-10220), so there is no NA evidence for an
+// X-3300-style product the way there is for M3300 et al. XC's own products
+// are cloned from M-Series' products earlier in this file (see "X-Calibre"
+// below) -- that clone happens before this NA_PRODUCTS append, so it does
+// NOT pick up M3300/M5300/M7300/M10300 either; XC stays at its original 12
+// products.
+// ---------------------------------------------------------------------------
+
+const NA_PRODUCTS: Record<string, CatalogItem[]> = {
+  M: [
+    {
+      code: "M3300",
+      name: "Computer controlled cutting machine - 3cm compressed lay height, 300cm cutting width",
+      description: "Computer controlled cutting machine - 3cm compressed lay height, 300cm cutting width",
+      price: null,
+      needsReview: true,
+    },
+    {
+      code: "M5300",
+      name: "Computer controlled cutting machine - 5cm compressed lay height, 300cm cutting width",
+      description: "Computer controlled cutting machine - 5cm compressed lay height, 300cm cutting width",
+      price: null,
+      needsReview: true,
+    },
+    {
+      code: "M7300",
+      name: "Computer controlled cutting machine - 7cm compressed lay height, 300cm cutting width",
+      description: "Computer controlled cutting machine - 7cm compressed lay height, 300cm cutting width",
+      price: null,
+      needsReview: true,
+    },
+    {
+      code: "M10300",
+      name: "Computer controlled cutting machine - 10cm compressed lay height, 300cm cutting width",
+      description: "Computer controlled cutting machine - 10cm compressed lay height, 300cm cutting width",
+      price: null,
+      needsReview: true,
+    },
+  ],
+  L: [
+    {
+      code: "L-320E",
+      name: "Coveyorised cnc cutting machine - Capacity single/low ply. Width 226cm. Cutting belt perforated flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+      description: "Coveyorised cnc cutting machine - Capacity single/low ply. Width 226cm. Cutting belt perforated flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+      price: null,
+      needsReview: true,
+    },
+  ],
+  SW: [
+    {
+      code: "PTW(I)",
+      name: "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
+      description: "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
+      price: null,
+      needsReview: true,
+    },
+  ],
+  EL: [
+    {
+      code: "EL-3220",
+      name: "EasyLoader 3220",
+      description: "3220mm width, to suit Mx300, L320 & FabricPro300. Base: drive module, first 1.2M.",
+      price: null,
+      needsReview: true,
+    },
+    {
+      code: "EL-4030",
+      name: "EasyLoader 4030",
+      description: "4030mm width, to suit Mx390 & FabricPro390. Base: drive module, first 1.2M.",
+      price: null,
+      needsReview: true,
+    },
+  ],
+  EF: [
+    {
+      code: "EF-3220",
+      name: "EasyFeeder 3220",
+      description:
+        "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+      price: null,
+      needsReview: true,
+    },
+  ],
+  FP: [
+    {
+      code: "FP-300",
+      name: "FabricPro Automatic Spreading Machine (maximum fabric width=300 cm)",
+      description: "FabricPro Automatic Spreading Machine (maximum fabric width=300 cm)",
+      price: null,
+      needsReview: true,
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
 // Assembly
 // ---------------------------------------------------------------------------
 
@@ -694,6 +841,14 @@ function main(): void {
   for (const s of series) {
     const manual = MANUAL_PRODUCTS[s.seriesCode];
     if (manual) s.products = sortByCode([...s.products, ...manual]);
+  }
+
+  // Append NA-only products (see NA_PRODUCTS above) the same way -- after
+  // the XC clone, so they don't leak into XC without NA evidence of their
+  // own X-series equivalent.
+  for (const s of series) {
+    const na = NA_PRODUCTS[s.seriesCode];
+    if (na) s.products = sortByCode([...s.products, ...na]);
   }
 
   const catalog = {

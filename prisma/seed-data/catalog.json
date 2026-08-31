@@ -1,5 +1,5 @@
 {
-  "extractedAt": "2026-08-30T23:30:01.198Z",
+  "extractedAt": "2026-08-31T01:01:29.818Z",
   "series": [
     {
       "seriesCode": "XC",
@@ -112,6 +112,13 @@
           "needsReview": false
         },
         {
+          "code": "M10300",
+          "name": "Computer controlled cutting machine - 10cm compressed lay height, 300cm cutting width",
+          "description": "Computer controlled cutting machine - 10cm compressed lay height, 300cm cutting width",
+          "price": null,
+          "needsReview": true
+        },
+        {
           "code": "M10390",
           "name": "Computer controlled cutting machine - 10cm compressed lay height, 390cm cutting width",
           "description": "Computer controlled cutting machine - 10cm compressed lay height, 390cm cutting width",
@@ -131,6 +138,13 @@
           "description": "Computer controlled cutting machine - 3cm compressed lay height, 227cm cutting width",
           "price": 188000,
           "needsReview": false
+        },
+        {
+          "code": "M3300",
+          "name": "Computer controlled cutting machine - 3cm compressed lay height, 300cm cutting width",
+          "description": "Computer controlled cutting machine - 3cm compressed lay height, 300cm cutting width",
+          "price": null,
+          "needsReview": true
         },
         {
           "code": "M3390",
@@ -154,6 +168,13 @@
           "needsReview": false
         },
         {
+          "code": "M5300",
+          "name": "Computer controlled cutting machine - 5cm compressed lay height, 300cm cutting width",
+          "description": "Computer controlled cutting machine - 5cm compressed lay height, 300cm cutting width",
+          "price": null,
+          "needsReview": true
+        },
+        {
           "code": "M5390",
           "name": "Computer controlled cutting machine - 5cm compressed lay height, 390cm cutting width",
           "description": "Computer controlled cutting machine - 5cm compressed lay height, 390cm cutting width",
@@ -173,6 +194,13 @@
           "description": "Computer controlled cutting machine - 7cm compressed lay height, 227cm cutting width",
           "price": 220500,
           "needsReview": false
+        },
+        {
+          "code": "M7300",
+          "name": "Computer controlled cutting machine - 7cm compressed lay height, 300cm cutting width",
+          "description": "Computer controlled cutting machine - 7cm compressed lay height, 300cm cutting width",
+          "price": null,
+          "needsReview": true
         },
         {
           "code": "M7390",
@@ -222,6 +250,13 @@
           "description": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 226cm. Cutting belt perforated flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
           "price": 170000,
           "needsReview": false
+        },
+        {
+          "code": "L-320E",
+          "name": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 226cm. Cutting belt perforated flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "description": "Coveyorised cnc cutting machine - Capacity single/low ply. Width 226cm. Cutting belt perforated flat. Standard with MRK (included). Facility for 3 Simultaneous tools. Quick release tools not included.",
+          "price": null,
+          "needsReview": true
         },
         {
           "code": "L-320F",
@@ -308,6 +343,13 @@
           "needsReview": false
         },
         {
+          "code": "PTW(I)",
+          "name": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
+          "description": "PathWorks Integrated software module within PathCutTM . Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
+          "price": null,
+          "needsReview": true
+        },
+        {
           "code": "PTW(S)",
           "name": "PathWorks Standalone software module. Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
           "description": "PathWorks Standalone software module. Pathworks features include, pattern creation tools, piece shredder, magnetic nesting, importing and exporting of standard DXF and G-code.",
@@ -376,6 +418,20 @@
           "description": "2420mm width, to suit FM220/FabricPro220. Base: drive module, first 1.2M.",
           "price": 4455,
           "needsReview": false
+        },
+        {
+          "code": "EL-3220",
+          "name": "EasyLoader 3220",
+          "description": "3220mm width, to suit Mx300, L320 & FabricPro300. Base: drive module, first 1.2M.",
+          "price": null,
+          "needsReview": true
+        },
+        {
+          "code": "EL-4030",
+          "name": "EasyLoader 4030",
+          "description": "4030mm width, to suit Mx390 & FabricPro390. Base: drive module, first 1.2M.",
+          "price": null,
+          "needsReview": true
         }
       ]
     },
@@ -397,6 +453,13 @@
           "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
           "price": 10860,
           "needsReview": false
+        },
+        {
+          "code": "EF-3220",
+          "name": "EasyFeeder 3220",
+          "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
+          "price": null,
+          "needsReview": true
         },
         {
           "code": "EF-4030",
@@ -432,6 +495,13 @@
           "description": "FabricPro Automatic Spreading Machine (maximum fabric width=220 cm)",
           "price": 67000,
           "needsReview": false
+        },
+        {
+          "code": "FP-300",
+          "name": "FabricPro Automatic Spreading Machine (maximum fabric width=300 cm)",
+          "description": "FabricPro Automatic Spreading Machine (maximum fabric width=300 cm)",
+          "price": null,
+          "needsReview": true
         },
         {
           "code": "FP-TROLLEY",
