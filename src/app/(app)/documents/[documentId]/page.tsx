@@ -14,6 +14,7 @@ import {
 import {
   addCustomLine,
   addItem,
+  createInvoiceFromQuote,
   deleteDraft,
   removeItem,
   removeLine,
@@ -23,16 +24,19 @@ import {
   setItemDiscount,
   setItemOptions,
   setItemShowImage,
+  setPriceDisplay,
 } from "@/lib/actions/documents";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { ClientSection } from "@/components/builder/client-section";
 import { ItemsSection } from "@/components/builder/items-section";
 import { ExtraLinesSection } from "@/components/builder/extra-lines-section";
 import { DocumentDiscountField } from "@/components/builder/document-discount-field";
+import { PriceDisplayToggles } from "@/components/builder/price-display-toggles";
 import { DocumentTotals, StickyFooter } from "@/components/builder/sticky-footer";
 import { FinalizeButton } from "@/components/builder/finalize-button";
 import { UnfinalizeButton } from "@/components/builder/unfinalize-button";
 import { DeleteDraftButton } from "@/components/builder/delete-draft-button";
+import { CreateInvoiceButton } from "@/components/builder/create-invoice-button";
 
 export const dynamic = "force-dynamic";
 
@@ -147,6 +151,20 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
               readOnly={!isDraft}
             />
           </SectionCard>
+
+          {/* QUOTE only — an INVOICE always shows full detail, no toggle
+              needed (see setPriceDisplay's doc comment). */}
+          {document.type === "QUOTE" ? (
+            <SectionCard title="Quotation pricing display">
+              <PriceDisplayToggles
+                documentId={document.id}
+                showItemPrices={document.showItemPrices}
+                showOptionPrices={document.showOptionPrices}
+                setPriceDisplayAction={setPriceDisplay}
+                readOnly={!isDraft}
+              />
+            </SectionCard>
+          ) : null}
         </div>
 
         {/* Desktop/tablet-lg summary: sticky so it stays visible while the
@@ -214,10 +232,23 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
 function DocumentSummaryHeader({ document }: { document: DocumentForBuilder }) {
   const isDraft = document.status === "DRAFT";
   return (
-    <div className="flex items-center gap-2">
-      <StatusBadge tone={STATUS_TONE[document.status]}>{isDraft ? "Draft" : "Final"}</StatusBadge>
-      {document.number ? (
-        <span className="font-mono text-sm text-slate-600">{document.number}</span>
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <StatusBadge tone={STATUS_TONE[document.status]}>{isDraft ? "Draft" : "Final"}</StatusBadge>
+        {document.number ? (
+          <span className="font-mono text-sm text-slate-600">{document.number}</span>
+        ) : null}
+      </div>
+      {/* Set only for an INVOICE created via "Create invoice" from a QUOTE
+          (see createInvoiceFromQuote) — links back to that quote's own
+          builder page. */}
+      {document.sourceQuoteId ? (
+        <Link
+          href={`/documents/${document.sourceQuoteId}`}
+          className="focus-ring w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100"
+        >
+          From quote {document.sourceQuoteNumber ?? "draft"}
+        </Link>
       ) : null}
     </div>
   );
@@ -275,6 +306,15 @@ function DocumentActions({
             <Download className="size-4" aria-hidden="true" />
             Quotation PDF
           </a>
+
+          {/* Available for a DRAFT quote too, but only prominent (filled
+              brand button, rather than an outline one) once the quote is
+              FINAL — "sales approves the quote, invoice without re-entry"
+              is squarely a post-approval action. */}
+          <CreateInvoiceButton
+            action={createInvoiceFromQuote.bind(null, document.id)}
+            prominent={!isDraft}
+          />
         </>
       ) : null}
     </div>

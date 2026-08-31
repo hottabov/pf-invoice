@@ -124,6 +124,18 @@ export const reorderSchema = z
   .refine((ids) => new Set(ids).size === ids.length, "Duplicate item in order");
 export type ReorderInput = z.infer<typeof reorderSchema>;
 
+// --- price display toggles (quotation-first) --------------------------------
+
+/** `setPriceDisplay`'s input: both flags are plain booleans (the builder UI
+ * toggles them straight from a checkbox's `checked` state, no FormData
+ * string-coercion involved — same calling convention as
+ * `setItemShowImage`). */
+export const priceDisplaySchema = z.object({
+  showItemPrices: z.boolean(),
+  showOptionPrices: z.boolean(),
+});
+export type PriceDisplayInput = z.infer<typeof priceDisplaySchema>;
+
 /**
  * Pure set-equality check used to validate a proposed reorder: `proposed`
  * must contain exactly the same ids as `actual` — same set, no duplicates,

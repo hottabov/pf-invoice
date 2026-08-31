@@ -7,6 +7,7 @@ import {
   isPermutation,
   optionSelectionSchema,
   optionalIdSchema,
+  priceDisplaySchema,
   reorderSchema,
 } from "../src/lib/validation/documents";
 
@@ -325,5 +326,27 @@ describe("isPermutation", () => {
 
   it("returns false when sets differ entirely", () => {
     expect(isPermutation(["a", "b"], ["c", "d"])).toBe(false);
+  });
+});
+
+describe("priceDisplaySchema", () => {
+  it("accepts both flags false", () => {
+    expect(priceDisplaySchema.safeParse({ showItemPrices: false, showOptionPrices: false }).success).toBe(true);
+  });
+
+  it("accepts both flags true", () => {
+    expect(priceDisplaySchema.safeParse({ showItemPrices: true, showOptionPrices: true }).success).toBe(true);
+  });
+
+  it("rejects a non-boolean value", () => {
+    expect(priceDisplaySchema.safeParse({ showItemPrices: "true", showOptionPrices: false }).success).toBe(false);
+  });
+
+  it("rejects a missing field", () => {
+    expect(priceDisplaySchema.safeParse({ showItemPrices: true }).success).toBe(false);
+  });
+
+  it("rejects a non-object input", () => {
+    expect(priceDisplaySchema.safeParse(null).success).toBe(false);
   });
 });

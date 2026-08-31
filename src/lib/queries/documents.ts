@@ -211,6 +211,22 @@ export type DocumentForBuilder = {
   contact: BuilderContact | null;
   items: BuilderItem[];
   extraLines: BuilderLine[];
+  /** Quotation-first pricing display toggles (see `setPriceDisplay` in
+   * src/lib/actions/documents.ts) — the builder only ever surfaces its
+   * toggle card for a QUOTE, but both flags are read straight through into
+   * `QuotationDataDoc` regardless of `type` (see `buildQuotationData`). */
+  showItemPrices: boolean;
+  showOptionPrices: boolean;
+  /** Set only for an INVOICE created via "Create invoice" from a QUOTE (see
+   * `createInvoiceFromQuote`) — `null` for every QUOTE and for an INVOICE
+   * created from scratch. `sourceQuoteNumber` is `null` whenever
+   * `sourceQuoteId` is (nothing to look up) and also, defensively, if the
+   * source quote row itself no longer resolves (deleted while still a
+   * DRAFT — the FK is `ON DELETE SET NULL`, so that combination shouldn't
+   * actually occur in practice by the time this query runs).
+   */
+  sourceQuoteId: string | null;
+  sourceQuoteNumber: string | null;
   updatedAt: Date;
 };
 
@@ -296,6 +312,7 @@ export async function getDocumentForBuilder(
         where: { itemId: null },
         orderBy: { sortOrder: "asc" },
       },
+      sourceQuote: { select: { number: true } },
     },
   });
   if (!document) return null;
@@ -379,6 +396,10 @@ export async function getDocumentForBuilder(
       total: totals.itemTotals[index].toString(),
     })),
     extraLines: document.lines.map(toBuilderLine),
+    showItemPrices: document.showItemPrices,
+    showOptionPrices: document.showOptionPrices,
+    sourceQuoteId: document.sourceQuoteId,
+    sourceQuoteNumber: document.sourceQuote?.number ?? null,
     updatedAt: document.updatedAt,
   };
 }

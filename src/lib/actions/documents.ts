@@ -17,10 +17,12 @@ import {
   isPermutation,
   optionSelectionSchema,
   optionalIdSchema,
+  priceDisplaySchema,
   reorderSchema,
   type DocumentTypeInput,
   type OptionSelectionInput,
 } from "@/lib/validation/documents";
+import { buildInvoiceCopyPayload, type QuoteForCopy } from "@/lib/invoice-from-quote";
 
 export type ActionResult = { error?: string };
 
@@ -262,6 +264,14 @@ export async function addItem(documentId: string, productCode: string): Promise<
       description: product.description,
       unitPrice: price.amount,
       imageUrl: product.imageUrl,
+      // Quotation-first default (behavior change): a newly added item with a
+      // product image starts with its image already switched on for display
+      // — the owner's quotes almost always show it (full-width, right under
+      // the product title — see quotation-sheet.tsx), so requiring an extra
+      // manual toggle on every single item added defeats the point. Still
+      // author-togglable afterwards via `setItemShowImage`, and a product
+      // with no image simply has nothing to default on (`false` either way).
+      showImage: Boolean(product.imageUrl),
     },
   });
 
@@ -661,4 +671,224 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
 
   revalidatePath(`/documents/${document.id}`);
   return {};
+}
+
+// --- price display toggles (quotation-first) --------------------------------
+
+/**
+ * Sets both quotation pricing-display toggles at once (the builder UI always
+ * submits the pair together — see `PriceDisplayToggles` — so there's no
+ * partial-update variant like the item discount fields have). Purely a
+ * display flag pair, same as `setItemShowImage`: they never affect
+ * `subtotal`/`taxAmount`/`total`, so there's no `recalcDocument` call here.
+ * DRAFT-only and scoped like every other document mutation in this file —
+ * meaningful only for a QUOTE in practice (the builder only renders the
+ * toggle card for one), but not type-gated here since an INVOICE simply
+ * never reads these flags back (see `toSheetData`, which the plain
+ * document/invoice sheet keeps using unconditionally).
+ */
+export async function setPriceDisplay(documentId: string, input: unknown): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedDocumentId = idSchema.safeParse(documentId);
+  if (!parsedDocumentId.success) return { error: NOT_FOUND_ERROR };
+
+  const parsedInput = priceDisplaySchema.safeParse(input);
+  if (!parsedInput.success) return { error: flattenZodError(parsedInput.error) };
+
+  const document = await db.document.findFirst({
+    where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
+  });
+  if (!document) return { error: NOT_FOUND_ERROR };
+
+  await db.document.update({
+    where: { id: document.id },
+    data: {
+      showItemPrices: parsedInput.data.showItemPrices,
+      showOptionPrices: parsedInput.data.showOptionPrices,
+    },
+  });
+
+  revalidatePath(`/documents/${document.id}`);
+  return {};
+}
+
+// --- create invoice from quote -----------------------------------------------
+
+/**
+ * Copies an approved QUOTE straight into a new DRAFT INVOICE — the owner's
+ * "sales approves the quote, invoice without re-entry" workflow. Loads the
+ * QUOTE scoped to the caller (any status; there's no reason to forbid this
+ * from a still-DRAFT quote, though the button is only prominent once it's
+ * FINAL — see the builder page), maps it through the pure
+ * `buildInvoiceCopyPayload` (src/lib/invoice-from-quote.ts) for the actual
+ * copy-shape decisions, then persists it in two steps inside one
+ * transaction: create the document with its items nested (that relation
+ * *is* the immediate parent-child link Prisma can auto-wire), then a second
+ * `createMany` for every line once the new item ids exist — item lines need
+ * both `documentId` *and* `itemId`, and `documentId` isn't derivable from
+ * the item-nesting path alone (same two-step shape `setItemOptions` already
+ * uses for a single item, just batched here across every item at once).
+ * Items are correlated to their new copy by `sortOrder`, which
+ * `buildInvoiceCopyPayload` preserves unchanged and which is unique per
+ * document — insertion order of a nested `create: [...]` isn't a contract
+ * Prisma guarantees, so this never assumes the returned array matches input
+ * order. On success, redirects straight into the new invoice's builder
+ * (like `createDraft`); returns `{ error }` and doesn't navigate anywhere
+ * otherwise.
+ */
+export async function createInvoiceFromQuote(quoteId: string): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedQuoteId = idSchema.safeParse(quoteId);
+  if (!parsedQuoteId.success) return { error: NOT_FOUND_ERROR };
+
+  const quote = await db.document.findFirst({
+    where: { id: parsedQuoteId.data, type: "QUOTE", ...documentWhereForUser(session.user) },
+    include: {
+      items: {
+        orderBy: { sortOrder: "asc" },
+        include: { lines: { orderBy: { sortOrder: "asc" } } },
+      },
+      lines: { where: { itemId: null }, orderBy: { sortOrder: "asc" } },
+    },
+  });
+  if (!quote) return { error: NOT_FOUND_ERROR };
+
+  const quoteForCopy: QuoteForCopy = {
+    id: quote.id,
+    companyId: quote.companyId,
+    contactId: quote.contactId,
+    regionId: quote.regionId,
+    currency: quote.currency,
+    taxName: quote.taxName,
+    taxRate: quote.taxRate.toString(),
+    discountPct: quote.discountPct?.toString() ?? null,
+    notes: quote.notes,
+    showItemPrices: quote.showItemPrices,
+    showOptionPrices: quote.showOptionPrices,
+    items: quote.items.map((item) => ({
+      productId: item.productId,
+      sortOrder: item.sortOrder,
+      code: item.code,
+      name: item.name,
+      description: item.description,
+      unitPrice: item.unitPrice.toString(),
+      discountPct: item.discountPct?.toString() ?? null,
+      serialNumber: item.serialNumber,
+      showImage: item.showImage,
+      imageUrl: item.imageUrl,
+      lines: item.lines.map((line) => ({
+        kind: line.kind,
+        refId: line.refId,
+        code: line.code,
+        name: line.name,
+        description: line.description,
+        qty: line.qty,
+        unitPrice: line.unitPrice.toString(),
+        attributes: line.attributes,
+        showImage: line.showImage,
+        sortOrder: line.sortOrder,
+      })),
+    })),
+    lines: quote.lines.map((line) => ({
+      kind: line.kind,
+      refId: line.refId,
+      code: line.code,
+      name: line.name,
+      description: line.description,
+      qty: line.qty,
+      unitPrice: line.unitPrice.toString(),
+      attributes: line.attributes,
+      showImage: line.showImage,
+      sortOrder: line.sortOrder,
+    })),
+  };
+
+  const payload = buildInvoiceCopyPayload(quoteForCopy);
+
+  const created = await db.$transaction(async (tx) => {
+    const invoice = await tx.document.create({
+      data: {
+        type: payload.document.type,
+        status: payload.document.status,
+        authorId: session.user.id,
+        companyId: payload.document.companyId,
+        contactId: payload.document.contactId,
+        regionId: payload.document.regionId,
+        currency: payload.document.currency,
+        taxName: payload.document.taxName,
+        taxRate: new Prisma.Decimal(payload.document.taxRate),
+        discountPct: payload.document.discountPct !== null ? new Prisma.Decimal(payload.document.discountPct) : null,
+        notes: payload.document.notes,
+        showItemPrices: payload.document.showItemPrices,
+        showOptionPrices: payload.document.showOptionPrices,
+        sourceQuoteId: payload.document.sourceQuoteId,
+        items: {
+          create: payload.items.map((item) => ({
+            productId: item.productId,
+            sortOrder: item.sortOrder,
+            code: item.code,
+            name: item.name,
+            description: item.description,
+            unitPrice: new Prisma.Decimal(item.unitPrice),
+            discountPct: item.discountPct !== null ? new Prisma.Decimal(item.discountPct) : null,
+            serialNumber: item.serialNumber,
+            showImage: item.showImage,
+            imageUrl: item.imageUrl,
+          })),
+        },
+      },
+      include: { items: true },
+    });
+
+    const newItemIdBySortOrder = new Map(invoice.items.map((item) => [item.sortOrder, item.id]));
+
+    const itemLineRows: Prisma.DocumentLineCreateManyInput[] = payload.items.flatMap((item) => {
+      const newItemId = newItemIdBySortOrder.get(item.sortOrder);
+      // Defensive only — every payload item was just created above with this
+      // exact sortOrder, so it's always found in practice.
+      if (!newItemId) return [];
+      return item.lines.map((line) => ({
+        documentId: invoice.id,
+        itemId: newItemId,
+        kind: line.kind,
+        refId: line.refId,
+        code: line.code,
+        name: line.name,
+        description: line.description,
+        qty: line.qty,
+        unitPrice: new Prisma.Decimal(line.unitPrice),
+        attributes: line.attributes as Prisma.InputJsonValue | undefined,
+        showImage: line.showImage,
+        sortOrder: line.sortOrder,
+      }));
+    });
+
+    const extraLineRows: Prisma.DocumentLineCreateManyInput[] = payload.extraLines.map((line) => ({
+      documentId: invoice.id,
+      itemId: null,
+      kind: line.kind,
+      refId: line.refId,
+      code: line.code,
+      name: line.name,
+      description: line.description,
+      qty: line.qty,
+      unitPrice: new Prisma.Decimal(line.unitPrice),
+      attributes: line.attributes as Prisma.InputJsonValue | undefined,
+      showImage: line.showImage,
+      sortOrder: line.sortOrder,
+    }));
+
+    if (itemLineRows.length > 0 || extraLineRows.length > 0) {
+      await tx.documentLine.createMany({ data: [...itemLineRows, ...extraLineRows] });
+    }
+
+    return invoice;
+  });
+
+  await recalcDocument(created.id);
+
+  revalidatePath("/documents");
+  redirect(`/documents/${created.id}`);
 }

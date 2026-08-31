@@ -56,12 +56,18 @@ export type QuotationItemInput = ToSheetItemInput & {
   lines: QuotationLineInput[];
 };
 
-/** Same shape as `ToSheetDataDoc` plus the one extra field
- * (`regionId`) needed to resolve region-specific content-block overrides,
- * and richer `items` (see `QuotationItemInput`). */
+/** Same shape as `ToSheetDataDoc` plus the extra fields needed for the
+ * quotation renderer: `regionId` (to resolve region-specific content-block
+ * overrides), richer `items` (see `QuotationItemInput`), and the two
+ * quotation-first pricing-display toggles (see `setPriceDisplay` in
+ * src/lib/actions/documents.ts) that gate per-item/per-option amounts in
+ * the investment summary and the `{{price}}` token in a machine title
+ * block — the grand total itself is never gated by either flag. */
 export type QuotationDataDoc = Omit<ToSheetDataDoc, "items"> & {
   regionId: string;
   items: QuotationItemInput[];
+  showItemPrices: boolean;
+  showOptionPrices: boolean;
 };
 
 /** A `ContentBlock` row exactly as stored — `regionId: null` is the global
@@ -288,6 +294,14 @@ export type QuotationData = {
     coverageRows: QuotationRspRow[];
   };
   showSignature: boolean;
+  /** Pass-through of `QuotationDataDoc`'s toggles for `QuotationSheet` to
+   * gate the investment summary's per-item/per-option amount columns —
+   * `showOptionPrices` implies item totals are visible too (an option's
+   * price only makes sense next to the item it's attached to), which is why
+   * the sheet treats `showItemPrices || showOptionPrices` as "item amounts
+   * visible" rather than reading `showItemPrices` alone. */
+  showItemPrices: boolean;
+  showOptionPrices: boolean;
 };
 
 export type BuildQuotationDataOpts = {
@@ -348,6 +362,11 @@ export function buildQuotationData(
 
   const sheetItemsById = new Map(sheet.items.map((item) => [item.id, item]));
 
+  // `showOptionPrices` implies item totals are visible too (see
+  // `QuotationData.showItemPrices`'s doc comment) — this is the one flag a
+  // machine title block's `{{price}}` token cares about.
+  const itemPriceVisible = doc.showItemPrices || doc.showOptionPrices;
+
   const machineSections: QuotationMachineSection[] = doc.items.map((item) => {
     const lineSummary = sheetItemsById.get(item.id);
     if (!lineSummary) {
@@ -377,10 +396,19 @@ export function buildQuotationData(
       ? renderMarkdown(
           substitutePlaceholders(block.body, {
             model: item.code,
-            price: item.unitPrice,
             cutHeightCm,
             cutWidthCm,
             ...(specSentence ? { specSentence } : {}),
+            // Only fed in when the price toggle allows it — an admin-authored
+            // block like machine.m-series bakes "**Price: {{price}}**"
+            // straight into its markdown, so this is the only lever that
+            // controls whether that line renders a real figure or the
+            // standard "____" blank-data marker (see substitutePlaceholders).
+            // No option.* block currently references {{price}} at all — an
+            // option's price only ever shows in the investment summary table
+            // (gated separately there by `showOptionPrices`), so there's
+            // nothing analogous to thread through `attributeVars` below.
+            ...(itemPriceVisible ? { price: item.unitPrice } : {}),
           })
         )
       : null;
@@ -433,6 +461,8 @@ export function buildQuotationData(
     conditionsSections,
     rsp: { agreementHtml, coverageRows },
     showSignature: sheet.showSignature,
+    showItemPrices: doc.showItemPrices,
+    showOptionPrices: doc.showOptionPrices,
   };
 }
 

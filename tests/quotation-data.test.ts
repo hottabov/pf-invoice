@@ -160,6 +160,8 @@ function baseDoc(overrides: Partial<QuotationDataDoc> = {}): QuotationDataDoc {
     extraLines: [],
     regionId: "region-au",
     items: [baseItem()],
+    showItemPrices: false,
+    showOptionPrices: false,
     ...overrides,
   };
 }
@@ -266,6 +268,31 @@ describe("buildQuotationData", () => {
     const doc = baseDoc({ items: [baseItem({ seriesCode: "EF", code: "EF-100" })] });
     const data = buildQuotationData(doc, [machineBlock]);
     expect(data.machineSections[0].titleBlockHtml).toBeNull();
+  });
+
+  it("blanks a machine title block's {{price}} token when both price-display toggles are off", () => {
+    const doc = baseDoc({ showItemPrices: false, showOptionPrices: false });
+    const data = buildQuotationData(doc, [machineBlock]);
+    expect(data.machineSections[0].titleBlockHtml).toContain("Price ____");
+  });
+
+  it("substitutes the real price into a machine title block when showItemPrices is on", () => {
+    const doc = baseDoc({ showItemPrices: true, showOptionPrices: false });
+    const data = buildQuotationData(doc, [machineBlock]);
+    expect(data.machineSections[0].titleBlockHtml).toContain("Price 175000.00");
+  });
+
+  it("substitutes the real price when only showOptionPrices is on (implies item prices visible)", () => {
+    const doc = baseDoc({ showItemPrices: false, showOptionPrices: true });
+    const data = buildQuotationData(doc, [machineBlock]);
+    expect(data.machineSections[0].titleBlockHtml).toContain("Price 175000.00");
+  });
+
+  it("passes both price-display toggles through onto the returned QuotationData", () => {
+    const doc = baseDoc({ showItemPrices: true, showOptionPrices: false });
+    const data = buildQuotationData(doc, []);
+    expect(data.showItemPrices).toBe(true);
+    expect(data.showOptionPrices).toBe(false);
   });
 
   it("resolves OPTION lines to option blocks using line attributes, skips lines with no match", () => {

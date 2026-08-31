@@ -24,6 +24,16 @@ import type { DocSheetLine } from "@/lib/sheet-data";
  */
 export function QuotationSheet({ data }: { data: QuotationData }) {
   const { totals } = data;
+  // `showOptionPrices` implies item totals are visible too (see
+  // `QuotationData.showItemPrices`'s doc comment) — every per-item amount
+  // in this sheet (the auto-summary price, the investment table's item and
+  // extra-line amount columns, the item discount row) is gated on this,
+  // while `data.showOptionPrices` alone gates only the option rows. The
+  // grand total banner and the totals block below the table are never
+  // gated by either flag — the owner's rule is the client always sees the
+  // bottom line, only the itemized detail is optional.
+  const itemPriceVisible = data.showItemPrices || data.showOptionPrices;
+  const optionPriceVisible = data.showOptionPrices;
 
   return (
     <div className="pq-sheet">
@@ -96,32 +106,64 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
           </div>
         ) : null}
 
+        {/* Total investment banner (owner: "client must see it immediately"
+            — the grand total for everything, always shown up top regardless
+            of the price-display toggles below, which only gate the
+            itemized per-item/per-option detail further down the page). */}
+        <div className="pq-total-banner">
+          <span className="pq-total-banner-label">Total investment</span>
+          <span className="pq-total-banner-amount">
+            {formatMoney(totals.total, totals.currency)} {totals.currency}
+          </span>
+          <span className="pq-total-banner-note">
+            (incl. {totals.taxName} {totals.taxRate}%)
+          </span>
+        </div>
+
         {data.machineSections.length > 0 ? (
           <section className="pq-section">
             <h1 className="pq-section-title">Equipment Detail</h1>
             {data.machineSections.map((section) => (
               <div className="pq-machine-section" key={section.itemId}>
-                {section.titleBlockHtml ? (
-                  <div className="pq-block-body" dangerouslySetInnerHTML={{ __html: section.titleBlockHtml }} />
-                ) : (
-                  // No admin-authored content block matched this item's
-                  // product (e.g. L-Series has none — see
-                  // src/lib/quotation-data.ts's `productBlockKey`) — render
-                  // a minimal auto-generated section from what's already
-                  // known about the item instead of just its bare name/code,
-                  // so every machine item still gets a real write-up.
-                  <div className="pq-block-missing pq-auto-summary">
-                    <div className="pq-auto-summary-name">
-                      {section.lineSummary.name} <span className="pq-item-code">{section.lineSummary.code}</span>
+                {/* Title/spec + product photo are one page-break-avoidance
+                    unit (owner: images normally run full width right after
+                    the product title) — the option write-ups that follow
+                    are outside this group since a long option list can
+                    legitimately spill onto the next page even when the
+                    title+image pair itself must not split. */}
+                <div className="pq-title-image-group">
+                  {section.titleBlockHtml ? (
+                    <div className="pq-block-body" dangerouslySetInnerHTML={{ __html: section.titleBlockHtml }} />
+                  ) : (
+                    // No admin-authored content block matched this item's
+                    // product (e.g. L-Series has none — see
+                    // src/lib/quotation-data.ts's `productBlockKey`) — render
+                    // a minimal auto-generated section from what's already
+                    // known about the item instead of just its bare name/code,
+                    // so every machine item still gets a real write-up.
+                    <div className="pq-block-missing pq-auto-summary">
+                      <div className="pq-auto-summary-name">
+                        {section.lineSummary.name} <span className="pq-item-code">{section.lineSummary.code}</span>
+                      </div>
+                      {section.specSentence ? (
+                        <div className="pq-auto-summary-spec">{section.specSentence}</div>
+                      ) : null}
+                      {itemPriceVisible ? (
+                        <div className="pq-auto-summary-price">
+                          {formatMoney(section.lineSummary.total, totals.currency)}
+                        </div>
+                      ) : null}
                     </div>
-                    {section.specSentence ? (
-                      <div className="pq-auto-summary-spec">{section.specSentence}</div>
-                    ) : null}
-                    <div className="pq-auto-summary-price">
-                      {formatMoney(section.lineSummary.total, totals.currency)}
-                    </div>
-                  </div>
-                )}
+                  )}
+                  {section.lineSummary.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={section.lineSummary.image}
+                      alt={section.lineSummary.name}
+                      className="pq-machine-image"
+                    />
+                  ) : null}
+                </div>
                 {section.optionBlocksHtml.length > 0 ? (
                   <div className="pq-options">
                     {section.optionBlocksHtml.map((option) => (
@@ -163,12 +205,14 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                     {item.description ? <div className="pq-item-desc">{item.description}</div> : null}
                   </td>
                   <td className="pq-col-qty" />
-                  <td className="pq-col-amount pq-amount">{formatMoney(item.total, totals.currency)}</td>
+                  <td className="pq-col-amount pq-amount">
+                    {itemPriceVisible ? formatMoney(item.total, totals.currency) : null}
+                  </td>
                 </tr>
                 {item.lines.map((line) => (
-                  <OptionRow key={line.id} line={line} currency={totals.currency} />
+                  <OptionRow key={line.id} line={line} currency={totals.currency} visible={optionPriceVisible} />
                 ))}
-                {item.discountPct !== null ? (
+                {item.discountPct !== null && itemPriceVisible ? (
                   <tr className="pq-discount-row">
                     <td className="pq-col-item pq-option-indent">Item discount</td>
                     <td className="pq-col-qty" />
@@ -187,9 +231,17 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                       {line.description ? <div className="pq-item-desc">{line.description}</div> : null}
                     </td>
                     <td className="pq-col-qty">
-                      {line.qty} × {formatMoney(line.unitPrice, totals.currency)}
+                      {itemPriceVisible ? (
+                        <>
+                          {line.qty} × {formatMoney(line.unitPrice, totals.currency)}
+                        </>
+                      ) : (
+                        line.qty
+                      )}
                     </td>
-                    <td className="pq-col-amount pq-amount">{formatMoney(line.lineTotal, totals.currency)}</td>
+                    <td className="pq-col-amount pq-amount">
+                      {itemPriceVisible ? formatMoney(line.lineTotal, totals.currency) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -310,7 +362,10 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
   );
 }
 
-function OptionRow({ line, currency }: { line: DocSheetLine; currency: string }) {
+/** `visible` gates only the qty×price/amount columns (per `showOptionPrices`
+ * — see `QuotationSheet`'s `optionPriceVisible`) — the option's name and
+ * description always render regardless, same as an item row's name/qty. */
+function OptionRow({ line, currency, visible }: { line: DocSheetLine; currency: string; visible: boolean }) {
   return (
     <tr className="pq-option-row">
       <td className="pq-col-item pq-option-indent">
@@ -318,9 +373,15 @@ function OptionRow({ line, currency }: { line: DocSheetLine; currency: string })
         {line.description ? <div className="pq-option-desc">{line.description}</div> : null}
       </td>
       <td className="pq-col-qty">
-        {line.qty} × {formatMoney(line.unitPrice, currency)}
+        {visible ? (
+          <>
+            {line.qty} × {formatMoney(line.unitPrice, currency)}
+          </>
+        ) : (
+          line.qty
+        )}
       </td>
-      <td className="pq-col-amount pq-amount">{formatMoney(line.lineTotal, currency)}</td>
+      <td className="pq-col-amount pq-amount">{visible ? formatMoney(line.lineTotal, currency) : null}</td>
     </tr>
   );
 }
@@ -433,6 +494,34 @@ const SHEET_CSS = `
   .pq-client-contact {
     margin-top: 4px;
   }
+  .pq-total-banner {
+    margin-top: 18px;
+    padding: 14px 16px;
+    border-radius: 6px;
+    background: #243478;
+    color: #ffffff;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .pq-total-banner-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #b9c2e8;
+  }
+  .pq-total-banner-amount {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .pq-total-banner-note {
+    font-size: 10px;
+    color: #b9c2e8;
+  }
   .pq-section {
     margin-top: 28px;
   }
@@ -461,6 +550,18 @@ const SHEET_CSS = `
   }
   .pq-machine-section:last-child {
     margin-bottom: 0;
+  }
+  .pq-title-image-group {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .pq-machine-image {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 9cm;
+    object-fit: contain;
+    margin-top: 10px;
   }
   .pq-options {
     margin-top: 10px;

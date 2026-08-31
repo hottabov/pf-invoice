@@ -204,37 +204,55 @@ model Contact {
 }
 
 model Document {
-  id             String         @id @default(cuid())
-  type           DocumentType
-  status         DocumentStatus @default(DRAFT)
-  number         String?        @unique // Q-AU-2026-001, assigned on finalize
-  companyId      String? // set once the client step of the builder is completed
-  company        Company?       @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  contactId      String?
-  contact        Contact?       @relation(fields: [contactId], references: [id])
-  authorId       String
-  author         User           @relation(fields: [authorId], references: [id])
-  regionId       String
-  region         Region         @relation(fields: [regionId], references: [id])
-  issueDate      DateTime       @default(now())
-  validityDays   Int?
-  currency       String
-  taxName        String
-  taxRate        Decimal        @db.Decimal(5, 2)
-  entitySnapshot Json? // frozen on finalize
-  discountPct    Decimal?       @db.Decimal(5, 2)
-  subtotal       Decimal        @default(0) @db.Decimal(12, 2)
-  taxAmount      Decimal        @default(0) @db.Decimal(12, 2)
-  total          Decimal        @default(0) @db.Decimal(12, 2)
-  notes          String?
-  items          DocumentItem[]
-  lines          DocumentLine[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id                String         @id @default(cuid())
+  type              DocumentType
+  status            DocumentStatus @default(DRAFT)
+  number            String?        @unique // Q-AU-2026-001, assigned on finalize
+  companyId         String? // set once the client step of the builder is completed
+  company           Company?       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contactId         String?
+  contact           Contact?       @relation(fields: [contactId], references: [id])
+  authorId          String
+  author            User           @relation(fields: [authorId], references: [id])
+  regionId          String
+  region            Region         @relation(fields: [regionId], references: [id])
+  issueDate         DateTime       @default(now())
+  validityDays      Int?
+  currency          String
+  taxName           String
+  taxRate           Decimal        @db.Decimal(5, 2)
+  entitySnapshot    Json? // frozen on finalize
+  discountPct       Decimal?       @db.Decimal(5, 2)
+  subtotal          Decimal        @default(0) @db.Decimal(12, 2)
+  taxAmount         Decimal        @default(0) @db.Decimal(12, 2)
+  total             Decimal        @default(0) @db.Decimal(12, 2)
+  notes             String?
+  // Quotation-first pricing display (owner spec): a QUOTE's total is always
+  // shown up top regardless of these, but the per-item/per-option detail in
+  // the investment summary only renders when the corresponding toggle is on
+  // — see setPriceDisplay in src/lib/actions/documents.ts and
+  // buildQuotationData in src/lib/quotation-data.ts. Meaningless for an
+  // INVOICE (which always shows full detail) but kept on every Document row
+  // rather than split into a QUOTE-only table.
+  showItemPrices    Boolean        @default(false)
+  showOptionPrices  Boolean        @default(false)
+  items             DocumentItem[]
+  lines             DocumentLine[]
+  // Set when this INVOICE was created via "Create invoice" from a QUOTE
+  // (see createInvoiceFromQuote in src/lib/actions/documents.ts) — null for
+  // every QUOTE and for an INVOICE created from scratch. `onDelete: SetNull`
+  // so deleting the source quote (only possible while it's still a DRAFT)
+  // never blocks and never cascades into the invoice it produced.
+  sourceQuoteId     String?
+  sourceQuote       Document?      @relation("QuoteToInvoice", fields: [sourceQuoteId], references: [id], onDelete: SetNull)
+  invoicesFromQuote Document[]     @relation("QuoteToInvoice")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   @@index([companyId])
   @@index([authorId])
   @@index([regionId, status])
+  @@index([sourceQuoteId])
 }
 
 model DocumentItem {
