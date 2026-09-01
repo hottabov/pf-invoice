@@ -1749,10 +1749,13 @@ export const mSeriesSpec: FormSpec = {
     optionTick("F57", /^IKA$/),
     optionTick("J57", /^AFP$/),
 
-    { cell: "P50", when: spec("voltage", "220V") },
-    { cell: "P52", when: spec("voltage", "400V") },
-    { cell: "P55", when: spec("voltage", "415V") },
-    { cell: "P57", when: spec("voltage", "480V") },
+    // O, not P. Every options row on this form is a box-then-label pair
+    // (F→G, J→K, O→P); P holds the printed "220V (TR220 External Xfmr)" text.
+    // The contract test caught this aimed one column right.
+    { cell: "O50", when: spec("voltage", "220V") },
+    { cell: "O52", when: spec("voltage", "400V") },
+    { cell: "O55", when: spec("voltage", "415V") },
+    { cell: "O57", when: spec("voltage", "480V") },
 
     { cell: "F62", when: integrated("PDG") },
     { cell: "J62", when: integrated("WPN") },
@@ -1769,7 +1772,7 @@ export const mSeriesSpec: FormSpec = {
 };
 ```
 
-The voltage tick cells (`P50`/`P52`/`P55`/`P57`) sit in the right-hand options column beside the `220V`/`400V`/`415V`/`480V` labels — confirm each against the template during Task 15's contract test, and visually the first time a form with a voltage is printed.
+The voltage ticks are the one coordinate the contract test in Task 15 caught: they were written as `P50`/`P52`/`P55`/`P57`, which is the *label* column holding "220V (TR220 External Xfmr)" and friends. Every options row on this form is a box-then-label pair — `F→G`, `J→K`, `O→P` — so the boxes are `O50`/`O52`/`O55`/`O57`. Still confirm them visually the first time a form with a voltage is printed.
 
 - [ ] **Step 3: Write the registry**
 
