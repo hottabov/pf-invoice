@@ -3,8 +3,12 @@ import { z } from "zod";
 /**
  * Operator-screen side. Shared by every machine that has one, because a
  * cutter and its spreaders must agree -- see `lineGroup` in schema.prisma.
+ * Defaults to `-Y` -- material running right to left -- which the M-Series
+ * form already prints as `(STD)`, so a manager who never opens the
+ * production-spec panel still gets the correct standard rather than a blank
+ * box on the form.
  */
-export const screenSideSchema = z.enum(["+Y", "-Y"]);
+export const screenSideSchema = z.enum(["+Y", "-Y"]).default("-Y");
 
 /**
  * Drills. The printed form says `"TBC" is not acceptable`, so "required with
@@ -36,16 +40,22 @@ export const mSeriesSpecSchema = z.object({
 
 export const easyLoaderSpecSchema = z.object({
   ui: screenSideSchema,
-  usage: z.enum(["onload", "offload"]),
+  usage: z.enum(["onload", "offload"]).default("onload"),
   customWidthMm: z.number().int().positive().max(9999).optional(),
+  // No sections at all legitimately means "one undivided table" -- the
+  // common case -- so this defaults to empty rather than being required.
+  // What gates finalize is reconciling this against what was actually sold
+  // (see table-sections.ts), not whether the array is present.
   sections: z
     .array(z.object({ lengthM: z.number().positive().max(99), surface: z.enum(["static", "conveyor"]) }))
-    .max(3),
+    .max(3)
+    .default([]),
   rollFeed: z
     .object({ qty: z.number().int().min(1).max(4), distancesMm: z.array(z.number().int().min(0)).max(4) })
     .optional(),
-  paperRollHolder: z.boolean().optional(),
-  crate: z.boolean().optional(),
+  // `paperRollHolder` and `crate` moved out: they are options the customer
+  // pays for, so they belong on the quote's option lines, not here. The form
+  // now ticks their boxes from the option codes instead.
 });
 
 export const fabricProSpecSchema = z.object({
