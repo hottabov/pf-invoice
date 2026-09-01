@@ -33,6 +33,8 @@ same code twice.
 5. Extra lines accept negative amounts (trade-in) and a photo.
 6. Discounts can be a percentage or a fixed cash amount, at item and document level.
 7. Invoice support removed completely — code, schema, tests, data.
+8. `Region` becomes `Distributor` everywhere, and a distributor holds several
+   bank accounts rather than one blob.
 
 ## Non-goals
 
@@ -375,6 +377,121 @@ entered.
 
 ---
 
+## Part G — Region becomes Distributor, with several bank accounts
+
+### G1. Why
+
+`Region` conflates two things: a geography and a selling entity. The business
+has two selling entities in the same geography — Pathfinder LLC and David Cook,
+a reseller — each with its own address, logo, discount cap, price list, and bank
+accounts. A model keyed on "region" cannot express that.
+
+The name is already drifting in the codebase's favour: the production order
+forms spec calls `Region.entityName` "the distributor" in five places.
+
+Geography does not disappear; it stops being the primary key of the concept. A
+distributor gains a `country` (ISO alpha-2), so distributors can be grouped and
+displayed by where they sell.
+
+### G2. Rename
+
+`Region` → `Distributor` across schema, code, routes, and UI:
+
+| Before | After |
+|---|---|
+| `model Region` | `model Distributor` |
+| `Document.regionId`, `Company.regionId`, `User.regionId`, `Price.regionId`, `ContentBlock.regionId` | `distributorId` |
+| `NumberSequence.regionCode` | `distributorCode` |
+| `@@unique([productId, regionId])` / `([optionId, regionId])` | `([productId, distributorId])` / `([optionId, distributorId])` |
+| `/settings/regions`, `[regionId]` | `/settings/distributors`, `[distributorId]` |
+| `src/lib/{queries,actions,validation}/regions.ts` | `distributors.ts` |
+| `tests/regions-validation.test.ts` | `tests/distributors-validation.test.ts` |
+| session/JWT `regionId` (`src/types/next-auth.d.ts`) | `distributorId` |
+
+The migration uses explicit `ALTER TABLE ... RENAME` statements rather than
+letting Prisma diff the models — a diff would drop and recreate the tables,
+which works only because there is no production data yet and would still wipe
+every developer's local database for no reason.
+
+Constraint and index names are renamed alongside their objects so the schema
+does not carry `Region_*` names on `Distributor_*` objects.
+
+`NumberSequence.distributorCode` has no foreign key — it stores a copy of the
+code — so renaming the table does not touch it. It is renamed separately, along
+with the compound-key name `distributorCode_year` in `src/lib/numbering.ts`.
+
+**Not renamed** — these are true geography or unrelated vocabulary:
+`Company.country`, `Company.deliveryCountry`, `src/lib/countries.ts`,
+`country-select.tsx`, libphonenumber's `defaultRegion` in `src/lib/phone.ts`,
+`role="region"` in `toast.tsx`, and "edit region" in `markdown-editor.ts`.
+
+`src/app/api/health/route.ts:28` deliberately probes
+`db.region.findFirst({ select: { maxDiscountPct } })` to catch schema drift. It
+must be updated in the same commit or the health check fails on deploy.
+
+### G3. Distributor codes
+
+Codes are currently `AU` / `US` / `UK` and `regionCodeSchema` enforces that
+shape. Two distributors in one country need distinguishable codes, so the schema
+relaxes to `^[A-Z0-9][A-Z0-9-]{1,7}$` — for example `AU`, `US-LLC`, `DCOOK`.
+
+Codes appear in document numbers, so `Q-US-LLC-2026-001` is a legal number.
+`formatDocNumber` does not need to parse the number back, so the extra hyphen is
+harmless.
+
+Four near-duplicate code schemas exist today (`validation/regions.ts:15`,
+`validation/content.ts:60`, `validation/clients.ts:116`, inline in
+`validation/catalog.ts:133`, plus a nullable variant in `validation/users.ts:56`).
+They collapse into one exported schema during the rename, since editing five
+copies of the same regex to the same new pattern is how they drifted in the
+first place.
+
+### G4. Bank accounts
+
+`Region.bankDetails` is a single `Json?` column holding one flat label→value
+map. It becomes a child table:
+
+```prisma
+model DistributorBankAccount {
+  id            String      @id @default(cuid())
+  distributorId String
+  distributor   Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  label         String      // "LLC operating account", "David Cook — Chase"
+  details       Json        // same label -> value map as today
+  currency      String?     // informational; the document's currency still governs
+  isDefault     Boolean     @default(false)
+  sortOrder     Int         @default(0)
+
+  @@index([distributorId])
+}
+```
+
+`details` keeps the existing shape, so `BANK_LABELS`, `humanizeBankKey`,
+`toBankRows`, and `formatBankDetails` in `sheet-data.ts` keep working unchanged
+— only their input changes from "the region's blob" to "the selected account's
+blob".
+
+`Document` gains `bankAccountId String?`. When null, the distributor's default
+account is used. The builder shows the selector only when the distributor has
+more than one account, so the common case gains no clicks.
+
+Editing bank accounts stays ADMIN-only, matching today's region permissions.
+This is the control that keeps payment details out of a salesperson's hands, and
+it is the reason the meeting asked for the feature at all.
+
+### G5. Snapshot
+
+`finalize.ts:89-99` freezes the entity into `Document.entitySnapshot`, including
+`bankDetails` and `regionCode`. The frozen shape changes to carry the selected
+account (`bankAccountLabel` + `bankDetails`) and `distributorCode`.
+
+No back-compat reader is written: there are no finalized documents yet, in
+production or anywhere else — confirmed by the owner. `parseEntitySnapshot` in
+`sheet-data.ts:266-296` validates the new shape only, and rejects anything else
+as it does today.
+
+---
+
 ## Testing
 
 Baseline before any change: 752 tests across 28 files, all passing.
@@ -401,6 +518,13 @@ Baseline before any change: 752 tests across 28 files, all passing.
   `purpose=catalog` as ADMIN; `document-line` rejected for a non-authenticated
   caller.
 - numbering: sequence allocation is per `(region, year)` after `docType` is gone.
+- distributor codes: `US-LLC` accepted, `us-llc` rejected, over-length rejected;
+  one shared schema is used by companies, users, content, catalog prices.
+- numbering: `Q-US-LLC-2026-001` formats correctly; two distributors in the same
+  country keep independent counters.
+- bank accounts: the default account is used when the document selects none;
+  an explicitly selected account wins; the finalize snapshot carries the
+  selected account's label and details.
 - discounts: percentage behaviour unchanged to the cent; an amount discount
   deducts exactly what was typed; an amount larger than the base is capped at
   the base; an amount over `Region.maxDiscountPct` is rejected for MANAGER and
@@ -420,11 +544,16 @@ failing test before the code that satisfies it.
    PDF footer. Removal first because it deletes branches the presenter would
    otherwise have to preserve; the discount model before the presenter because
    the presenter renders the resolved discount.
-3. Three migrations, kept separate so a failure in the destructive one does not
-   roll back the harmless ones: `10_remove_invoices`,
-   `11_document_line_image`, `12_discount_mode`.
-4. Merge to `main` before the order-forms branch. That branch then rebases and
-   drops its own invoice handling.
+3. Five migrations, kept separate so a failure in one does not roll back the
+   others: `10_remove_invoices`, `11_document_line_image`, `12_discount_mode`,
+   `13_distributor_rename`, `14_distributor_bank_accounts`.
+4. Merge to `main` in two pull requests, not one: first invoice removal plus
+   Parts B–F, then the distributor rename plus bank accounts. Both touch code
+   the order-forms branch also edits, and two rebases against two focused
+   changes is less error-prone than one rebase against a diff that both deletes
+   a document type and renames a core model.
+5. The order-forms branch rebases after each. It drops its own invoice handling
+   in the first rebase and picks up the `distributorId` naming in the second.
 
 ## Risks
 
@@ -434,9 +563,18 @@ first — rebasing onto a world without invoices is mechanical deletion, whereas
 merging invoice removal into finished order-forms code means re-reviewing that
 feature's assumptions.
 
-**The migration destroys data.** Any existing invoice disappears. The owner
-confirmed this is intended. The migration should still be run against a restored
-copy of production first, and the row counts noted before it runs for real.
+**The migrations destroy data.** Invoices are deleted and the entity snapshot
+format changes without a back-compat reader. Both are safe because there are no
+real quotes or invoices anywhere yet — confirmed by the owner. This assumption
+expires the moment a salesperson issues a real quote, so these migrations must
+land before the tool is used in the field.
+
+**The rename is wide.** It touches five foreign keys, the `Price` compound keys,
+the NextAuth session and JWT payload, the document-number format, and the health
+check's drift probe. A partial rename leaves the app compiling but broken at
+runtime — particularly `src/app/api/health/route.ts`, which fails on deploy, and
+existing sessions, whose JWT still carries `regionId`. Sessions are invalidated
+as part of the rollout rather than reading both field names.
 
 **`document-sheet.tsx` starts honouring display flags** it currently ignores. A
 saved quote whose flags are off will render less money on the summary sheet than
