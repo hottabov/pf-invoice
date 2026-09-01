@@ -1,4 +1,4 @@
-import type { DocumentStatus, DocumentType, LineKind } from "@prisma/client";
+import type { DocumentStatus, DocumentType, LineKind, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { companyWhereForUser, documentWhereForUser, type ScopeUser } from "@/lib/scope";
 import { listProductsBySeries, listSeriesWithCounts } from "@/lib/queries/catalog";
@@ -498,6 +498,30 @@ export async function getDocumentForBuilder(
     sourceQuoteNumber: document.sourceQuote?.number ?? null,
     updatedAt: document.updatedAt,
   };
+}
+
+// --- production forms ---------------------------------------------------------
+
+export const productionFormsInclude = {
+  region: true,
+  author: true,
+  company: { include: { industry: true } },
+  contact: true,
+  items: { orderBy: { sortOrder: "asc" }, include: { lines: true } },
+  lines: { where: { itemId: null } },
+} satisfies Prisma.DocumentInclude;
+
+export type DocumentForForms = Prisma.DocumentGetPayload<{ include: typeof productionFormsInclude }>;
+
+/**
+ * A document loaded for production form rendering, scoped to the caller the
+ * same way `getDocumentForBuilder` is.
+ */
+export async function getDocumentForForms(user: ScopeUser, documentId: string) {
+  return db.document.findFirst({
+    where: { id: documentId, ...documentWhereForUser(user) },
+    include: productionFormsInclude,
+  });
 }
 
 // --- client picker ---------------------------------------------------------
