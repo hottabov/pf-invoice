@@ -198,6 +198,11 @@ export type BuilderItem = {
    * `recalcDocument` persists at the document level but isn't itself stored
    * per item. */
   total: string;
+  /** The item discount resolved to a cash amount (`0.00` when unset) — from
+   * the same `computeTotals` call that produces `total` above
+   * (`PricingTotals.itemDiscounts`), never re-derived. Feeds
+   * `ToSheetItemInput.discountAmount` / `ItemBreakdown.discount.amount`. */
+  discountAmount: string;
 };
 
 export type DocumentForBuilder = {
@@ -498,6 +503,7 @@ export async function getDocumentForBuilder(
       sortOrder: item.sortOrder,
       lines: item.lines.map((line) => toBuilderLine(line, optionImageMap)),
       total: totals.itemTotals[index].toString(),
+      discountAmount: totals.itemDiscounts[index].toString(),
     })),
     extraLines: document.lines.map((line) => toBuilderLine(line, optionImageMap)),
     notes: document.notes,

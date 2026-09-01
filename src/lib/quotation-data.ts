@@ -580,6 +580,13 @@ export function buildQuotationData(
       // separately there by `showOptionPrices`), so there's nothing
       // analogous to thread through `attributeVars` below.
       price: itemPriceVisible ? formatMoney(lineSummary.total, sheet.totals.currency) : OMIT,
+      // The machine on its own, with no options folded in (see
+      // `ItemBreakdown.basePrice` in src/lib/sheet-data.ts) — owner: "we
+      // have included options, but we don't have the base model." Gated by
+      // the same toggle as `{{price}}` above; `{{price}}` itself keeps
+      // meaning the combined subtotal so catalogue templates that already
+      // reference it keep working unchanged.
+      basePrice: itemPriceVisible ? formatMoney(lineSummary.breakdown.basePrice, sheet.totals.currency) : OMIT,
     };
 
     const blockKey = productBlockKey(item.code, item.seriesCode);

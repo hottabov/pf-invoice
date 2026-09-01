@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { pdfFilename, renderDocumentHtml, renderQuotationHtml } from "../src/lib/pdf";
+import { buildItemBreakdown } from "../src/lib/sheet-data";
 import type { DocSheetData } from "../src/lib/sheet-data";
 import type { QuotationData } from "../src/lib/quotation-data";
 
@@ -57,6 +58,8 @@ function baseSheetData(overrides: Partial<DocSheetData> = {}): DocSheetData {
     showSignature: false,
     preparedBy: { name: "Jane Author", email: "jane@example.com", phone: null },
     notes: null,
+    showItemPrices: true,
+    showOptionPrices: true,
     ...overrides,
   };
 }
@@ -130,6 +133,56 @@ describe("renderDocumentHtml", () => {
   });
 });
 
+describe("renderDocumentHtml — item breakdown honours the price-display flags", () => {
+  it("shows the base price separately from the combined total, gated by showItemPrices/showOptionPrices", async () => {
+    const html = await renderDocumentHtml(
+      baseSheetData({
+        showItemPrices: true,
+        showOptionPrices: true,
+        items: [
+          baseDocSheetItem({
+            code: "X-5180",
+            unitPrice: "175000.00",
+            total: "215425.00",
+            lines: [{ id: "line-1", code: "MTS", name: "MTS", description: null, qty: 1, unitPrice: "40425.00", lineTotal: "40425.00", image: null }],
+          }),
+        ],
+      })
+    );
+    // Base price and per-item subtotal both appear as their own figures —
+    // this sheet used to print `item.total` only, leaving the base machine
+    // price invisible (the bug this task fixes).
+    expect(html).toContain("$175,000");
+    expect(html).toContain('class="pq-item-subtotal-row"');
+    expect(html).toContain("X-5180 subtotal");
+    expect(html).toContain("$215,425");
+  });
+
+  it("used to ignore the price-display flags entirely — now renders no item money when both are off", async () => {
+    const html = await renderDocumentHtml(
+      baseSheetData({
+        showItemPrices: false,
+        showOptionPrices: false,
+        items: [
+          baseDocSheetItem({
+            code: "X-5180",
+            unitPrice: "175000.00",
+            total: "215425.00",
+            lines: [{ id: "line-1", code: "MTS", name: "MTS", description: null, qty: 1, unitPrice: "40425.00", lineTotal: "40425.00", image: null }],
+          }),
+        ],
+      })
+    );
+    expect(html).not.toContain("$175,000");
+    expect(html).not.toContain("$215,425");
+    expect(html).not.toContain("$40,425");
+    expect(html).not.toContain('class="pq-item-subtotal-row"');
+    // The document grand total is still shown regardless of the item-level
+    // flags — those only gate the itemized per-item detail.
+    expect(html).toContain("1,100");
+  });
+});
+
 // --- renderQuotationHtml -----------------------------------------------------
 
 function baseQuotationData(overrides: Partial<QuotationData> = {}): QuotationData {
@@ -174,19 +227,41 @@ function baseQuotationData(overrides: Partial<QuotationData> = {}): QuotationDat
   };
 }
 
+// `breakdown` is derived via the same `buildItemBreakdown` helper
+// `toSheetData` itself uses (rather than a hand-maintained fixture) so it
+// never drifts out of sync with whatever `unitPrice`/`lines`/`total`/
+// discount fields a test overrides — a caller can still override
+// `breakdown` explicitly when a test wants to exercise a shape
+// `buildItemBreakdown` wouldn't itself produce.
 function baseDocSheetItem(overrides: Partial<QuotationData["items"][number]> = {}): QuotationData["items"][number] {
-  return {
+  const merged = {
     id: "item-1",
     code: "X-5180",
     name: "X-5180 Cutting System",
     description: null,
     unitPrice: "175000.00",
-    discountMode: "PERCENT",
+    discountMode: "PERCENT" as const,
     discountValue: null,
     total: "215425.00",
     image: null,
     lines: [],
     ...overrides,
+  };
+  return {
+    ...merged,
+    breakdown:
+      overrides.breakdown ??
+      buildItemBreakdown(
+        {
+          unitPrice: merged.unitPrice,
+          discountMode: merged.discountMode,
+          discountValue: merged.discountValue,
+          discountAmount: "0.00",
+          total: merged.total,
+          lines: merged.lines,
+        },
+        true
+      ),
   };
 }
 
@@ -311,6 +386,40 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
       })
     );
     expect(html).not.toContain('class="pq-item-subtotal-row"');
+  });
+
+  it("still shows the per-item subtotal when option prices are hidden but item prices are on", async () => {
+    // showOptionPrices off (each option's own `lineTotal` in the breakdown
+    // is null, exactly what `toSheetData` would produce — see
+    // `buildItemBreakdown`), but showItemPrices on — the owner's rule: a
+    // salesperson can hide the option-level detail and still show an
+    // honest per-machine subtotal figure.
+    const html = await renderQuotationHtml(
+      baseQuotationData({
+        showItemPrices: true,
+        showOptionPrices: false,
+        items: [
+          baseDocSheetItem({
+            code: "X-5180",
+            unitPrice: "175000.00",
+            total: "215425.00",
+            lines: [{ id: "line-1", code: "MTS", name: "MTS", description: null, qty: 1, unitPrice: "40425.00", lineTotal: "40425.00", image: null }],
+            breakdown: {
+              qty: 1,
+              basePrice: "175000.00",
+              options: [{ name: "MTS", qty: 1, lineTotal: null }],
+              discount: null,
+              subtotal: "215425.00",
+            },
+          }),
+        ],
+      })
+    );
+    expect(html).toContain('class="pq-item-subtotal-row"');
+    expect(html).toContain("X-5180 subtotal");
+    expect(html).toContain("$215,425");
+    // The option's own price never appears — only its name/qty do.
+    expect(html).not.toContain("$40,425");
   });
 
   it("renders the totals block (Subtotal/Tax/TOTAL) after the items table, at the bottom of the summary section", async () => {

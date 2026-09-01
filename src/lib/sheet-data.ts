@@ -52,6 +52,13 @@ export type ToSheetItemInput = {
   unitPrice: string;
   discountMode: "PERCENT" | "AMOUNT";
   discountValue: string | null;
+  /** The item discount resolved to a cash amount (0.00 when unset) — same
+   * money the pricing engine already subtracted from base+options to reach
+   * `total` below (`PricingTotals.itemDiscounts`, see `getDocumentForBuilder`),
+   * carried through as its own field so `ItemBreakdown.discount.amount`
+   * never has to re-derive it (money arithmetic stays in pricing.ts, not
+   * here — see `buildItemBreakdown`). */
+  discountAmount: string;
   /** Pre-computed by the pricing engine (see `getDocumentForBuilder`) —
    * this mapper never re-derives money math, only reshapes it. */
   total: string;
@@ -143,6 +150,16 @@ export type ToSheetDataDoc = {
    * happens there rather than in this dependency-light mapper). `null` when
    * the author hasn't written any. */
   notes: string | null;
+  /** Quotation-first pricing display toggles (see `setPriceDisplay` in
+   * src/lib/actions/documents.ts) — carried through so `toSheetData` can
+   * gate `DocSheetItem.breakdown.options[].lineTotal` (hidden whenever
+   * `showOptionPrices` is off) without the presenter component ever having
+   * to know about either flag itself (see `ItemBreakdown`'s doc comment).
+   * Also surfaced on `DocSheetData` so `DocumentSheet` — which used to
+   * ignore both flags entirely — can compute its own `itemPriceVisible`
+   * the same way `QuotationSheet` already does. */
+  showItemPrices: boolean;
+  showOptionPrices: boolean;
 };
 
 /** Resolves a stored image URL (e.g. `/api/files/<uuid>.jpg`) to whatever
@@ -178,6 +195,41 @@ export type DocSheetLine = {
   image: string | null;
 };
 
+/**
+ * The three-part idea every product-line renderer needs — base price, then
+ * options, then a subtotal — expressed once so `quotation-sheet.tsx`,
+ * `document-sheet.tsx`, and `builder/items-list.tsx` render it through one
+ * shared component (`src/components/sheet/item-breakdown.tsx`) instead of
+ * each deciding for itself how to show the money (the bug this type fixes:
+ * two of those three surfaces used to print only the combined `total`,
+ * leaving the base machine price invisible to the customer).
+ */
+export type ItemBreakdown = {
+  /** Always `1` today — a product line is always one machine; more machines
+   * means more lines (confirmed by the owner). Rendered as-is, never
+   * multiplied against anything. */
+  qty: number;
+  /** The machine on its own, with no options folded in — a plain 2dp decimal
+   * string ready for `formatMoney`. */
+  basePrice: string;
+  options: Array<{
+    name: string;
+    qty: number;
+    /** `null` when option prices are hidden (`showOptionPrices` off) — the
+     * presenter renders no price for the row in that case rather than
+     * needing to know about the display flag itself. */
+    lineTotal: string | null;
+  }>;
+  /** `null` when the item has no discount set. `value` is what the
+   * salesperson typed (a bare percentage like "5", or a cash figure like
+   * "20000.00"); `amount` is the cash actually deducted, always resolved
+   * regardless of `mode` — see `ToSheetItemInput.discountAmount`. */
+  discount: { mode: "PERCENT" | "AMOUNT"; value: string; amount: string } | null;
+  /** base + options − discount — the pricing engine's own item total
+   * (`ToSheetItemInput.total`), never recomputed here. */
+  subtotal: string;
+};
+
 export type DocSheetItem = {
   id: string;
   code: string;
@@ -197,6 +249,9 @@ export type DocSheetItem = {
    * no image was ever attached, or the resolver declined to produce one. */
   image: string | null;
   lines: DocSheetLine[];
+  /** The base/options/discount/subtotal breakdown for this item — see
+   * `ItemBreakdown`. */
+  breakdown: ItemBreakdown;
 };
 
 export type BankDetailRow = { label: string; value: string };
@@ -282,6 +337,12 @@ export type DocSheetData = {
   preparedBy: DocSheetPreparedBy;
   /** `Document.notes` passthrough — see `ToSheetDataDoc.notes`. */
   notes: string | null;
+  /** Passthrough of `ToSheetDataDoc.showItemPrices`/`showOptionPrices` — see
+   * that field's doc comment. `document-sheet.tsx` computes its own
+   * `itemPriceVisible = showItemPrices || showOptionPrices` from these, the
+   * same rule `quotation-sheet.tsx` already applies. */
+  showItemPrices: boolean;
+  showOptionPrices: boolean;
 };
 
 // --- helpers ---------------------------------------------------------------
@@ -427,6 +488,40 @@ export function dedupeDescription(name: string, description: string | null): str
   return description;
 }
 
+/**
+ * Builds an item's `ItemBreakdown` — the base/options/discount/subtotal
+ * shape every product-line renderer shares (see `ItemBreakdown`'s doc
+ * comment). `showOptionPrices` is passed explicitly rather than read off
+ * `item` because the two callers want different answers to "are option
+ * prices visible": `toSheetData` passes the document's actual
+ * `showOptionPrices` toggle (a customer-facing sheet honours it), while
+ * `getDocumentForBuilder` always passes `true` (the builder is internal to
+ * the salesperson, who always sees full pricing detail regardless of what
+ * the toggle is currently set to for the customer-facing sheets). No money
+ * arithmetic happens here beyond `lineTotal`'s existing `qty * unitPrice` —
+ * `basePrice`/`subtotal`/`discount.amount` are all passed through exactly as
+ * the pricing engine already resolved them.
+ */
+export function buildItemBreakdown(
+  item: Pick<ToSheetItemInput, "unitPrice" | "discountMode" | "discountValue" | "discountAmount" | "total" | "lines">,
+  showOptionPrices: boolean
+): ItemBreakdown {
+  return {
+    qty: 1,
+    basePrice: lineTotal(1, item.unitPrice),
+    options: item.lines.map((line) => ({
+      name: line.name,
+      qty: line.qty,
+      lineTotal: showOptionPrices ? lineTotal(line.qty, line.unitPrice) : null,
+    })),
+    discount:
+      item.discountValue !== null
+        ? { mode: item.discountMode, value: item.discountValue, amount: item.discountAmount }
+        : null,
+    subtotal: item.total,
+  };
+}
+
 function toDocSheetLine(line: ToSheetLineInput, resolveImage: ImageResolver): DocSheetLine {
   return {
     id: line.id,
@@ -516,6 +611,7 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     total: item.total,
     image: item.showImage && item.imageUrl ? (resolveImage(item.imageUrl) ?? null) : null,
     lines: item.lines.map((line) => toDocSheetLine(line, resolveImage)),
+    breakdown: buildItemBreakdown(item, doc.showOptionPrices),
   }));
 
   const validityDate =
@@ -535,6 +631,8 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     extraLines: doc.extraLines.map((line) => toDocSheetLine(line, resolveImage)),
     preparedBy: { name: doc.author.name, email: doc.author.email, phone: doc.author.phone },
     notes: doc.notes,
+    showItemPrices: doc.showItemPrices,
+    showOptionPrices: doc.showOptionPrices,
     totals: {
       currency: doc.currency,
       subtotal: doc.subtotal,

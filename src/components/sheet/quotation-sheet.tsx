@@ -1,6 +1,6 @@
 import { formatMoney, isNegativeAmount } from "@/lib/format";
 import type { QuotationData } from "@/lib/quotation-data";
-import type { DocSheetLine } from "@/lib/sheet-data";
+import { ItemBreakdownRows } from "@/components/sheet/item-breakdown";
 
 /**
  * The extended quotation sheet (Phase 6): a single, self-contained render of
@@ -315,40 +315,21 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                     {item.description ? <div className="pq-item-desc">{item.description}</div> : null}
                   </td>
                   <td className="pq-col-qty" />
-                  <td className="pq-col-amount pq-amount">
-                    {/* BASE unit price (the item's own snapshot price, no
-                        options folded in) — owner: the old lump-sum total
-                        here (base + every option) read as one confusing
-                        number; options now list their own price directly
-                        below, with the combined figure moved to its own
-                        "subtotal" row underneath them instead. */}
-                    {itemPriceVisible ? formatMoney(item.unitPrice, totals.currency) : null}
-                  </td>
+                  <td className="pq-col-amount pq-amount" />
                 </tr>
-                {item.lines.map((line) => (
-                  <OptionRow key={line.id} line={line} currency={totals.currency} visible={optionPriceVisible} />
-                ))}
-                {item.discountValue !== null && itemPriceVisible ? (
-                  <tr className="pq-discount-row">
-                    <td className="pq-col-item pq-option-indent">Item discount</td>
-                    <td className="pq-col-qty" />
-                    <td className="pq-col-amount pq-amount">
-                      -{item.discountMode === "PERCENT" ? `${item.discountValue}%` : formatMoney(item.discountValue, totals.currency)}
-                    </td>
-                  </tr>
-                ) : null}
-                {/* Per-item subtotal (base + every option, less the item
-                    discount above — the pricing engine's own `item.total`,
-                    never recomputed here) — only worth a line when the item
-                    actually has options to fold in; a bare item with no
-                    options would just repeat its own base-price row above. */}
-                {itemPriceVisible && item.lines.length > 0 ? (
-                  <tr className="pq-item-subtotal-row">
-                    <td className="pq-col-item pq-option-indent">{item.code} subtotal</td>
-                    <td className="pq-col-qty" />
-                    <td className="pq-col-amount pq-amount">{formatMoney(item.total, totals.currency)}</td>
-                  </tr>
-                ) : null}
+                {/* Base price, options, item discount, per-item subtotal —
+                    the shared presenter (see item-breakdown.tsx) so this
+                    three-part idea is expressed once, not per sheet. The
+                    old lump-sum total here (base + every option) used to
+                    read as one confusing number — the base price now always
+                    gets its own row. */}
+                <ItemBreakdownRows
+                  breakdown={item.breakdown}
+                  code={item.code}
+                  currency={totals.currency}
+                  showPrices={itemPriceVisible}
+                  variant="sheet"
+                />
               </tbody>
             ))}
 
@@ -508,30 +489,6 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
         ) : null}
       </div>
     </div>
-  );
-}
-
-/** `visible` gates only the qty×price/amount columns (per `showOptionPrices`
- * — see `QuotationSheet`'s `optionPriceVisible`) — the option's name and
- * description always render regardless, same as an item row's name/qty. */
-function OptionRow({ line, currency, visible }: { line: DocSheetLine; currency: string; visible: boolean }) {
-  return (
-    <tr className="pq-option-row">
-      <td className="pq-col-item pq-option-indent">
-        <div className="pq-option-name">{line.code ? `${line.code} — ${line.name}` : line.name}</div>
-        {line.description ? <div className="pq-option-desc">{line.description}</div> : null}
-      </td>
-      <td className="pq-col-qty">
-        {visible ? (
-          <>
-            {line.qty} × {formatMoney(line.unitPrice, currency)}
-          </>
-        ) : (
-          line.qty
-        )}
-      </td>
-      <td className="pq-col-amount pq-amount">{visible ? formatMoney(line.lineTotal, currency) : null}</td>
-    </tr>
   );
 }
 

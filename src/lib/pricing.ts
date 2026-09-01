@@ -64,6 +64,13 @@ export type EngineViolation = {
 
 export type PricingTotals = {
   itemTotals: number[];
+  /** Per item, the cash amount its own discount actually removed (0 for an
+   * item with no discount set) — parallel array to `itemTotals`, i.e.
+   * `itemTotals[i] === base[i] - itemDiscounts[i]`. Exposed so a caller
+   * (see `getDocumentForBuilder`) can show "Item discount: -$X" without
+   * re-deriving `discountCents` itself, the same reasoning `discountAmount`
+   * below already gets at document level. */
+  itemDiscounts: number[];
   subtotal: number;
   discountAmount: number;
   taxableBase: number;
@@ -281,6 +288,7 @@ export function capPct(mode: DiscountMode, value: string | null, baseCents: numb
 export function computeTotals(input: EngineInput): PricingTotals {
   const violations: EngineViolation[] = [];
 
+  const itemDiscountsCents: number[] = [];
   const itemTotalsCents = input.items.map((item, itemIndex) => {
     const linesCents = item.lines.reduce((sum, line) => sum + line.qty * toCents(line.unitPrice), 0);
     const baseCents = toCents(item.unitPrice) + linesCents;
@@ -293,6 +301,7 @@ export function computeTotals(input: EngineInput): PricingTotals {
       violations.push({ itemIndex, allowedPct });
     }
 
+    itemDiscountsCents.push(discount);
     return baseCents - discount;
   });
 
@@ -310,6 +319,7 @@ export function computeTotals(input: EngineInput): PricingTotals {
 
   return {
     itemTotals: itemTotalsCents.map(fromCents),
+    itemDiscounts: itemDiscountsCents.map(fromCents),
     subtotal: fromCents(subtotalCents),
     discountAmount: fromCents(discountAmountCents),
     taxableBase: fromCents(taxableBaseCents),

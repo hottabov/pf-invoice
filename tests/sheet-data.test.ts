@@ -42,6 +42,7 @@ function baseItem(overrides: Partial<ToSheetItemInput> = {}): ToSheetItemInput {
     unitPrice: "1000.00",
     discountMode: "PERCENT",
     discountValue: null,
+    discountAmount: "0.00",
     total: "1000.00",
     imageUrl: null,
     showImage: false,
@@ -78,6 +79,8 @@ function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
     extraLines: [],
     author: { name: "Jane Author", email: "jane@example.com", phone: null },
     notes: null,
+    showItemPrices: true,
+    showOptionPrices: true,
     ...overrides,
   };
 }

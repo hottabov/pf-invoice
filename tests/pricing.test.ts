@@ -80,6 +80,7 @@ describe("computeTotals", () => {
     });
     expect(result).toEqual({
       itemTotals: [100],
+      itemDiscounts: [0],
       subtotal: 100,
       discountAmount: 0,
       taxableBase: 100,
@@ -111,6 +112,7 @@ describe("computeTotals", () => {
       taxRate: 0,
     });
     expect(result.itemTotals).toEqual([90]);
+    expect(result.itemDiscounts).toEqual([10]);
     expect(result.subtotal).toBe(90);
     expect(result.total).toBe(90);
     expect(result.violations).toEqual([]);
@@ -313,6 +315,7 @@ describe("computeTotals", () => {
     });
     expect(result).toEqual({
       itemTotals: [],
+      itemDiscounts: [],
       subtotal: 0,
       discountAmount: 0,
       taxableBase: 0,

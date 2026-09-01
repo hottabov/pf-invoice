@@ -160,6 +160,7 @@ function baseItem(overrides: Partial<QuotationItemInput> = {}): QuotationItemInp
     unitPrice: "175000.00",
     discountMode: "PERCENT",
     discountValue: null,
+    discountAmount: "0.00",
     total: "175000.00",
     imageUrl: null,
     showImage: false,
@@ -345,6 +346,47 @@ describe("buildQuotationData", () => {
     // a raw decimal string.
     expect(data.machineSections[0].titleBlockHtml).toContain("Price: $180,000");
     expect(data.machineSections[0].titleBlockHtml).not.toContain("175000");
+  });
+
+  it("substitutes {{basePrice}} with the machine's own price, distinct from the combined {{price}} total", () => {
+    const basePriceBlock: ContentBlockRow = {
+      key: "machine.m-series",
+      regionId: null,
+      title: "M-Series",
+      body: "Base: {{basePrice}}\n\nTotal: {{price}}",
+      sortOrder: 1,
+    };
+    const doc = baseDoc({
+      showItemPrices: true,
+      showOptionPrices: false,
+      items: [baseItem({ unitPrice: "175000.00", total: "180000.00" })],
+    });
+    const data = buildQuotationData(doc, [basePriceBlock]);
+    // {{basePrice}} resolves to the bare machine price (175000), while the
+    // pre-existing {{price}} keeps meaning the combined subtotal (180000,
+    // incl. the option) — so catalogue templates that already reference
+    // {{price}} keep working unchanged.
+    expect(data.machineSections[0].titleBlockHtml).toContain("Base: $175,000");
+    expect(data.machineSections[0].titleBlockHtml).toContain("Total: $180,000");
+  });
+
+  it("strips the {{basePrice}} line (never a blank) when both price-display toggles are off", () => {
+    const basePriceBlock: ContentBlockRow = {
+      key: "machine.m-series",
+      regionId: null,
+      title: "M-Series",
+      body: "Model {{model}}.\n\nBase: {{basePrice}}",
+      sortOrder: 1,
+    };
+    const doc = baseDoc({
+      showItemPrices: false,
+      showOptionPrices: false,
+      items: [baseItem({ code: "M450" })],
+    });
+    const data = buildQuotationData(doc, [basePriceBlock]);
+    expect(data.machineSections[0].titleBlockHtml).not.toContain("Base");
+    expect(data.machineSections[0].titleBlockHtml).not.toContain("____");
+    expect(data.machineSections[0].titleBlockHtml).toContain("Model M450");
   });
 
   it("substitutes the real price when only showOptionPrices is on (implies item prices visible)", () => {
