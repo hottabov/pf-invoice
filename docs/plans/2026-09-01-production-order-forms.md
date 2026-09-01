@@ -363,19 +363,53 @@ Create `src/lib/actions/industries.ts`:
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
+import type { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
-import { idSchema, optionalIdSchema, flattenZodError } from "@/lib/validation/documents";
-import { industryNameSchema, normalizeIndustryName } from "@/lib/validation/industries";
 import { companyWhereForUser } from "@/lib/scope";
-import type { ActionResult } from "@/lib/actions/documents";
+import { idSchema, optionalIdSchema } from "@/lib/validation/documents";
+import { industryNameSchema, normalizeIndustryName } from "@/lib/validation/industries";
+
+export type ActionResult = { error?: string };
 
 const NOT_FOUND_ERROR = "Not found";
+
+/** Join every zod issue message (form-level + field-level) into one string
+ * for a plain `{ error }` result — same helper as actions/clients.ts, kept
+ * local here for the same reason: one tiny function is not worth a
+ * dependency between two action modules. */
+function flattenZodError(error: z.ZodError): string {
+  const flat = error.flatten();
+  const messages = [...flat.formErrors, ...Object.values(flat.fieldErrors).flat()].filter(
+    (m): m is string => Boolean(m)
+  );
+  return messages.length > 0 ? messages.join(" ") : "Invalid input";
+}
+
+/**
+ * Finds an industry by case-insensitive name, or null.
+ *
+ * Prisma cannot express `WHERE LOWER(name) = $1` against the functional index
+ * the migration creates, and `mode: "insensitive"` would not use it either.
+ * The table holds hundreds of rows at most, so reading them and comparing in
+ * JS is both correct and cheap.
+ */
+async function findByNormalizedName(name: string) {
+  const key = normalizeIndustryName(name);
+  return (await db.industry.findMany()).find((row) => normalizeIndustryName(row.name) === key) ?? null;
+}
 
 /**
  * Creates an industry, or returns the existing one when a case-insensitive
  * match is already present -- typing "automotive" next to an existing
  * "Automotive" must not grow the list by a near-duplicate.
+ *
+ * The pre-check alone is check-then-act and races: two people typing the same
+ * industry into the picker at the same moment would both pass it. The
+ * `Industry_name_lower_key` functional index in the migration is the real
+ * guarantee, so a unique violation here is an expected outcome, not an error
+ * -- it means someone else won, and their row is the answer.
  */
 export async function createIndustry(name: string): Promise<ActionResult & { id?: string }> {
   await requireSession();
@@ -383,16 +417,20 @@ export async function createIndustry(name: string): Promise<ActionResult & { id?
   const parsed = industryNameSchema.safeParse(name);
   if (!parsed.success) return { error: flattenZodError(parsed.error) };
 
-  const key = normalizeIndustryName(parsed.data);
-  const existing = (await db.industry.findMany()).find(
-    (row) => normalizeIndustryName(row.name) === key,
-  );
+  const existing = await findByNormalizedName(parsed.data);
   if (existing) return { id: existing.id };
 
-  const created = await db.industry.create({ data: { name: parsed.data } });
-
-  revalidatePath("/clients");
-  return { id: created.id };
+  try {
+    const created = await db.industry.create({ data: { name: parsed.data } });
+    revalidatePath("/clients");
+    return { id: created.id };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const winner = await findByNormalizedName(parsed.data);
+      if (winner) return { id: winner.id };
+    }
+    throw error;
+  }
 }
 
 /**
@@ -411,13 +449,20 @@ export async function renameIndustry(industryId: string, name: string): Promise<
   const industry = await db.industry.findUnique({ where: { id: parsedId.data } });
   if (!industry) return { error: NOT_FOUND_ERROR };
 
-  const key = normalizeIndustryName(parsed.data);
-  const clash = (await db.industry.findMany()).find(
-    (row) => row.id !== industry.id && normalizeIndustryName(row.name) === key,
-  );
-  if (clash) return { error: `"${clash.name}" already exists` };
+  const clash = await findByNormalizedName(parsed.data);
+  if (clash && clash.id !== industry.id) return { error: `"${clash.name}" already exists` };
 
-  await db.industry.update({ where: { id: industry.id }, data: { name: parsed.data } });
+  try {
+    await db.industry.update({ where: { id: industry.id }, data: { name: parsed.data } });
+  } catch (error) {
+    // Same race as createIndustry: another rename could have taken this name
+    // between the check above and the write. Report it as the collision it is
+    // rather than surfacing a raw database error.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { error: `"${parsed.data}" already exists` };
+    }
+    throw error;
+  }
 
   revalidatePath("/clients");
   return {};
@@ -454,7 +499,9 @@ export async function setCompanyIndustry(
 }
 ```
 
-Note: import `companyWhereForUser` from wherever `src/lib/actions/clients.ts` gets its company scoping — read that file and reuse the same helper rather than writing a second one. If it inlines the scope, extract it into `src/lib/scope.ts` and use it from both places.
+Note on the local helpers: every action module in this repo declares its own `ActionResult` and its own `flattenZodError`, each with a comment saying the duplication is deliberate rather than accidental. That is the established pattern — follow it. Do **not** try to import `flattenZodError` from `src/lib/actions/documents.ts`: it is not exported, and it cannot be, because a `"use server"` module may only export async server actions.
+
+`companyWhereForUser` and `requireSession` do already exist and are shared — import them from `@/lib/scope` and `@/lib/authz` as shown.
 
 - [ ] **Step 3: Verify types**
 
