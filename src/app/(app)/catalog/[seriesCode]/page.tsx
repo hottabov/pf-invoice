@@ -9,12 +9,11 @@ import {
   type ProductListItem,
 } from "@/lib/queries/catalog";
 import { updateSeriesImage } from "@/lib/actions/catalog";
-import { ImageUpload } from "@/components/catalog/image-upload";
+import { SeriesImageCard } from "@/components/catalog/series-image-card";
 import { PriceDisplay, InactiveBadge } from "@/components/catalog-badges";
 import { buttonVariants } from "@/components/ui/button";
 import {
   PageHeader,
-  SectionCard,
   TableShell,
   RowCell,
   tableClassName,
@@ -73,35 +72,6 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
         }
       />
 
-      {isAdmin ? (
-        <SectionCard
-          title="Series image"
-          description="Shown on the /catalog series card. Falls back to a product photo below when no override is set."
-        >
-          <div className="flex flex-col gap-3">
-            <ImageUpload
-              currentUrl={series.imageUrl}
-              alt={series.name}
-              onSave={updateSeriesImage.bind(null, series.id)}
-              removeLabel="Reset to product image"
-            />
-            {!series.imageUrl && fallbackImageUrl ? (
-              <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={fallbackImageUrl}
-                  alt=""
-                  className="size-10 shrink-0 rounded border border-slate-200 bg-white object-contain"
-                />
-                <p className="text-sm text-slate-500">
-                  No override set — currently showing this product&apos;s photo on the catalog card.
-                </p>
-              </div>
-            ) : null}
-          </div>
-        </SectionCard>
-      ) : null}
-
       {products.length === 0 ? (
         <EmptyState
           icon={Package}
@@ -140,6 +110,15 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
           ))}
         />
       )}
+
+      {isAdmin ? (
+        <SeriesImageCard
+          currentUrl={series.imageUrl}
+          fallbackImageUrl={fallbackImageUrl}
+          alt={series.name}
+          onSave={updateSeriesImage.bind(null, series.id)}
+        />
+      ) : null}
     </div>
   );
 }

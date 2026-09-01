@@ -32,11 +32,19 @@ This feature generates those forms automatically from a finalized quote: correct
 
 ## 4. Data model changes
 
-Three columns. No new tables.
+Two columns on `DocumentItem`, one lookup table with a foreign key from `Company`.
 
 ```prisma
+model Industry {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  companies Company[]
+}
+
 model Company {
-  industry String?   // new — free text, entered via a datalist of existing values
+  industryId String?    // new
+  industry   Industry?  @relation(fields: [industryId], references: [id], onDelete: SetNull)
 }
 
 model DocumentItem {
@@ -44,6 +52,10 @@ model DocumentItem {
   lineGroup      Int  @default(1) // new — production line grouping
 }
 ```
+
+`Industry` is a real lookup table rather than free text on the company: the list will be bulk-imported, so the same industry must be one row that every company points at, not a string repeated with drifting spellings. It is global, not per-region — an industry means the same thing in AU and US.
+
+`onDelete: SetNull` so removing an industry never blocks and never cascades into companies. There is no delete or merge UI in this iteration (§12).
 
 **Distributor** on the form header is the Pathfinder legal entity for the region ("Pathfinder Australia Pty Ltd" for AU, a different name for US). It comes from `Document.entitySnapshot.entityName`, which is already frozen at finalize time, falling back to `Region.entityName`. **Name** is `Document.author.name` — whoever created the quote. Neither needs a new field.
 
