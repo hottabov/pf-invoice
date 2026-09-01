@@ -191,6 +191,15 @@ export type BuilderItem = {
    * `recalcDocument` persists at the document level but isn't itself stored
    * per item. */
   total: string;
+  /** `DocumentItem.lineGroup` — which production line this item belongs to.
+   * Only meaningful for an item `resolveForm` recognizes; read by
+   * `ProductionSpecEditor` for its line chip and by `setProductionSpec`'s
+   * `±Y` propagation (same lineGroup = same physical line). */
+  lineGroup: number;
+  /** `DocumentItem.productionSpec` exactly as stored (opaque `Json?`,
+   * validated by `specSchemaForCode` on write) — `{}` when nothing has been
+   * answered yet. Only meaningful for an item `resolveForm` recognizes. */
+  productionSpec: unknown;
 };
 
 export type DocumentForBuilder = {
@@ -488,6 +497,8 @@ export async function getDocumentForBuilder(
       sortOrder: item.sortOrder,
       lines: item.lines.map((line) => toBuilderLine(line, optionImageMap)),
       total: totals.itemTotals[index].toString(),
+      lineGroup: item.lineGroup,
+      productionSpec: item.productionSpec,
     })),
     extraLines: document.lines.map((line) => toBuilderLine(line, optionImageMap)),
     notes: document.notes,

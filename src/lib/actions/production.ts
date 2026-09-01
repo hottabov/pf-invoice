@@ -10,6 +10,17 @@ import { specSchemaForCode } from "@/lib/production-forms/resolve";
 
 export type ActionResult = { error?: string };
 
+export type SetProductionSpecResult = ActionResult & {
+  /**
+   * Names of sibling items (same `lineGroup`) whose `ui` this call also
+   * changed -- present only when at least one sibling's screen side actually
+   * flipped, so the editor can toast exactly what else moved. See
+   * `setProductionSpec`'s doc comment for why the write itself is
+   * unconditional.
+   */
+  propagatedTo?: string[];
+};
+
 const NOT_FOUND_ERROR = "Not found";
 
 /** Join every zod issue message (form-level + field-level) into one string
@@ -38,7 +49,7 @@ function flattenZodError(error: z.ZodError): string {
  * spreaders stand together and a mismatched operator-screen side is a
  * physical installation fault, not a cosmetic one.
  */
-export async function setProductionSpec(itemId: string, spec: unknown): Promise<ActionResult> {
+export async function setProductionSpec(itemId: string, spec: unknown): Promise<SetProductionSpecResult> {
   const session = await requireSession();
 
   const parsedItemId = idSchema.safeParse(itemId);
@@ -56,6 +67,7 @@ export async function setProductionSpec(itemId: string, spec: unknown): Promise<
   if (!parsed.success) return { error: flattenZodError(parsed.error) };
 
   const ui = (parsed.data as { ui?: string }).ui;
+  const propagatedTo: string[] = [];
 
   await db.$transaction(async (tx) => {
     await tx.documentItem.update({
@@ -76,11 +88,12 @@ export async function setProductionSpec(itemId: string, spec: unknown): Promise<
         where: { id: sibling.id },
         data: { productionSpec: { ...current, ui } },
       });
+      propagatedTo.push(`${sibling.name} (${sibling.code})`);
     }
   });
 
   revalidatePath(`/documents/${item.documentId}`);
-  return {};
+  return propagatedTo.length > 0 ? { propagatedTo } : {};
 }
 
 /**

@@ -5,6 +5,7 @@ import { Download, Eye } from "lucide-react";
 import { auth } from "@/auth";
 import {
   getDocumentForBuilder,
+  getDocumentForForms,
   getItemPickerCatalog,
   listClientPickerCompanies,
   listCompatibleOptions,
@@ -37,6 +38,7 @@ import { ExtraLinesSection } from "@/components/builder/extra-lines-section";
 import { DocumentDiscountField } from "@/components/builder/document-discount-field";
 import { PriceDisplayToggles } from "@/components/builder/price-display-toggles";
 import { NotesSection } from "@/components/builder/notes-section";
+import { ProductionFormsSection } from "@/components/documents/production-forms-section";
 import { DocumentTotals, StickyFooter } from "@/components/builder/sticky-footer";
 import { FinalizeButton } from "@/components/builder/finalize-button";
 import { UnfinalizeButton } from "@/components/builder/unfinalize-button";
@@ -76,11 +78,15 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
   const isDraft = document.status === "DRAFT";
   const isAdmin = session.user.role === "ADMIN";
 
-  const [companies, catalog, showOptionIcons, regions] = await Promise.all([
+  const [companies, catalog, showOptionIcons, regions, formsDocument] = await Promise.all([
     listClientPickerCompanies(session.user),
     getItemPickerCatalog(document.regionCode),
     getShowOptionIcons(),
     listActiveRegions(),
+    // Separate, narrower payload (see `productionFormsInclude`) than
+    // `document` above -- `ProductionFormsSection` returns `null` itself for
+    // anything that isn't a FINAL quote, so no status check is needed here.
+    getDocumentForForms(session.user, documentId),
   ]);
 
   // Compatible options are preloaded once per distinct (productId, seriesId)
@@ -189,6 +195,8 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
               />
             </SectionCard>
           ) : null}
+
+          {formsDocument ? <ProductionFormsSection document={formsDocument} /> : null}
         </div>
 
         {/* Desktop/tablet-lg summary: sticky so it stays visible while the

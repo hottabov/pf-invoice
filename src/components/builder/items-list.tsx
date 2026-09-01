@@ -8,8 +8,10 @@ import { RemoveItemButton } from "@/components/builder/remove-item-button";
 import { ItemOptionsEditor } from "@/components/builder/item-options-editor";
 import { ItemDiscountField } from "@/components/builder/item-discount-field";
 import { ItemShowImageToggle } from "@/components/builder/item-show-image-toggle";
+import { ProductionSpecEditor } from "@/components/builder/production-spec-editor";
 import { useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
+import { resolveForm } from "@/lib/production-forms/resolve";
 import type { ActionResult } from "@/lib/actions/documents";
 import type { BuilderItem, CompatibleOption } from "@/lib/queries/documents";
 import type { OptionSelectionInput } from "@/lib/validation/documents";
@@ -131,6 +133,11 @@ export function ItemsList({
     if (targetIndex < 0 || targetIndex >= optimisticItems.length) return;
     commitOrder(arrayMove(optimisticItems, index, targetIndex));
   }
+
+  // The line chip inside ProductionSpecEditor is noise on a single-machine
+  // quote (nothing to disambiguate), so it's only worth showing once the
+  // document actually holds two or more items a production form recognizes.
+  const machineCount = optimisticItems.filter((item) => resolveForm(item.code) !== null).length;
 
   function handleDrop(targetId: string) {
     setDropTargetId(null);
@@ -322,6 +329,14 @@ export function ItemsList({
                   setOptionsAction={setItemOptionsAction}
                   showOptionIcons={showOptionIcons}
                   readOnly={readOnly}
+                />
+
+                <ProductionSpecEditor
+                  itemId={item.id}
+                  itemCode={item.code}
+                  lineGroup={item.lineGroup}
+                  spec={(item.productionSpec ?? {}) as Record<string, unknown>}
+                  showLineChip={machineCount > 1}
                 />
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
