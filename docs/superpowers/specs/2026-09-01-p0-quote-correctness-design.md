@@ -70,7 +70,7 @@ Schema changes in `prisma/schema.prisma`:
 
 ### A2. Migration
 
-New migration `10_remove_invoices`, ordered so no step depends on an object a
+New migration `z10_remove_invoices`, ordered so no step depends on an object a
 previous step dropped. Invoice rows are deleted outright — confirmed by the
 owner; there is no archive step.
 
@@ -244,7 +244,7 @@ a trade-in record type.
 inherit theirs from the catalogue. A custom line has no catalogue entry, so it
 needs its own column.
 
-- Migration `11_document_line_image` adds `DocumentLine.imageUrl String?`, kept
+- Migration `z11_document_line_image` adds `DocumentLine.imageUrl String?`, kept
   separate from the destructive invoice migration (see Rollout).
 - The extra-line editor gets an upload control and reuses the existing product
   image rendering, so a trade-in, a bought-in bundling table, or a one-off item
@@ -326,7 +326,7 @@ discountMode  DiscountMode @default(PERCENT)
 discountValue Decimal?     @db.Decimal(12, 2)
 ```
 
-Migration `12_discount_mode` renames `discountPct` to `discountValue`, widens it
+Migration `z12_discount_mode` renames `discountPct` to `discountValue`, widens it
 from `Decimal(5,2)` to `Decimal(12,2)`, and adds `discountMode` defaulting to
 `PERCENT`. Every existing row is a percentage, so the default is correct and no
 data conversion is needed.
@@ -545,7 +545,7 @@ failing test before the code that satisfies it.
    otherwise have to preserve; the discount model before the presenter because
    the presenter renders the resolved discount.
 3. Five migrations, kept separate so a failure in one does not roll back the
-   others: `10_remove_invoices`, `11_document_line_image`, `12_discount_mode`,
+   others: `z10_remove_invoices`, `z11_document_line_image`, `z12_discount_mode`,
    `13_distributor_rename`, `14_distributor_bank_accounts`.
 4. Merge to `main` in two pull requests, not one: first invoice removal plus
    Parts B–F, then the distributor rename plus bank accounts. Both touch code

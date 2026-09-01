@@ -12,7 +12,7 @@
 
 **Scope:** Spec Parts A–F. Part G (Region → Distributor rename, multiple bank accounts) is a separate plan and a separate pull request, per the spec's Rollout section.
 
-**Migration order note:** Prisma applies migrations in folder-name order, so they are numbered in the order they are created here: `10_remove_invoices`, `11_document_line_image`, `12_discount_mode`. This differs from the prose ordering in the spec's Rollout section, which lists them by topic rather than by application order. Task order below follows the migration numbers.
+**Migration order note:** Prisma applies migrations in folder-name order. The existing repository uses unpadded names `0_init` through `9_series_image`, so ordinary two-digit names sort too early (`10_*` comes before `2_*`). These migrations use `z10_remove_invoices`, `z11_document_line_image`, and `z12_discount_mode` so they run after the existing `0…9` history. Task order below follows that application order.
 
 **Working directory:** `.worktrees/p0` on branch `feat/p0-quote-correctness`.
 
@@ -34,9 +34,9 @@ cd "$(git rev-parse --git-common-dir)" && \
 
 **Created:**
 - `src/components/sheet/item-breakdown.tsx` — the one component that renders base price, options, discount and subtotal for a product line. Used by both sheets and (compact) by the builder.
-- `prisma/migrations/10_remove_invoices/migration.sql`
-- `prisma/migrations/11_document_line_image/migration.sql`
-- `prisma/migrations/12_discount_mode/migration.sql`
+- `prisma/migrations/z10_remove_invoices/migration.sql`
+- `prisma/migrations/z11_document_line_image/migration.sql`
+- `prisma/migrations/z12_discount_mode/migration.sql`
 - `tests/item-breakdown.test.ts`
 - `tests/discounts.test.ts`
 
@@ -244,14 +244,14 @@ git commit -m "feat: remove invoice support from the application"
 ## Task 3: Drop the invoice schema
 
 **Files:**
-- Create: `prisma/migrations/10_remove_invoices/migration.sql`
+- Create: `prisma/migrations/z10_remove_invoices/migration.sql`
 - Modify: `prisma/schema.prisma:14-17,229,252-270,276-277,335,340`
 - Modify: `src/lib/numbering.ts`
 - Modify: `prisma/seed.ts`, `prisma/seed-lib.ts` (only if they set `type` or `docType`)
 
 - [ ] **Step 1: Write the migration**
 
-Create `prisma/migrations/10_remove_invoices/migration.sql`:
+Create `prisma/migrations/z10_remove_invoices/migration.sql`:
 
 ```sql
 -- Invoicing is done by the accountant in their own system; this tool only
@@ -311,7 +311,7 @@ git commit -m "feat: drop the document type discriminator and invoice schema"
 ## Task 4: Extra lines accept a photo
 
 **Files:**
-- Create: `prisma/migrations/11_document_line_image/migration.sql`
+- Create: `prisma/migrations/z11_document_line_image/migration.sql`
 - Modify: `prisma/schema.prisma` (DocumentLine)
 - Modify: `src/lib/uploads.ts`, `src/app/api/uploads/route.ts`
 - Test: `tests/uploads.test.ts`
@@ -402,7 +402,7 @@ Read `purpose` from the parsed `formData`, after the `file` check, so a missing 
 
 - [ ] **Step 6: Add the column**
 
-Create `prisma/migrations/11_document_line_image/migration.sql`:
+Create `prisma/migrations/z11_document_line_image/migration.sql`:
 
 ```sql
 -- A custom extra line has no catalogue entry to inherit an image from, so it
@@ -545,7 +545,7 @@ git commit -m "feat: extra lines accept negative amounts for trade-ins"
 ## Task 6: Discounts can be a percentage or a fixed amount
 
 **Files:**
-- Create: `prisma/migrations/12_discount_mode/migration.sql`, `tests/discounts.test.ts`
+- Create: `prisma/migrations/z12_discount_mode/migration.sql`, `tests/discounts.test.ts`
 - Modify: `prisma/schema.prisma`, `src/lib/pricing.ts`, `src/lib/validation/documents.ts`
 - Modify: `src/lib/actions/documents.ts:650-760`
 - Modify: `src/components/builder/{item-discount-field,document-discount-field}.tsx`
@@ -663,7 +663,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Migrate the schema**
 
-Create `prisma/migrations/12_discount_mode/migration.sql`:
+Create `prisma/migrations/z12_discount_mode/migration.sql`:
 
 ```sql
 -- A discount is now a mode plus a value. Storing a mode rather than two

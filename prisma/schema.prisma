@@ -25,7 +25,7 @@ enum LineKind {
 // A discount is a mode plus a value rather than a bare percentage — see
 // Document.discountMode/DocumentItem.discountMode below. Storing a mode
 // (instead of two nullable columns, one per shape) makes "both set and
-// disagreeing" unrepresentable. Migration 12_discount_mode renamed the old
+// disagreeing" unrepresentable. Migration z12_discount_mode renamed the old
 // discountPct column to discountValue and widened it from Decimal(5,2) to
 // Decimal(12,2) so a cash amount isn't capped at $999.99.
 enum DiscountMode {
