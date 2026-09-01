@@ -156,7 +156,7 @@ Header values — each is the underlined run to the right of its printed label:
 | Cell | Source |
 |---|---|
 | `G8` | distributor entity name |
-| `M8` | quote author name |
+| `N8` | quote author name — **not `M8`**: the `Name:` label lives in `L8`, which is only 4.3 characters wide, so it relies on overflowing into `M8`. Writing into `M8` clips the label to "Nam". Verified in the spike. |
 | `H13` | company name |
 | `H14`, `H15` | company address lines |
 | `H16` | contact full name |
@@ -166,10 +166,20 @@ Header values — each is the underlined run to the right of its printed label:
 | `H21` | `Company.industry.name` |
 | `M13`–`M15` | delivery address (falls back to the main address when `deliverySameAsMain`) |
 | `M73` | MTS travel distance, metres — from the `MTS` line's `attributes.metres` |
-| `E81` | drills detail — the free area right of the `Drill required?` label |
-| `N81` | special notes — the free area under the `Special Notes` heading |
+| `H81` | drills — the literal `Yes` or `No`, right of the `Drill required?` label |
+| `J82` | drills detail, right of the `If Yes Qty, Type & Size required` label |
+| `N81` | special notes, under the `Special Notes` heading |
 
-Text longer than its cell overflows into the empty cells to its right, exactly as in Excel, so address lines lay out on their own. The two free-text areas above are the exception: they are tall single rows (heights 28.5 and 33.75) with no cells to overflow into on the right, so both are length-capped in the Zod schema and the cap is verified visually during the spike.
+Text longer than its cell overflows into the empty cells to its right, exactly as in Excel, so address lines lay out on their own.
+
+Rows 81 and 82 are the exception and were the spike's main finding. They are the tall hand-writing rows (heights 28.5 and 33.75) and carry a correspondingly large font, so very little text fits, and the drills column and the notes column run into each other. The measured caps, enforced in the Zod schema:
+
+| Field | Cell | Cap |
+|---|---|---|
+| Drills detail | `J82` | 22 characters |
+| Special notes | `N81` | 28 characters |
+
+Notes are one line only. `N82` is deliberately left alone: a second notes line collides with the drills detail beside it.
 
 Tick boxes:
 
@@ -229,7 +239,11 @@ Options that exist on the form but not in the catalog — the `220V` / `400V` / 
 
 ### 6.4 Unmapped lines
 
-Options with no box on this form, `CUSTOM` lines, and services never appear on a machine form. They are collected onto an **"Additional items"** sheet: name, quantity, short description. Item-scoped extras get a sheet immediately after that item's form; document-level extras get one sheet at the end of the PDF. The machine form stays clean and nothing is silently dropped.
+Options with no box on this form, `CUSTOM` lines, and services never appear on a machine form. They are collected onto a single **"Additional items"** sheet at the end of the PDF: name, quantity, short description, and which machine the entry came from. The machine form stays clean and nothing is silently dropped.
+
+One sheet at the end rather than one after each form: a three-machine quote would otherwise interleave three part-empty sheets through the print stack, and the workshop hands out forms per machine — an extras page stapled between two forms is more likely to travel with the wrong one than a single page at the back.
+
+For this to be possible the engine has to know which options a form actually covers, and a tick alone does not say that. Each option tick therefore declares the code pattern it consumes, and anything on the item that no pattern claimed is what lands on the sheet. Without this, an option the form has no box for would vanish silently — the single most dangerous failure this feature could have.
 
 ## 7. Rendering pipeline
 
@@ -263,25 +277,25 @@ Inline strings rather than shared strings: this avoids rewriting index reference
 
 Empty cells are frequently absent from the XML entirely. When a target cell does not exist, insert a new `<c>` at the correct position within its `<row>` in column order, creating the `<row>` itself if needed.
 
-Everything else in the archive — `styles.xml`, `drawing1.xml`, the four embedded images, `printerSettings1.bin`, the print area, `fitToPage` — is repacked byte-for-byte. Fidelity is not achieved; it is simply never lost.
+Every other entry in the archive — `styles.xml`, `drawing1.xml`, the four embedded images, `printerSettings1.bin`, the print area, `fitToPage` — is carried across content-identically. (The archive is repacked, so raw compressed bytes may differ; what is guaranteed, and what §11 tests, is that each entry's *decompressed content* is unchanged.) Fidelity is not achieved; it is simply never lost.
 
 ### 7.2 Caching
 
 None. Forms are regenerated on every request. A FINAL quote is immutable and `productionSpec` is small, so generation is cheap and the output always reflects the current spec.
 
-## 8. Step 0 — the spike
+## 8. Step 0 — the spike — **PASSED 2026-09-01**
 
-Before any of §4–§7 is built:
+`M-series order 12.xlsx` was patched with a full set of `X` marks and header values and converted with headless LibreOffice — the same engine Gotenberg wraps.
 
-1. Patch `M-series order 12.xlsx` with a full set of `X` marks and header values.
-2. Convert it through Gotenberg's LibreOffice route.
-3. Place the result beside a reference PDF exported from Excel.
+**Result: exactly one A4 page (595.3 × 841.9 pt), every `X` inside its intended box, logos, frames, print area and scaling intact.** Century Gothic was substituted, as expected and accepted. Approach A stands; approach B is not needed.
 
-**Acceptance:** exactly one A4 page · every `X` inside its intended box · no truncated text · the shift caused by Century Gothic substitution is acceptable to production staff.
+Three coordinate errors were found and are corrected above:
 
-**If it fails:** fall back to approach B — a React component per form rendered through Chromium, with the layout generated from the xlsx geometry (column widths, row heights, cell coordinates, borders, merges are all machine-readable). The spike answers this in hours instead of after thirteen forms have been drawn by hand.
+1. **`M8` clipped the `Name:` label** to "Nam". The label sits in the 4.3-character-wide `L8` and depends on overflowing rightwards. The author name moved to `N8`.
+2. **`E81` does not exist in the sheet XML at all** — Excel omits empty cells, so the patcher's insert path is real and not theoretical. The drills fields moved to `H81` (Yes/No) and `J82` (detail).
+3. **Rows 81–82 overflow their frame.** They carry a large hand-writing font, and the drills and notes columns collide. Hence the caps in §5.1 — 22 and 28 characters — and notes being a single line.
 
-The rest of this spec is unaffected by which of the two wins: the data model, the spec registry, the resolution rules, the UI and the error handling are identical. Only `patchWorkbook` + the LibreOffice call are replaced by a component + the Chromium call.
+The generic lesson, which applies to every form spec written from here on: a cell that looks blank next to a label may be the cell that label overflows into, and a "free area" is only as wide as the next occupied cell. Both are invisible in the spreadsheet and obvious in the rendered PDF, so **every new form spec gets one printed page checked by eye before it ships** — the contract test in §11 cannot see either problem.
 
 ## 9. UI
 
@@ -328,7 +342,9 @@ Production forms are offered on `QUOTE` documents only. An `INVOICE` — includi
 
 - **`patchWorkbook` unit tests.** Patch a fixture, re-read it, assert the values landed. Separately, hash every zip entry except `sheet1.xml` and assert none changed — a direct test of the claim that the design is preserved.
 - **Resolution unit tests.** Product code → form. `ABR-M` ticks `F52` on M-Series while `ABR-L` ticks a different cell on L-Series. `PTW(I)` versus `PTW(S)`. Unmapped lines land on the Additional items sheet.
-- **Spec contract test.** For every `FormSpec`: the template exists and contains the named sheet; every `ticks` cell is a genuinely bordered box in that template; every `values` cell exists within the print area and is empty in the template; every `replaces` cell is non-empty in the template. This catches a typo like `F42` for `F43` — which otherwise only the workshop would discover — and it catches a `values` entry accidentally pointed at a printed label.
+- **Spec contract test.** For every `FormSpec`: the template file exists and contains the declared sheet; every `ticks` and `values` cell is **empty** in the template; every `replaces` cell is **non-empty**. This catches the two dangerous typos — a tick aimed one row off into a cell that holds a printed label, and a `values` entry aimed at a label instead of the blank beside it.
+
+  It does not verify that a tick cell is a bordered box; reading cell borders needs a styles-aware xlsx reader, and the repo's existing `xlsx` (SheetJS) dependency does not expose them reliably. Box coordinates are therefore confirmed once, visually, when a form spec is first written — that is part of what the §8 spike and each later form's manual check exist for.
 - **Pipeline golden test.** A fixture quote with M + EL + FP produces a merged PDF of exactly three pages.
 - **Manual visual check** as part of the §8 spike, and once more when each new form spec is added.
 
