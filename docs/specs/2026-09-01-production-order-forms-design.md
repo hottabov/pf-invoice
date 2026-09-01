@@ -163,7 +163,7 @@ Header values — each is the underlined run to the right of its printed label:
 | `H17` | contact position |
 | `H18` | contact phone |
 | `H20` | contact email |
-| `H21` | `Company.industry` |
+| `H21` | `Company.industry.name` |
 | `M13`–`M15` | delivery address (falls back to the main address when `deliverySameAsMain`) |
 | `M73` | MTS travel distance, metres — from the `MTS` line's `attributes.metres` |
 | `E81` | drills detail — the free area right of the `Drill required?` label |
@@ -298,7 +298,18 @@ Additional items (2)    ready              [PDF]
 [ Download all forms (4 pages) ]     ← disabled while anything is missing
 ```
 
-`Company.industry` is edited inline from the client section with a datalist of values already used across the region, so adding a new industry or correcting this company's value never requires leaving the page. Known limitation: because the value is plain text on the company rather than a shared lookup row, correcting a misspelling fixes it for that company only — it does not rename the value on every other company that used it. A shared `Industry` table would, and can be added later if the free-text list turns messy.
+### 9.1 Industry picker
+
+Industry is set on the client card — never by navigating to another page — through a combobox:
+
+- **Typeahead.** Typing filters the list by substring, case-insensitively, as you type. The list is expected to hold hundreds of imported rows, so the field is search-first rather than a long scrolling `<select>`.
+- **Create on miss.** When nothing matches, the last option is `Create "Marine upholstery"`. Choosing it creates the `Industry` row and selects it in one action.
+- **Rename in place.** A pencil next to the selected value renames the `Industry` row itself. Because that row is shared, the confirm states how many companies are affected — `Rename "Automotve" to "Automotive"? Used by 14 companies.` Renaming is a genuine fix for an imported typo, so it stays available, but it never happens silently.
+- **Clear.** The field is optional; clearing it sets `industryId` to null and the form prints the row blank.
+
+Creation is case-insensitively deduplicated on the server: typing `automotive` when `Automotive` exists selects the existing row instead of creating a near-duplicate.
+
+Bulk import runs through `scripts/import-industries.ts`, taking a newline-separated list and upserting by name, so re-running it is safe.
 
 Production forms are offered on `QUOTE` documents only. An `INVOICE` — including one created from a quote — shows no forms section; the workshop is driven by the quote the client signed.
 
@@ -325,4 +336,5 @@ Production forms are offered on `QUOTE` documents only. An `INVOICE` — includi
 
 - No production status tracking. A form is a printable artifact, not a state machine. If the workshop later needs statuses, a `ProductionOrder` entity can be layered on top without disturbing anything here.
 - No `ProductionLine` table (§4.2).
+- No industry admin screen. Rows are created inline or bulk-imported, and renamed inline. Deleting and merging industries are omitted until the imported list shows it is needed; an unused row is harmless.
 - No editing of the form layouts in-app. Layout changes arrive as a new xlsx dropped into `templates/`, with the spec file adjusted if cells moved — the reason these files are versioned `12`, `13`, `05` in the first place.
