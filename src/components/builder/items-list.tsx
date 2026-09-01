@@ -327,8 +327,10 @@ export function ItemsList({
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
                   <ItemDiscountField
                     itemId={item.id}
-                    discountPct={item.discountPct}
+                    discountMode={item.discountMode}
+                    discountValue={item.discountValue}
                     maxDiscountPct={item.maxDiscountPct}
+                    currency={currency}
                     setDiscountAction={setItemDiscountAction}
                     readOnly={readOnly}
                   />

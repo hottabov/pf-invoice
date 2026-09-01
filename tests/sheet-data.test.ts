@@ -40,7 +40,8 @@ function baseItem(overrides: Partial<ToSheetItemInput> = {}): ToSheetItemInput {
     name: "EasyLoader 2020",
     description: null,
     unitPrice: "1000.00",
-    discountPct: null,
+    discountMode: "PERCENT",
+    discountValue: null,
     total: "1000.00",
     imageUrl: null,
     showImage: false,
@@ -65,7 +66,8 @@ function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
     bankDetails: { bank: "Live Bank", bsb: "000 000", accountNo: "111 111" },
     logoUrl: null,
     footerText: "Live footer",
-    discountPct: null,
+    discountMode: "PERCENT",
+    discountValue: null,
     subtotal: "1000.00",
     discountAmount: "0.00",
     taxAmount: "100.00",
@@ -247,12 +249,21 @@ describe("toSheetData — delivery address block", () => {
 });
 
 describe("toSheetData — items and lines", () => {
-  it("carries the item discount percentage through untouched, null when unset", () => {
-    const withDiscount = toSheetData(baseDoc({ items: [baseItem({ discountPct: "15" })] }));
-    expect(withDiscount.items[0].discountPct).toBe("15");
+  it("carries the item discount mode and value through untouched, null when unset", () => {
+    const withDiscount = toSheetData(
+      baseDoc({ items: [baseItem({ discountMode: "PERCENT", discountValue: "15" })] })
+    );
+    expect(withDiscount.items[0].discountMode).toBe("PERCENT");
+    expect(withDiscount.items[0].discountValue).toBe("15");
 
-    const withoutDiscount = toSheetData(baseDoc({ items: [baseItem({ discountPct: null })] }));
-    expect(withoutDiscount.items[0].discountPct).toBeNull();
+    const withAmount = toSheetData(
+      baseDoc({ items: [baseItem({ discountMode: "AMOUNT", discountValue: "20000.00" })] })
+    );
+    expect(withAmount.items[0].discountMode).toBe("AMOUNT");
+    expect(withAmount.items[0].discountValue).toBe("20000.00");
+
+    const withoutDiscount = toSheetData(baseDoc({ items: [baseItem({ discountValue: null })] }));
+    expect(withoutDiscount.items[0].discountValue).toBeNull();
   });
 
   it("computes each option line's lineTotal as qty * unitPrice", () => {
@@ -384,7 +395,8 @@ describe("toSheetData — totals passthrough", () => {
   it("passes the document totals straight through", () => {
     const doc = baseDoc({
       subtotal: "1000.00",
-      discountPct: "10",
+      discountMode: "PERCENT",
+      discountValue: "10",
       discountAmount: "100.00",
       taxAmount: "90.00",
       total: "990.00",
@@ -396,7 +408,8 @@ describe("toSheetData — totals passthrough", () => {
     expect(sheet.totals).toEqual({
       currency: "USD",
       subtotal: "1000.00",
-      discountPct: "10",
+      discountMode: "PERCENT",
+      discountValue: "10",
       discountAmount: "100.00",
       taxName: "Sales Tax",
       taxRate: "0",

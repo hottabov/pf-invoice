@@ -328,11 +328,13 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                 {item.lines.map((line) => (
                   <OptionRow key={line.id} line={line} currency={totals.currency} visible={optionPriceVisible} />
                 ))}
-                {item.discountPct !== null && itemPriceVisible ? (
+                {item.discountValue !== null && itemPriceVisible ? (
                   <tr className="pq-discount-row">
                     <td className="pq-col-item pq-option-indent">Item discount</td>
                     <td className="pq-col-qty" />
-                    <td className="pq-col-amount pq-amount">-{item.discountPct}%</td>
+                    <td className="pq-col-amount pq-amount">
+                      -{item.discountMode === "PERCENT" ? `${item.discountValue}%` : formatMoney(item.discountValue, totals.currency)}
+                    </td>
                   </tr>
                 ) : null}
                 {/* Per-item subtotal (base + every option, less the item
@@ -398,9 +400,11 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
               <span>Subtotal</span>
               <span>{formatMoney(totals.subtotal, totals.currency)}</span>
             </div>
-            {totals.discountPct !== null ? (
+            {totals.discountValue !== null ? (
               <div className="pq-totals-row">
-                <span>Discount {totals.discountPct}%</span>
+                <span>
+                  Discount {totals.discountMode === "PERCENT" ? `${totals.discountValue}%` : formatMoney(totals.discountValue, totals.currency)}
+                </span>
                 <span>-{formatMoney(totals.discountAmount, totals.currency)}</span>
               </div>
             ) : null}

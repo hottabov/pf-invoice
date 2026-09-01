@@ -75,7 +75,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [{ unitPrice: 100, lines: [] }],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result).toEqual({
@@ -94,7 +94,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [{ unitPrice: 100, lines: [{ qty: 2, unitPrice: 25 }] }],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     // 100 + (2 * 25) = 150
@@ -105,9 +105,9 @@ describe("computeTotals", () => {
 
   it("applies a 10% item discount", () => {
     const result = computeTotals({
-      items: [{ unitPrice: 100, discountPct: 10, lines: [] }],
+      items: [{ unitPrice: 100, discountMode: "PERCENT", discountValue: "10", lines: [] }],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.itemTotals).toEqual([90]);
@@ -119,9 +119,9 @@ describe("computeTotals", () => {
   it("reports a cap violation but still computes with the requested pct", () => {
     // L-Series: max discount 10%, manager requests 15% anyway.
     const result = computeTotals({
-      items: [{ unitPrice: 100, discountPct: 15, maxDiscountPct: 10, lines: [] }],
+      items: [{ unitPrice: 100, discountMode: "PERCENT", discountValue: "15", maxDiscountPct: 10, lines: [] }],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     // Math uses the requested 15%, NOT the 10% cap: 100 * 0.85 = 85.
@@ -132,9 +132,9 @@ describe("computeTotals", () => {
 
   it("does not report a violation when the discount is within the cap", () => {
     const result = computeTotals({
-      items: [{ unitPrice: 100, discountPct: 10, maxDiscountPct: 10, lines: [] }],
+      items: [{ unitPrice: 100, discountMode: "PERCENT", discountValue: "10", maxDiscountPct: 10, lines: [] }],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.violations).toEqual([]);
@@ -142,9 +142,9 @@ describe("computeTotals", () => {
 
   it("does not report a violation when maxDiscountPct is null (uncapped)", () => {
     const result = computeTotals({
-      items: [{ unitPrice: 100, discountPct: 50, maxDiscountPct: null, lines: [] }],
+      items: [{ unitPrice: 100, discountMode: "PERCENT", discountValue: "50", maxDiscountPct: null, lines: [] }],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.violations).toEqual([]);
@@ -154,11 +154,11 @@ describe("computeTotals", () => {
   it("indexes violations by the item's position for multiple items", () => {
     const result = computeTotals({
       items: [
-        { unitPrice: 100, discountPct: 5, maxDiscountPct: 10, lines: [] },
-        { unitPrice: 100, discountPct: 20, maxDiscountPct: 10, lines: [] },
+        { unitPrice: 100, discountMode: "PERCENT", discountValue: "5", maxDiscountPct: 10, lines: [] },
+        { unitPrice: 100, discountMode: "PERCENT", discountValue: "20", maxDiscountPct: 10, lines: [] },
       ],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.violations).toEqual([{ itemIndex: 1, allowedPct: 10 }]);
@@ -171,7 +171,8 @@ describe("computeTotals", () => {
         { unitPrice: 200, lines: [] },
       ],
       extraLines: [],
-      documentDiscountPct: 10,
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "10",
       taxRate: 0,
     });
     expect(result.itemTotals).toEqual([100, 200]);
@@ -183,9 +184,10 @@ describe("computeTotals", () => {
 
   it("combines an item discount and a document discount", () => {
     const result = computeTotals({
-      items: [{ unitPrice: 100, discountPct: 10, lines: [] }],
+      items: [{ unitPrice: 100, discountMode: "PERCENT", discountValue: "10", lines: [] }],
       extraLines: [],
-      documentDiscountPct: 10,
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "10",
       taxRate: 0,
     });
     // item: 100 * 0.9 = 90 (subtotal); document: 90 * 0.9 = 81.
@@ -200,7 +202,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [{ unitPrice: 100, lines: [] }],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 10,
     });
     expect(result.taxableBase).toBe(100);
@@ -212,7 +214,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [{ unitPrice: 100, lines: [] }],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.taxAmount).toBe(0);
@@ -225,7 +227,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [{ unitPrice: 33.335, lines: [{ qty: 3, unitPrice: 33.335 }] }],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.itemTotals).toEqual([133.36]);
@@ -239,7 +241,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [{ unitPrice: 0.2, lines: [] }],
       extraLines: [{ qty: 1, unitPrice: 0.1 }],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.subtotal).toBe(0.3);
@@ -261,7 +263,7 @@ describe("computeTotals", () => {
         },
       ],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.itemTotals).toEqual([0.3]);
@@ -272,7 +274,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [{ unitPrice: 50, lines: [] }],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.itemTotals).toEqual([50]);
@@ -283,7 +285,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [{ unitPrice: 0, lines: [{ qty: 4, unitPrice: 12.5 }] }],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.itemTotals).toEqual([50]);
@@ -293,7 +295,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [],
       extraLines: [{ qty: 3, unitPrice: 15.5 }],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.itemTotals).toEqual([]);
@@ -306,7 +308,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result).toEqual({
@@ -321,17 +323,17 @@ describe("computeTotals", () => {
     });
   });
 
-  it("treats a missing discountPct the same as zero", () => {
+  it("treats a missing documentDiscountValue the same as null", () => {
     const withUndefined = computeTotals({
       items: [{ unitPrice: 100, lines: [] }],
       extraLines: [],
-      documentDiscountPct: undefined,
+      documentDiscountValue: undefined,
       taxRate: 0,
     });
     const withNull = computeTotals({
       items: [{ unitPrice: 100, lines: [] }],
       extraLines: [],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(withUndefined).toEqual(withNull);
@@ -341,7 +343,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [{ unitPrice: 100000, lines: [] }],
       extraLines: [{ qty: 1, unitPrice: -15000 }],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.subtotal).toBe(85000);
@@ -353,7 +355,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [{ unitPrice: 1000, lines: [] }],
       extraLines: [{ qty: 1, unitPrice: -5000 }],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.subtotal).toBe(-4000);
@@ -367,7 +369,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [{ unitPrice: 1000, lines: [] }],
       extraLines: [{ qty: 1, unitPrice: -1000 }],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.subtotal).toBe(0);
@@ -378,7 +380,7 @@ describe("computeTotals", () => {
     const result = computeTotals({
       items: [{ unitPrice: 100, lines: [] }],
       extraLines: [{ qty: 1, unitPrice: 10 }],
-      documentDiscountPct: null,
+      documentDiscountValue: null,
       taxRate: 0,
     });
     expect(result.negativeSubtotal).toBe(false);

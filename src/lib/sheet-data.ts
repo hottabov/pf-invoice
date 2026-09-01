@@ -50,7 +50,8 @@ export type ToSheetItemInput = {
   name: string;
   description: string | null;
   unitPrice: string;
-  discountPct: string | null;
+  discountMode: "PERCENT" | "AMOUNT";
+  discountValue: string | null;
   /** Pre-computed by the pricing engine (see `getDocumentForBuilder`) —
    * this mapper never re-derives money math, only reshapes it. */
   total: string;
@@ -119,7 +120,8 @@ export type ToSheetDataDoc = {
   bankDetails: unknown;
   logoUrl: string | null;
   footerText: string | null;
-  discountPct: string | null;
+  discountMode: "PERCENT" | "AMOUNT";
+  discountValue: string | null;
   subtotal: string;
   discountAmount: string;
   taxAmount: string;
@@ -182,9 +184,14 @@ export type DocSheetItem = {
   name: string;
   description: string | null;
   unitPrice: string;
-  /** Percentage string (e.g. "10"), or `null` when no item discount is set
-   * — the sheet only renders a "-X%" discount row when this is non-null. */
-  discountPct: string | null;
+  /** How to read `discountValue` below — see `DocSheetTotals.discountMode`'s
+   * doc comment; same rule at item level. */
+  discountMode: "PERCENT" | "AMOUNT";
+  /** Percentage string (e.g. "10") when `discountMode` is "PERCENT", a plain
+   * decimal cash string (e.g. "20000.00") when "AMOUNT", or `null` when no
+   * item discount is set — the sheet only renders an "Item discount" row
+   * when this is non-null, formatting it per `discountMode`. */
+  discountValue: string | null;
   total: string;
   /** Resolved thumbnail source, or `null` when either `showImage` is false,
    * no image was ever attached, or the resolver declined to produce one. */
@@ -235,7 +242,13 @@ export type DocSheetPreparedBy = {
 export type DocSheetTotals = {
   currency: string;
   subtotal: string;
-  discountPct: string | null;
+  /** Whether `discountValue` (below) is a percentage or a cash amount —
+   * the sheet's "Discount" row label reads accordingly ("Discount 5%" vs.
+   * "Discount $20,000.00"). `discountAmount` (the actual cents subtracted
+   * from `subtotal`) is unaffected by this — it's already resolved to cash
+   * by the pricing engine regardless of how the discount was entered. */
+  discountMode: "PERCENT" | "AMOUNT";
+  discountValue: string | null;
   discountAmount: string;
   taxName: string;
   taxRate: string;
@@ -498,7 +511,8 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     name: item.name,
     description: dedupeDescription(item.name, item.description),
     unitPrice: item.unitPrice,
-    discountPct: item.discountPct,
+    discountMode: item.discountMode,
+    discountValue: item.discountValue,
     total: item.total,
     image: item.showImage && item.imageUrl ? (resolveImage(item.imageUrl) ?? null) : null,
     lines: item.lines.map((line) => toDocSheetLine(line, resolveImage)),
@@ -524,7 +538,8 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     totals: {
       currency: doc.currency,
       subtotal: doc.subtotal,
-      discountPct: doc.discountPct,
+      discountMode: doc.discountMode,
+      discountValue: doc.discountValue,
       discountAmount: doc.discountAmount,
       taxName: doc.taxName,
       taxRate: doc.taxRate,

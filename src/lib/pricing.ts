@@ -24,10 +24,18 @@ export type EngineItemLine = {
   unitPrice: number;
 };
 
+/** A discount is either a percentage of its base or a fixed cash amount —
+ * see `discountCents` below. */
+export type DiscountMode = "PERCENT" | "AMOUNT";
+
 /** One priced line item on the document (e.g. a machine + its options). */
 export type EngineItem = {
   unitPrice: number;
-  discountPct?: number | null;
+  /** Defaults to `"PERCENT"` when omitted — matters only when
+   * `discountValue` is non-null (a null value is 0 discount regardless of
+   * mode). */
+  discountMode?: DiscountMode | null;
+  discountValue?: string | null;
   maxDiscountPct?: number | null;
   lines: EngineItemLine[];
 };
@@ -41,7 +49,8 @@ export type EngineExtraLine = {
 export type EngineInput = {
   items: EngineItem[];
   extraLines: EngineExtraLine[];
-  documentDiscountPct?: number | null;
+  documentDiscountMode?: DiscountMode | null;
+  documentDiscountValue?: string | null;
   taxRate: number;
 };
 
@@ -190,6 +199,37 @@ function percentOf(amountCents: number, pct: number): number {
 }
 
 // ---------------------------------------------------------------------------
+// Discount resolution (Task 6: a discount is a mode plus a value)
+// ---------------------------------------------------------------------------
+
+/** Resolves a discount to an integer cents amount, never exceeding the base
+ * it applies to. Percent keeps the existing half-up rounding (`baseCents -
+ * reduceByPercent(...)` rather than `percentOf(...)` so a PERCENT discount's
+ * resolved amount is byte-for-byte the complement of what
+ * `reduceByPercent` already kept — i.e. identical rounding to the
+ * pre-Task-6 behaviour); amount is taken at face value and clamped so a
+ * cash discount can never push a total negative on its own. Exported so
+ * `setItemDiscount`/`setDocumentDiscount` (src/lib/actions/documents.ts) can
+ * resolve the exact same cash amount at write time (for the region-cap
+ * check) that this module will resolve again at every read/recalc. */
+export function discountCents(baseCents: number, mode: DiscountMode, value: string | null): number {
+  if (value === null) return 0;
+  if (mode === "PERCENT") return baseCents - reduceByPercent(baseCents, Number(value));
+  return Math.min(toCents(value), baseCents);
+}
+
+/** The effective percentage a discount represents, used for the region
+ * discount cap (`Region.maxDiscountPct`) — without this, a cash discount
+ * would bypass the cap entirely (a $20,000 discount means nothing to a "max
+ * 10%" rule unless it's converted back to a percentage of its base first).
+ * Returns a float; it must only ever be compared against a cap, never fed
+ * back into a money value (see `discountCents` for the exact/integer-cents
+ * money math). Exported for the same reason as `discountCents`. */
+export function effectivePct(baseCents: number, discount: number): number {
+  return baseCents === 0 ? 0 : (discount / baseCents) * 100;
+}
+
+// ---------------------------------------------------------------------------
 // computeTotals
 // ---------------------------------------------------------------------------
 
@@ -198,14 +238,18 @@ function percentOf(amountCents: number, pct: number): number {
  * discounts and tax rate. Rules:
  *
  * - Per item: base = unitPrice + Σ(line.qty * line.unitPrice); the item's
- *   discount (default 0) is applied to base → itemTotal. If the requested
- *   discount exceeds the item's cap (maxDiscountPct, default 100 = no cap),
- *   a violation is reported — the cap is NOT auto-applied; the math still
- *   uses the requested percentage. Callers decide whether to reject the
- *   save when violations are present.
+ *   discount (a mode + value, default "no discount" when the value is null —
+ *   see `discountCents`) is resolved to cents and subtracted from base →
+ *   itemTotal. The resolved discount is converted back to an effective
+ *   percentage of base (see `effectivePct`) and compared against the item's
+ *   cap (maxDiscountPct, default 100 = no cap); if it exceeds the cap, a
+ *   violation is reported — the cap is NOT auto-applied, the math still uses
+ *   the requested discount. Callers decide whether to reject the save when
+ *   violations are present.
  * - subtotal = Σ itemTotals + Σ(extraLine.qty * extraLine.unitPrice).
- * - The document-level discount (default 0) is applied to subtotal →
- *   taxableBase. discountAmount = subtotal - taxableBase.
+ * - The document-level discount (same mode + value shape, default "no
+ *   discount") is resolved and subtracted from subtotal → taxableBase.
+ *   discountAmount = subtotal - taxableBase.
  * - taxAmount = taxableBase * taxRate/100.
  * - total = taxableBase + taxAmount.
  *
@@ -220,22 +264,25 @@ export function computeTotals(input: EngineInput): PricingTotals {
     const linesCents = item.lines.reduce((sum, line) => sum + line.qty * toCents(line.unitPrice), 0);
     const baseCents = toCents(item.unitPrice) + linesCents;
 
-    const discountPct = item.discountPct ?? 0;
+    const mode = item.discountMode ?? "PERCENT";
+    const value = item.discountValue ?? null;
+    const discount = discountCents(baseCents, mode, value);
     const allowedPct = item.maxDiscountPct ?? 100;
-    if (discountPct > allowedPct) {
+    if (effectivePct(baseCents, discount) > allowedPct) {
       violations.push({ itemIndex, allowedPct });
     }
 
-    return reduceByPercent(baseCents, discountPct);
+    return baseCents - discount;
   });
 
   const extraLinesCents = input.extraLines.reduce((sum, line) => sum + line.qty * toCents(line.unitPrice), 0);
 
   const subtotalCents = itemTotalsCents.reduce((sum, cents) => sum + cents, 0) + extraLinesCents;
 
-  const documentDiscountPct = input.documentDiscountPct ?? 0;
-  const taxableBaseCents = reduceByPercent(subtotalCents, documentDiscountPct);
-  const discountAmountCents = subtotalCents - taxableBaseCents;
+  const documentMode = input.documentDiscountMode ?? "PERCENT";
+  const documentValue = input.documentDiscountValue ?? null;
+  const discountAmountCents = discountCents(subtotalCents, documentMode, documentValue);
+  const taxableBaseCents = subtotalCents - discountAmountCents;
 
   const taxAmountCents = percentOf(taxableBaseCents, input.taxRate);
   const totalCents = taxableBaseCents + taxAmountCents;

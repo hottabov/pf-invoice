@@ -88,17 +88,37 @@ export const customLineSchema = z.object({
 });
 export type CustomLineInput = z.infer<typeof customLineSchema>;
 
-const DISCOUNT_PCT_REGEX = /^\d{1,3}(\.\d{1,2})?$/;
+/**
+ * A discount's mode (item- or document-level): "PERCENT" (a share of the
+ * base) or "AMOUNT" (a fixed cash figure in the document's currency) — see
+ * the `DiscountMode` enum in schema.prisma. No `null`/empty collapsing here
+ * (unlike `discountValueSchema`): the mode always has a value, defaulting to
+ * "PERCENT" server-side when a caller omits it (matches the column default).
+ */
+export const discountModeSchema = z.enum(["PERCENT", "AMOUNT"]);
+export type DiscountModeInput = z.infer<typeof discountModeSchema>;
+
+const DISCOUNT_VALUE_REGEX = /^\d{1,9}(\.\d{1,2})?$/;
 
 /**
- * A discount percentage field (item- or document-level): an empty string
- * (or a missing/`null` FormData value) means "clear the discount" and
- * collapses to `null`; otherwise it must be a decimal in 0..100 with at
- * most 2 decimal places, parsed to a `number`. "101" and "10.555" both
- * fail — the former out of range, the latter too many decimal places —
- * while "10.55" and "" (→ `null`) both succeed.
+ * A discount's value (item- or document-level): an empty string (or a
+ * missing/`null` FormData value) means "clear the discount" and collapses to
+ * `null`; otherwise it must be a non-negative decimal with at most 2 decimal
+ * places, kept as a string (not `Number`-transformed) so it can go straight
+ * to `new Prisma.Decimal(...)` without a float round-trip — same pattern as
+ * `customLineSchema.unitPrice`. Deliberately permissive on range: up to 9
+ * digits before the point covers a plausible AMOUNT figure, and the engine
+ * (`discountCents` in src/lib/pricing.ts) clamps an AMOUNT to its base
+ * regardless of what's typed here.
+ *
+ * This schema alone cannot enforce "a PERCENT value must be 0..100" — it has
+ * no way to know which mode a given value is paired with (that's a property
+ * of the *pair*, not the value in isolation). That check lives in
+ * `exceedsPercentCeiling` below instead, called once mode and value are both
+ * known — see its own doc comment for why that's the one place it can't be
+ * bypassed.
  */
-export const discountPctSchema = z.preprocess(
+export const discountValueSchema = z.preprocess(
   (value) =>
     value === null || value === undefined || (typeof value === "string" && value.trim() === "")
       ? null
@@ -108,12 +128,26 @@ export const discountPctSchema = z.preprocess(
     z
       .string()
       .trim()
-      .regex(DISCOUNT_PCT_REGEX, "Discount must be a number between 0 and 100 with at most 2 decimal places")
-      .transform((value) => Number(value))
-      .refine((value) => value >= 0 && value <= 100, "Discount must be between 0 and 100"),
+      .regex(DISCOUNT_VALUE_REGEX, "Enter a number with at most 2 decimal places"),
   ])
 );
-export type DiscountPctInput = z.infer<typeof discountPctSchema>;
+export type DiscountValueInput = z.infer<typeof discountValueSchema>;
+
+/**
+ * `true` when `mode`/`value` together describe an out-of-range PERCENT
+ * discount (over 100%) — `discountValueSchema` validates `value`'s shape in
+ * isolation and has no way to apply this rule itself (see its doc comment).
+ * Every write path that accepts a discount (`setItemDiscount`/
+ * `setDocumentDiscount` in src/lib/actions/documents.ts) parses `mode` and
+ * `value` and then calls this exactly once before persisting, so there is
+ * one single place the 100% ceiling is enforced — not duplicated per call
+ * site, where a future third call site could forget it. An AMOUNT value (or
+ * a cleared/`null` value) is never subject to this check: the engine clamps
+ * an AMOUNT to its base instead (see `discountCents`).
+ */
+export function exceedsPercentCeiling(mode: DiscountModeInput, value: DiscountValueInput): boolean {
+  return mode === "PERCENT" && value !== null && Number(value) > 100;
+}
 
 /** One option selection from the item options editor: the option's code,
  * the quantity of it on the item, and (when the option carries an

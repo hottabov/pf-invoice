@@ -146,7 +146,8 @@ export type BuilderItem = {
   name: string;
   description: string | null;
   unitPrice: string;
-  discountPct: string | null;
+  discountMode: "PERCENT" | "AMOUNT";
+  discountValue: string | null;
   /** The document's region's discount cap (`Region.maxDiscountPct`) — the
    * same value on every item of a given document, not a per-item/per-series
    * value (discount caps moved from Series to Region — see setItemDiscount
@@ -211,10 +212,11 @@ export type DocumentForBuilder = {
   currency: string;
   taxName: string;
   taxRate: string;
-  discountPct: string | null;
+  discountMode: "PERCENT" | "AMOUNT";
+  discountValue: string | null;
   subtotal: string;
   /** subtotal - taxableBase, i.e. the amount the document-level discount
-   * removes — 0 when `discountPct` is null. Surfaced so the sticky footer
+   * removes — 0 when `discountValue` is null. Surfaced so the sticky footer
    * can show "Discount: -$X" only when a document discount is actually set. */
   discountAmount: string;
   taxAmount: string;
@@ -406,12 +408,14 @@ export async function getDocumentForBuilder(
   const engineInput: EngineInput = {
     items: document.items.map((item) => ({
       unitPrice: Number(item.unitPrice),
-      discountPct: item.discountPct !== null ? Number(item.discountPct) : null,
+      discountMode: item.discountMode,
+      discountValue: item.discountValue !== null ? item.discountValue.toString() : null,
       maxDiscountPct: regionMaxDiscountPct,
       lines: item.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
     })),
     extraLines: document.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
-    documentDiscountPct: document.discountPct !== null ? Number(document.discountPct) : null,
+    documentDiscountMode: document.discountMode,
+    documentDiscountValue: document.discountValue !== null ? document.discountValue.toString() : null,
     taxRate: Number(document.taxRate),
   };
   const totals = computeTotals(engineInput);
@@ -425,7 +429,8 @@ export async function getDocumentForBuilder(
     currency: document.currency,
     taxName: document.taxName,
     taxRate: document.taxRate.toString(),
-    discountPct: document.discountPct?.toString() ?? null,
+    discountMode: document.discountMode,
+    discountValue: document.discountValue?.toString() ?? null,
     subtotal: document.subtotal.toString(),
     discountAmount: totals.discountAmount.toString(),
     taxAmount: document.taxAmount.toString(),
@@ -479,7 +484,8 @@ export async function getDocumentForBuilder(
       name: item.name,
       description: item.description,
       unitPrice: item.unitPrice.toString(),
-      discountPct: item.discountPct?.toString() ?? null,
+      discountMode: item.discountMode,
+      discountValue: item.discountValue?.toString() ?? null,
       maxDiscountPct: document.region.maxDiscountPct?.toString() ?? null,
       seriesId: item.product?.seriesId ?? null,
       seriesCode: item.product?.series.code ?? null,

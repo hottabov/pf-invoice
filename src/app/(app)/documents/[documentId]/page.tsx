@@ -155,7 +155,9 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
           <SectionCard title="Discounts">
             <DocumentDiscountField
               documentId={document.id}
-              discountPct={document.discountPct}
+              discountMode={document.discountMode}
+              discountValue={document.discountValue}
+              currency={document.currency}
               setDiscountAction={setDocumentDiscount}
               readOnly={!isDraft}
             />
@@ -196,7 +198,8 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
                   taxName={document.taxName}
                   taxRate={document.taxRate}
                   subtotal={document.subtotal}
-                  discountPct={document.discountPct}
+                  discountMode={document.discountMode}
+                  discountValue={document.discountValue}
                   discountAmount={document.discountAmount}
                   taxAmount={document.taxAmount}
                   total={document.total}
@@ -233,7 +236,8 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
         taxName={document.taxName}
         taxRate={document.taxRate}
         subtotal={document.subtotal}
-        discountPct={document.discountPct}
+        discountMode={document.discountMode}
+        discountValue={document.discountValue}
         discountAmount={document.discountAmount}
         taxAmount={document.taxAmount}
         total={document.total}

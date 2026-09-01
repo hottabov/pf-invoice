@@ -23,6 +23,24 @@ export function formatMoney(amount: Moneyish, currency: string, locale = "en-AU"
 }
 
 /**
+ * The currency's bare symbol (e.g. "$", "A$", "£") derived from
+ * `Intl.NumberFormat` rather than a hardcoded currency->symbol map, so a
+ * distributor/region added later with an unusual currency code still gets a
+ * sensible symbol for free. Used by the discount field's mode toggle (see
+ * item-discount-field.tsx/document-discount-field.tsx) to label the "cash
+ * amount" option next to "%". Falls back to the currency code itself if the
+ * formatter's parts (for some exotic/invalid code) don't include one.
+ */
+export function currencySymbol(currency: string, locale = "en-AU"): string {
+  const parts = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    currencyDisplay: "narrowSymbol",
+  }).formatToParts(0);
+  return parts.find((part) => part.type === "currency")?.value ?? currency;
+}
+
+/**
  * True when a decimal-string money amount (e.g. `DocSheetLine.unitPrice` /
  * `.lineTotal`) is negative — a trade-in extra line (see `customLineSchema`
  * in src/lib/validation/documents.ts) is the only way this ever happens.

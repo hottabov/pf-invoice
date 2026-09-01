@@ -1,6 +1,7 @@
 import { FileText } from "lucide-react";
 import type { DocumentStatus } from "@prisma/client";
 import { formatMoney } from "@/lib/format";
+import type { DiscountMode } from "@/lib/pricing";
 import { StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { DeleteDraftButton } from "@/components/builder/delete-draft-button";
 import type { ActionResult } from "@/lib/actions/documents";
@@ -9,9 +10,12 @@ type TotalsProps = {
   taxName: string;
   taxRate: string;
   subtotal: string;
-  /** The document-level discount percentage, or `null` when none is set —
-   * the discount row below only renders when this is non-null. */
-  discountPct: string | null;
+  /** How to read `discountValue` below. */
+  discountMode: DiscountMode;
+  /** The document-level discount's value in its own mode's terms (a plain
+   * percentage or a cash figure), or `null` when none is set — the discount
+   * row below only renders when this is non-null. */
+  discountValue: string | null;
   discountAmount: string;
   taxAmount: string;
   total: string;
@@ -28,7 +32,8 @@ export function DocumentTotals({
   taxName,
   taxRate,
   subtotal,
-  discountPct,
+  discountMode,
+  discountValue,
   discountAmount,
   taxAmount,
   total,
@@ -40,9 +45,11 @@ export function DocumentTotals({
         <dt className="text-slate-500">Subtotal</dt>
         <dd className="tabular-nums text-slate-700">{formatMoney(subtotal, currency)}</dd>
       </div>
-      {discountPct !== null ? (
+      {discountValue !== null ? (
         <div className="flex justify-between">
-          <dt className="text-slate-500">Discount ({discountPct}%)</dt>
+          <dt className="text-slate-500">
+            Discount ({discountMode === "PERCENT" ? `${discountValue}%` : formatMoney(discountValue, currency)})
+          </dt>
           <dd className="tabular-nums text-slate-700">-{formatMoney(discountAmount, currency)}</dd>
         </div>
       ) : null}
@@ -75,7 +82,8 @@ export function StickyFooter({
   taxName,
   taxRate,
   subtotal,
-  discountPct,
+  discountMode,
+  discountValue,
   discountAmount,
   taxAmount,
   total,
@@ -100,7 +108,8 @@ export function StickyFooter({
           taxName={taxName}
           taxRate={taxRate}
           subtotal={subtotal}
-          discountPct={discountPct}
+          discountMode={discountMode}
+          discountValue={discountValue}
           discountAmount={discountAmount}
           taxAmount={taxAmount}
           total={total}

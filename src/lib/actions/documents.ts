@@ -8,11 +8,14 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
 import { companyWhereForUser, documentWhereForUser } from "@/lib/scope";
 import { compatibilityOrFilter } from "@/lib/catalog-compat";
-import { computeTotals, type EngineInput, type EngineViolation } from "@/lib/pricing";
+import { computeTotals, discountCents, effectivePct, toCents, type EngineInput, type EngineViolation } from "@/lib/pricing";
 import { isHtmlContent, sanitizeRichText } from "@/lib/rich-text";
+import { formatMoney } from "@/lib/format";
 import {
   customLineSchema,
-  discountPctSchema,
+  discountModeSchema,
+  discountValueSchema,
+  exceedsPercentCeiling,
   idSchema,
   isPermutation,
   notesSchema,
@@ -20,6 +23,7 @@ import {
   optionalIdSchema,
   priceDisplaySchema,
   reorderSchema,
+  type DiscountModeInput,
   type OptionSelectionInput,
 } from "@/lib/validation/documents";
 
@@ -107,12 +111,14 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
   const engineInput: EngineInput = {
     items: document.items.map((item) => ({
       unitPrice: Number(item.unitPrice),
-      discountPct: item.discountPct !== null ? Number(item.discountPct) : null,
+      discountMode: item.discountMode,
+      discountValue: item.discountValue !== null ? item.discountValue.toString() : null,
       maxDiscountPct: regionMaxDiscountPct,
       lines: item.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
     })),
     extraLines: document.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
-    documentDiscountPct: document.discountPct !== null ? Number(document.discountPct) : null,
+    documentDiscountMode: document.discountMode,
+    documentDiscountValue: document.discountValue !== null ? document.discountValue.toString() : null,
     taxRate: Number(document.taxRate),
   };
 
@@ -706,21 +712,69 @@ export async function removeLine(lineId: string): Promise<ActionResult> {
   return {};
 }
 
-// --- discounts (Task D) -----------------------------------------------------
+// --- discounts (Task D, extended for mode+value in Task 6) ------------------
+
+/** Renders a discount's value in its own mode's terms — "20%" or a
+ * currency-formatted cash figure — for the cap-exceeded message below.
+ * Never called with a `null` value (both call sites below only build the
+ * message once `exceedsCap` is true, which already implies a non-null
+ * value). */
+function discountValueLabel(mode: DiscountModeInput, value: string, currency: string): string {
+  return mode === "PERCENT" ? `${value}%` : formatMoney(value, currency);
+}
+
+/** Trims a computed effective percentage to a display-friendly string (2dp,
+ * no trailing zeros) — `effectivePct` returns a float that can carry
+ * floating-point noise (e.g. `19.999999999999996`), which would look wrong
+ * printed straight into a user-facing message. */
+function formatEffectivePct(pct: number): string {
+  return (Math.round(pct * 100) / 100).toString();
+}
 
 /**
- * Sets (or, given an empty `pct`, clears) an item's discount percentage.
- * The document's region cap (`Region.maxDiscountPct`, admin-editable on
- * /settings/regions — see `RegionForm`/`updateRegion`) is enforced *before*
- * persisting — unlike the pricing engine's own violation reporting (which
- * happily computes with whatever percentage is already stored and just
- * flags it, see `EngineViolation`) — but ONLY for a MANAGER: a save that
- * exceeds the cap is refused outright for them, so a violating discount is
- * never actually written by a manager's save. An ADMIN may exceed the cap;
- * the save still succeeds but comes back with `warning` set (rather than
- * `error`) so the caller can surface a non-blocking "exceeds cap" toast
- * instead of rejecting the save. A region with no cap configured
- * (`maxDiscountPct` null) allows any 0..100 discount for either role.
+ * Builds the region-cap-exceeded message shared by `setItemDiscount` and
+ * `setDocumentDiscount`, always naming both figures the owner asked for: the
+ * discount as entered (in its own mode) and the percentage of `scope` it
+ * works out to — e.g. "A $20,000.00 discount is 20% of this item — above the
+ * 10% limit for Australia." For a PERCENT discount the two figures are the
+ * same number by construction, which is fine — the sentence still reads
+ * correctly, just without new information the reader didn't already have.
+ */
+function discountCapMessage(
+  mode: DiscountModeInput,
+  value: string,
+  effPct: number,
+  cap: number,
+  regionName: string,
+  currency: string,
+  scope: "item" | "quote"
+): string {
+  const valueLabel = discountValueLabel(mode, value, currency);
+  return `A ${valueLabel} discount is ${formatEffectivePct(effPct)}% of this ${scope} — above the ${cap}% limit for ${regionName}.`;
+}
+
+/**
+ * Sets (or, given an empty `value`, clears) an item's discount — a mode
+ * ("PERCENT" | "AMOUNT") plus a value (see `DiscountMode` in
+ * schema.prisma). The document's region cap (`Region.maxDiscountPct`,
+ * admin-editable on /settings/regions — see `RegionForm`/`updateRegion`) is
+ * enforced *before* persisting — unlike the pricing engine's own violation
+ * reporting (which happily computes with whatever discount is already
+ * stored and just flags it, see `EngineViolation`) — but ONLY for a
+ * MANAGER: a save that exceeds the cap is refused outright for them, so a
+ * violating discount is never actually written by a manager's save. An
+ * ADMIN may exceed the cap; the save still succeeds but comes back with
+ * `warning` set (rather than `error`) so the caller can surface a
+ * non-blocking "exceeds cap" toast instead of rejecting the save. A region
+ * with no cap configured (`maxDiscountPct` null) allows any discount for
+ * either role.
+ *
+ * A cash (AMOUNT) discount is converted back to an *effective* percentage of
+ * the item's own base (unit price + its option lines) before the cap check
+ * — see `effectivePct` in src/lib/pricing.ts — otherwise a manager blocked
+ * from a 15% discount could simply type the equivalent dollar figure and
+ * bypass the cap entirely. A PERCENT discount's effective percentage is
+ * trivially itself.
  */
 export async function setItemDiscount(itemId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -728,28 +782,48 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
   const parsedItemId = idSchema.safeParse(itemId);
   if (!parsedItemId.success) return { error: NOT_FOUND_ERROR };
 
-  const parsedPct = discountPctSchema.safeParse(formData.get("pct"));
-  if (!parsedPct.success) return { error: flattenZodError(parsedPct.error) };
+  const parsedMode = discountModeSchema.safeParse(formData.get("mode"));
+  if (!parsedMode.success) return { error: flattenZodError(parsedMode.error) };
+  const parsedValue = discountValueSchema.safeParse(formData.get("value"));
+  if (!parsedValue.success) return { error: flattenZodError(parsedValue.error) };
+
+  if (exceedsPercentCeiling(parsedMode.data, parsedValue.data)) {
+    return { error: "A percentage discount cannot exceed 100%." };
+  }
 
   const item = await db.documentItem.findFirst({
     where: {
       id: parsedItemId.data,
       document: { status: "DRAFT", ...documentWhereForUser(session.user) },
     },
-    include: { document: { include: { region: true } } },
+    include: { document: { include: { region: true } }, lines: true },
   });
   if (!item) return { error: NOT_FOUND_ERROR };
 
   const cap = item.document.region.maxDiscountPct ? Number(item.document.region.maxDiscountPct) : null;
-  const exceedsCap = parsedPct.data !== null && cap !== null && parsedPct.data > cap;
 
   let warning: string | undefined;
-  if (exceedsCap) {
-    const regionName = item.document.region.name;
-    if (session.user.role !== "ADMIN") {
-      return { error: `Max discount for ${regionName} is ${cap}%` };
+  if (parsedValue.data !== null && cap !== null) {
+    const baseCents =
+      toCents(item.unitPrice.toString()) +
+      item.lines.reduce((sum, line) => sum + line.qty * toCents(line.unitPrice.toString()), 0);
+    const discount = discountCents(baseCents, parsedMode.data, parsedValue.data);
+    const effPct = effectivePct(baseCents, discount);
+    if (effPct > cap) {
+      const message = discountCapMessage(
+        parsedMode.data,
+        parsedValue.data,
+        effPct,
+        cap,
+        item.document.region.name,
+        item.document.currency,
+        "item"
+      );
+      if (session.user.role !== "ADMIN") {
+        return { error: message };
+      }
+      warning = message;
     }
-    warning = `Exceeds region cap of ${cap}%`;
   }
 
   // A larger item discount can reveal a negative subtotal (e.g. against a
@@ -759,7 +833,10 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
     await db.$transaction(async (tx) => {
       await tx.documentItem.update({
         where: { id: item.id },
-        data: { discountPct: parsedPct.data === null ? null : new Prisma.Decimal(parsedPct.data) },
+        data: {
+          discountMode: parsedMode.data,
+          discountValue: parsedValue.data === null ? null : new Prisma.Decimal(parsedValue.data),
+        },
       });
       const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
       if (negativeSubtotal) throw new NegativeSubtotalError();
@@ -806,10 +883,18 @@ export async function setItemShowImage(itemId: string, show: boolean): Promise<A
 }
 
 /**
- * Sets (or clears) the document-level discount percentage. Enforced against
- * the same region cap as `setItemDiscount` above (this used to be uncapped
- * at the document level; it now shares the exact same
+ * Sets (or clears) the document-level discount — same mode + value shape as
+ * `setItemDiscount`, enforced against the same region cap (this used to be
+ * uncapped at the document level; it now shares the exact same
  * MANAGER-blocked/ADMIN-warned enforcement as an item discount).
+ *
+ * A cash (AMOUNT) discount is converted back to an effective percentage of
+ * the document's own subtotal before the cap check, same reasoning as
+ * `setItemDiscount`. The subtotal used is the document's already-persisted
+ * `subtotal` column (items + extra lines, computed by the last
+ * `recalcDocument`) rather than a fresh engine run — this action never
+ * touches items/lines, so that figure is already exactly right and re-deriving
+ * it would just be the same read done twice.
  */
 export async function setDocumentDiscount(documentId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -817,8 +902,14 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
   const parsedDocumentId = idSchema.safeParse(documentId);
   if (!parsedDocumentId.success) return { error: NOT_FOUND_ERROR };
 
-  const parsedPct = discountPctSchema.safeParse(formData.get("pct"));
-  if (!parsedPct.success) return { error: flattenZodError(parsedPct.error) };
+  const parsedMode = discountModeSchema.safeParse(formData.get("mode"));
+  if (!parsedMode.success) return { error: flattenZodError(parsedMode.error) };
+  const parsedValue = discountValueSchema.safeParse(formData.get("value"));
+  if (!parsedValue.success) return { error: flattenZodError(parsedValue.error) };
+
+  if (exceedsPercentCeiling(parsedMode.data, parsedValue.data)) {
+    return { error: "A percentage discount cannot exceed 100%." };
+  }
 
   const document = await db.document.findFirst({
     where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
@@ -827,14 +918,27 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
   if (!document) return { error: NOT_FOUND_ERROR };
 
   const cap = document.region.maxDiscountPct ? Number(document.region.maxDiscountPct) : null;
-  const exceedsCap = parsedPct.data !== null && cap !== null && parsedPct.data > cap;
 
   let warning: string | undefined;
-  if (exceedsCap) {
-    if (session.user.role !== "ADMIN") {
-      return { error: `Max discount for ${document.region.name} is ${cap}%` };
+  if (parsedValue.data !== null && cap !== null) {
+    const subtotalCents = toCents(document.subtotal.toString());
+    const discount = discountCents(subtotalCents, parsedMode.data, parsedValue.data);
+    const effPct = effectivePct(subtotalCents, discount);
+    if (effPct > cap) {
+      const message = discountCapMessage(
+        parsedMode.data,
+        parsedValue.data,
+        effPct,
+        cap,
+        document.region.name,
+        document.currency,
+        "quote"
+      );
+      if (session.user.role !== "ADMIN") {
+        return { error: message };
+      }
+      warning = message;
     }
-    warning = `Exceeds region cap of ${cap}%`;
   }
 
   // The document-level discount is applied *after* `negativeSubtotal` is
@@ -846,7 +950,10 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
     await db.$transaction(async (tx) => {
       await tx.document.update({
         where: { id: document.id },
-        data: { discountPct: parsedPct.data === null ? null : new Prisma.Decimal(parsedPct.data) },
+        data: {
+          discountMode: parsedMode.data,
+          discountValue: parsedValue.data === null ? null : new Prisma.Decimal(parsedValue.data),
+        },
       });
       const { negativeSubtotal } = await recalcDocument(document.id, tx);
       if (negativeSubtotal) throw new NegativeSubtotalError();

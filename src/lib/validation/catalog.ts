@@ -160,10 +160,13 @@ const MAX_DISCOUNT_PCT_REGEX = /^\d{1,3}(\.\d{1,2})?$/;
  * Australia 10; don't surface in the catalog" — see `regionFormFields` in
  * validation/regions.ts, which imports and reuses this exact schema rather
  * than duplicating it). `Series.maxDiscountPct` itself is unused now — kept
- * in the schema, not read anywhere. Same shape as `discountPctSchema` in
- * validation/documents.ts, kept as its own schema here rather than a
- * cross-import since the two modules happen to need the same percentage
- * shape rather than actually depending on each other.
+ * in the schema, not read anywhere. This is a plain 0..100 percentage
+ * cap, unrelated to `discountValueSchema`/`discountModeSchema` in
+ * validation/documents.ts (Task 6: a *discount* can be a percentage or a
+ * fixed cash amount; the *cap* on it is always a percentage, in both
+ * cases) — kept as its own schema here rather than a cross-import since
+ * the modules happen to need a similarly-shaped percentage field rather
+ * than actually depending on each other.
  */
 export const maxDiscountPctSchema = z.preprocess(
   (value) =>
