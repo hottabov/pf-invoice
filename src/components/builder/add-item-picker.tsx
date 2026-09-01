@@ -80,7 +80,7 @@ export function AddItemPicker({
             {activeSeries.name}
           </button>
         ) : (
-          <span className="text-sm font-medium text-brand-dark">Choose a series</span>
+          <span className="text-sm font-medium text-brand-dark">Choose a product</span>
         )}
         <Button
           type="button"

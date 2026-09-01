@@ -204,7 +204,8 @@ export function ItemsList({
                 propagation) toggles the card's collapsed state. The chevron
                 button is the keyboard/screen-reader-accessible affordance —
                 it carries no handler of its own and relies on its native
-                click event bubbling up to this row. */}
+                click event bubbling up to this row. Reorder controls (up/down)
+                are inline on the right with compact 36px visual / 44px hit area. */}
             <div
               onClick={() => toggleCollapsed(item.id)}
               className="flex cursor-pointer select-none items-start justify-between gap-3"
@@ -213,7 +214,7 @@ export function ItemsList({
                 {!readOnly && (
                   <div
                     onClick={(event) => event.stopPropagation()}
-                    className="flex shrink-0 flex-col items-center gap-0.5"
+                    className="flex shrink-0 items-center"
                   >
                     <button
                       type="button"
@@ -234,26 +235,6 @@ export function ItemsList({
                     >
                       <GripVertical className="size-4" aria-hidden="true" />
                     </button>
-                    <div className="flex flex-col gap-0.5">
-                      <button
-                        type="button"
-                        onClick={() => moveBy(index, -1)}
-                        disabled={index === 0}
-                        aria-label={`Move ${item.name} up`}
-                        className="focus-ring flex size-11 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 disabled:pointer-events-none disabled:opacity-30"
-                      >
-                        <ChevronUp className="size-4" aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveBy(index, 1)}
-                        disabled={index === optimisticItems.length - 1}
-                        aria-label={`Move ${item.name} down`}
-                        className="focus-ring flex size-11 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 disabled:pointer-events-none disabled:opacity-30"
-                      >
-                        <ChevronDown className="size-4" aria-hidden="true" />
-                      </button>
-                    </div>
                   </div>
                 )}
                 {item.imageUrl ? (
@@ -276,14 +257,36 @@ export function ItemsList({
                   ) : null}
                 </div>
               </div>
-              <div className="flex shrink-0 items-start gap-1">
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                 <span className="pt-2 text-sm font-medium tabular-nums text-brand-dark">
                   {formatMoney(item.total, currency)}
                 </span>
                 {!readOnly && (
-                  <span onClick={(event) => event.stopPropagation()}>
-                    <RemoveItemButton action={removeItemAction.bind(null, item.id)} itemName={item.name} />
-                  </span>
+                  <>
+                    <div onClick={(event) => event.stopPropagation()} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => moveBy(index, -1)}
+                        disabled={index === 0}
+                        aria-label={`Move ${item.name} up`}
+                        className="focus-ring flex size-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 disabled:pointer-events-none disabled:opacity-30 -m-1 p-1"
+                      >
+                        <ChevronUp className="size-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveBy(index, 1)}
+                        disabled={index === optimisticItems.length - 1}
+                        aria-label={`Move ${item.name} down`}
+                        className="focus-ring flex size-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 disabled:pointer-events-none disabled:opacity-30 -m-1 p-1"
+                      >
+                        <ChevronDown className="size-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                    <span onClick={(event) => event.stopPropagation()}>
+                      <RemoveItemButton action={removeItemAction.bind(null, item.id)} itemName={item.name} />
+                    </span>
+                  </>
                 )}
                 <button
                   type="button"
