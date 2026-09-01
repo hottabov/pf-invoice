@@ -336,6 +336,9 @@ export function ItemsList({
                   itemCode={item.code}
                   lineGroup={item.lineGroup}
                   spec={(item.productionSpec ?? {}) as Record<string, unknown>}
+                  optionQtys={item.lines
+                    .filter((line): line is typeof line & { code: string } => line.kind === "OPTION" && Boolean(line.code))
+                    .map((line) => ({ code: line.code, qty: line.qty }))}
                   showLineChip={machineCount > 1}
                 />
 
