@@ -47,7 +47,7 @@ In `catalog.json`'s `options` array, following the exact shape of the existing e
   "name": "Crate- Wooden crate for transport",
   "description": "Crate- Wooden crate for transport",
   "price": 1400,
-  "needsReview": true,
+  "needsReview": false,
   "compatibleSeries": ["EL"]
 }
 ```
