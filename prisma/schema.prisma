@@ -199,15 +199,18 @@ model Company {
   deliveryPhone       String? // Stored E.164 when parseable (see validatePhone in src/lib/phone.ts), raw otherwise.
   deliveryNotes       String?
 
-  regionId  String
-  region    Region     @relation(fields: [regionId], references: [id])
-  ownerId   String?
-  owner     User?      @relation("CompanyOwner", fields: [ownerId], references: [id])
-  contacts  Contact[]
-  documents Document[]
-  createdAt DateTime   @default(now())
+  regionId   String
+  region     Region     @relation(fields: [regionId], references: [id])
+  ownerId    String?
+  owner      User?      @relation("CompanyOwner", fields: [ownerId], references: [id])
+  industryId String?
+  industry   Industry?  @relation(fields: [industryId], references: [id], onDelete: SetNull)
+  contacts   Contact[]
+  documents  Document[]
+  createdAt  DateTime   @default(now())
 
   @@index([ownerId])
+  @@index([industryId]) // renaming an industry shows an affected-company count first ("Used by 14 companies"), counted by industryId
 }
 
 model Contact {
@@ -223,6 +226,18 @@ model Contact {
   documents Document[]
 
   @@index([companyId])
+}
+
+// Lookup table rather than free text on Company: the list is bulk-imported
+// (scripts/import-industries.ts) and picked hundreds of times, so an
+// industry has to be one row every company points at instead of a string
+// repeated with drifting spellings -- that is what makes the inline rename
+// in industry-picker.tsx a real fix rather than a per-company patch.
+// Global, not per-region: an industry means the same thing in AU and US.
+model Industry {
+  id        String    @id @default(cuid())
+  name      String    @unique // Case-insensitive uniqueness is enforced by a separate functional index (Industry_name_lower_key) in the 10_industry_and_production_spec migration -- Prisma cannot declare that, so @unique alone is not the whole story.
+  companies Company[]
 }
 
 model Document {
@@ -278,21 +293,34 @@ model Document {
 }
 
 model DocumentItem {
-  id           String         @id @default(cuid())
-  documentId   String
-  document     Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  productId    String?
-  product      Product?       @relation(fields: [productId], references: [id])
-  sortOrder    Int            @default(0)
-  code         String // snapshot
-  name         String // snapshot
-  description  String? // snapshot
-  unitPrice    Decimal        @db.Decimal(12, 2) // snapshot
-  discountPct  Decimal?       @db.Decimal(5, 2)
-  serialNumber String?
-  showImage    Boolean        @default(false)
-  imageUrl     String?
-  lines        DocumentLine[]
+  id             String         @id @default(cuid())
+  documentId     String
+  document       Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product?       @relation(fields: [productId], references: [id])
+  sortOrder      Int            @default(0)
+  code           String // snapshot
+  name           String // snapshot
+  description    String? // snapshot
+  unitPrice      Decimal        @db.Decimal(12, 2) // snapshot
+  discountPct    Decimal?       @db.Decimal(5, 2)
+  serialNumber   String?
+  showImage      Boolean        @default(false)
+  // Sales-side production choices the price list does not carry: screen side
+  // (+Y/-Y), knife size, voltage, drills, EasyLoader table sections. Shape
+  // varies by series -- validated by src/lib/validation/production-spec.ts,
+  // never read as free-form JSON. Deliberately NOT covered by the finalize
+  // lock: it carries no commercial meaning, so correcting a knife size must
+  // not force an unfinalize/refinalize cycle that churns document numbering.
+  productionSpec Json?
+  // Production line grouping. Items sharing a value share an operator-screen
+  // side -- a cutter, its EasyLoader and its FabricPro stand together and a
+  // mismatched side is a physical installation fault. Defaults to 1 so the
+  // single-line case never sees the field. See spec section 4.2 for why this
+  // is an Int rather than a ProductionLine table.
+  lineGroup      Int            @default(1)
+  imageUrl       String?
+  lines          DocumentLine[]
 
   @@index([documentId])
 }
