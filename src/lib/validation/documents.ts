@@ -212,6 +212,17 @@ export const notesSchema = z.preprocess(
 );
 export type NotesInput = z.infer<typeof notesSchema>;
 
+// --- validity (per-quote override) ------------------------------------------
+
+/** Days a quote stays valid. Null means "use the org-wide setting". Over 30 is
+ * allowed — a customer's capex approval can genuinely take six weeks — and the
+ * UI warns rather than blocks. */
+export const validityDaysSchema = z.preprocess(
+  (v) => (v === null || v === undefined || (typeof v === "string" && v.trim() === "") ? null : v),
+  z.union([z.null(), z.coerce.number().int().min(1).max(365)])
+);
+export type ValidityDaysInput = z.infer<typeof validityDaysSchema>;
+
 /**
  * Pure set-equality check used to validate a proposed reorder: `proposed`
  * must contain exactly the same ids as `actual` — same set, no duplicates,

@@ -327,8 +327,12 @@ export type DocSheetData = {
   isDraft: boolean;
   number: string | null;
   issueDate: string;
-  /** `DD/MM/YYYY`, only ever set once `validityDays` is known (i.e. a
-   * finalized quote) — `null` for a not-yet-finalized draft. */
+  /** `DD/MM/YYYY`, computed from `issueDate + validityDays` whenever
+   * `validityDays` is known — `null` when it isn't. `validityDays` can be
+   * non-null before finalize too now (a per-quote override set from the
+   * builder — see `setValidityDays`, src/lib/actions/documents.ts), so a
+   * DRAFT can already show a validity date in preview, computed against its
+   * (pre-finalize) `issueDate`; finalize freezes both fields together. */
   validityDate: string | null;
   logo: string | null;
   entity: DocSheetEntity;

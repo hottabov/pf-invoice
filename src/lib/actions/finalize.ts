@@ -83,10 +83,13 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
     });
   }
 
-  // Every document carries a validity window; read the org-wide default
-  // once (fallback applies both when the Setting row is missing and when
-  // its value isn't a finite number — see getQuoteValidityDays).
-  const validityDays = await getQuoteValidityDays();
+  // Every document carries a validity window. A draft may already carry its
+  // own override (see `setValidityDays` in actions/documents.ts — a
+  // salesperson giving one customer a longer capex-approval window); only
+  // when it doesn't do we fall back to the org-wide default (read once here;
+  // that fallback applies both when the Setting row is missing and when its
+  // value isn't a finite number — see getQuoteValidityDays).
+  const validityDays = document.validityDays ?? (await getQuoteValidityDays());
 
   const entitySnapshot = {
     entityName: document.region.entityName,

@@ -210,9 +210,16 @@ export type DocumentForBuilder = {
   status: DocumentStatus;
   number: string | null;
   issueDate: Date;
-  /** Only ever non-null once a document has been through
-   * `finalizeDocument` (see src/lib/actions/finalize.ts) — a still-DRAFT
-   * document always has `null` here. */
+  /** `Document.validityDays` — `null` means "use the org-wide
+   * `quote.validityDays` setting" (see `getQuoteValidityDays`,
+   * src/lib/queries/settings.ts); a non-null value is a per-quote override
+   * set from the builder (see `setValidityDays`, src/lib/actions/documents.ts)
+   * for a customer whose approval process runs longer than the usual
+   * window. Frozen onto the document at finalize time either way — see
+   * `finalizeDocument`'s `document.validityDays ?? (await
+   * getQuoteValidityDays())` fallback — so this can be non-null on a DRAFT
+   * (an author's own override, not yet finalized) as well as on a FINAL
+   * document (the value frozen when it was finalized). */
   validityDays: number | null;
   currency: string;
   taxName: string;

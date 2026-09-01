@@ -12,7 +12,7 @@ import {
   type DocumentForBuilder,
 } from "@/lib/queries/documents";
 import { listActiveRegions } from "@/lib/queries/catalog";
-import { getShowOptionIcons } from "@/lib/queries/settings";
+import { getQuoteValidityDays, getShowOptionIcons } from "@/lib/queries/settings";
 import {
   addCustomLine,
   addItem,
@@ -27,6 +27,7 @@ import {
   setItemOptions,
   setItemShowImage,
   setPriceDisplay,
+  setValidityDays,
 } from "@/lib/actions/documents";
 import { createCompanyInline, createContactInline } from "@/lib/actions/clients";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE } from "@/components/ui-kit";
@@ -36,6 +37,7 @@ import { ExtraLinesSection } from "@/components/builder/extra-lines-section";
 import { DocumentDiscountField } from "@/components/builder/document-discount-field";
 import { PriceDisplayToggles } from "@/components/builder/price-display-toggles";
 import { NotesSection } from "@/components/builder/notes-section";
+import { ValidityDaysField } from "@/components/builder/validity-days-field";
 import { DocumentTotals, StickyFooter } from "@/components/builder/sticky-footer";
 import { FinalizeButton } from "@/components/builder/finalize-button";
 import { UnfinalizeButton } from "@/components/builder/unfinalize-button";
@@ -74,11 +76,12 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
   const isDraft = document.status === "DRAFT";
   const isAdmin = session.user.role === "ADMIN";
 
-  const [companies, catalog, showOptionIcons, regions] = await Promise.all([
+  const [companies, catalog, showOptionIcons, regions, orgDefaultValidityDays] = await Promise.all([
     listClientPickerCompanies(session.user),
     getItemPickerCatalog(document.regionCode),
     getShowOptionIcons(),
     listActiveRegions(),
+    getQuoteValidityDays(),
   ]);
 
   // Compatible options are preloaded once per distinct (productId, seriesId)
@@ -159,6 +162,21 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
               discountValue={document.discountValue}
               currency={document.currency}
               setDiscountAction={setDocumentDiscount}
+              readOnly={!isDraft}
+            />
+          </SectionCard>
+
+          {/* Per-quote validity override (owner: "What's your capex process?
+              ... I'll give you eight [weeks]") — placed next to Notes since
+              both are small document-level fields with no pricing effect.
+              Defaults to the org-wide setting (/settings) when the document
+              has no override of its own. */}
+          <SectionCard title="Quote validity">
+            <ValidityDaysField
+              documentId={document.id}
+              validityDays={document.validityDays}
+              orgDefaultDays={orgDefaultValidityDays}
+              setValidityDaysAction={setValidityDays}
               readOnly={!isDraft}
             />
           </SectionCard>

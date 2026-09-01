@@ -23,6 +23,7 @@ import {
   optionalIdSchema,
   priceDisplaySchema,
   reorderSchema,
+  validityDaysSchema,
   type DiscountModeInput,
   type OptionSelectionInput,
 } from "@/lib/validation/documents";
@@ -1042,6 +1043,49 @@ export async function setDocumentNotes(documentId: string, formData: FormData): 
   await db.document.update({
     where: { id: document.id },
     data: { notes },
+  });
+
+  revalidatePath(`/documents/${document.id}`);
+  return {};
+}
+
+// --- validity (per-quote override) ------------------------------------------
+
+/**
+ * Sets (or, given a blank value, clears) `Document.validityDays` — a
+ * per-quote override of the org-wide "quote.validityDays" setting (see
+ * `getQuoteValidityDays`, src/lib/queries/settings.ts). A salesperson uses
+ * this when a particular customer's capex approval process runs longer than
+ * the usual window (owner: "I'll give you eight [weeks]" in place of the
+ * default). `validityDaysSchema` allows any value 1..365 — the 30-day norm
+ * enforced elsewhere is a UI-level warning, not a hard cap here, since a
+ * genuinely slower approval process is a legitimate reason to exceed it and
+ * the discount cap already covers the case where money is actually at risk.
+ * Clearing the field back to blank reverts the document to the org-wide
+ * default at finalize time (see `finalizeDocument`'s
+ * `document.validityDays ?? (await getQuoteValidityDays())` fallback).
+ * DRAFT-only and scoped like every other document mutation in this file;
+ * purely a display/finalize-time field, so — like `setItemShowImage`/
+ * `setPriceDisplay`/`setDocumentNotes` — there's no `recalcDocument` call
+ * here.
+ */
+export async function setValidityDays(documentId: string, formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedDocumentId = idSchema.safeParse(documentId);
+  if (!parsedDocumentId.success) return { error: NOT_FOUND_ERROR };
+
+  const parsedValidityDays = validityDaysSchema.safeParse(formData.get("validityDays"));
+  if (!parsedValidityDays.success) return { error: flattenZodError(parsedValidityDays.error) };
+
+  const document = await db.document.findFirst({
+    where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
+  });
+  if (!document) return { error: NOT_FOUND_ERROR };
+
+  await db.document.update({
+    where: { id: document.id },
+    data: { validityDays: parsedValidityDays.data },
   });
 
   revalidatePath(`/documents/${document.id}`);

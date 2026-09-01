@@ -267,6 +267,15 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
               {formatMoney(totals.total, totals.currency)} {totals.currency}
             </span>
           </div>
+          {/* Repeats the header's "Valid until" (see pq-title-row above) right
+              next to the price it applies to (owner: "put the valid-to in
+              this total investment line, so it's obvious"). */}
+          {data.validityDate ? (
+            <div className="pq-totals-row pq-totals-validity">
+              <span>Valid until</span>
+              <span>{data.validityDate}</span>
+            </div>
+          ) : null}
         </div>
 
         {/* Free-text notes (Document.notes, rich text from the builder's
@@ -619,6 +628,13 @@ const SHEET_CSS = `
     font-size: 14px;
     font-weight: 700;
     color: #243478;
+  }
+  /* "Valid until", repeated right under TOTAL (see the JSX comment above) —
+     small and muted, distinct from the bold final total it sits below. */
+  .pq-totals-validity {
+    border-bottom: none;
+    font-size: 10px;
+    color: #777777;
   }
   .pq-footer {
     margin-top: 28px;

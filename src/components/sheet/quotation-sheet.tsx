@@ -163,6 +163,12 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
           <span className="pq-total-banner-note">
             (incl. {totals.taxName} {totals.taxRate}%)
           </span>
+          {/* Repeats the header's "Valid until" (see pq-title-row above)
+              right next to the price it applies to (owner: "put the
+              valid-to in this total investment line, so it's obvious"). */}
+          {data.validityDate ? (
+            <span className="pq-total-banner-note">Valid until {data.validityDate}</span>
+          ) : null}
         </div>
 
         {data.machineSections.length > 0 ? (
