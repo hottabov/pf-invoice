@@ -20,24 +20,20 @@ export type DocumentListItem = {
 
 /**
  * Documents visible to `user` (all for ADMIN, own-only for MANAGER, via
- * `documentWhereForUser`), optionally narrowed by type and/or a
- * case-insensitive search on the client company's name, newest-edited
- * first. A document with no client yet (`companyId` is null pre-Task-D-
- * finalize) never matches a non-empty `q`.
+ * `documentWhereForUser`), optionally narrowed by a case-insensitive search
+ * on the client company's name, newest-edited first. A document with no
+ * client yet (`companyId` is null pre-Task-D-finalize) never matches a
+ * non-empty `q`.
  */
 export async function listDocuments(
   user: ScopeUser,
-  params: { type?: string; q?: string } = {}
+  params: { q?: string } = {}
 ): Promise<DocumentListItem[]> {
-  const { type, q } = params;
+  const { q } = params;
 
   const where: NonNullable<Parameters<typeof db.document.findMany>[0]>["where"] = {
     ...documentWhereForUser(user),
   };
-
-  if (type === "QUOTE" || type === "INVOICE") {
-    where.type = type;
-  }
 
   if (q && q.trim()) {
     where.company = { name: { contains: q.trim(), mode: "insensitive" } };
@@ -199,9 +195,9 @@ export type DocumentForBuilder = {
   status: DocumentStatus;
   number: string | null;
   issueDate: Date;
-  /** Only ever non-null for a QUOTE, and only once it's been through
-   * `finalizeDocument` (see src/lib/actions/finalize.ts) — an INVOICE, and
-   * any still-DRAFT document, always has `null` here. */
+  /** Only ever non-null once a document has been through
+   * `finalizeDocument` (see src/lib/actions/finalize.ts) — a still-DRAFT
+   * document always has `null` here. */
   validityDays: number | null;
   currency: string;
   taxName: string;
@@ -254,16 +250,6 @@ export type DocumentForBuilder = {
    * `QuotationDataDoc` regardless of `type` (see `buildQuotationData`). */
   showItemPrices: boolean;
   showOptionPrices: boolean;
-  /** Set only for an INVOICE created via "Create invoice" from a QUOTE (see
-   * `createInvoiceFromQuote`) — `null` for every QUOTE and for an INVOICE
-   * created from scratch. `sourceQuoteNumber` is `null` whenever
-   * `sourceQuoteId` is (nothing to look up) and also, defensively, if the
-   * source quote row itself no longer resolves (deleted while still a
-   * DRAFT — the FK is `ON DELETE SET NULL`, so that combination shouldn't
-   * actually occur in practice by the time this query runs).
-   */
-  sourceQuoteId: string | null;
-  sourceQuoteNumber: string | null;
   updatedAt: Date;
 };
 
@@ -361,7 +347,6 @@ export async function getDocumentForBuilder(
         where: { itemId: null },
         orderBy: { sortOrder: "asc" },
       },
-      sourceQuote: { select: { number: true } },
     },
   });
   if (!document) return null;
@@ -494,8 +479,6 @@ export async function getDocumentForBuilder(
     author: { name: document.author.name, email: document.author.email, phone: document.author.phone },
     showItemPrices: document.showItemPrices,
     showOptionPrices: document.showOptionPrices,
-    sourceQuoteId: document.sourceQuoteId,
-    sourceQuoteNumber: document.sourceQuote?.number ?? null,
     updatedAt: document.updatedAt,
   };
 }

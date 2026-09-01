@@ -11,15 +11,14 @@ export const runtime = "nodejs";
 type Params = { documentId: string };
 
 /**
- * Streams a QUOTE document (DRAFT or FINAL) back as a downloadable extended
+ * Streams a document (DRAFT or FINAL) back as a downloadable extended
  * quotation PDF — the content-block-driven equipment write-up, terms,
  * general conditions and RSP detail, as opposed to `/api/documents/
  * [documentId]/pdf`'s plain line-item summary. Loads and scopes the
- * document exactly like that route, then 404s for an INVOICE (there's no
- * quotation renderer for one) same as a foreign/nonexistent document. Every
- * image is inlined as a base64 data URI via `fileImageResolver` — Gotenberg's
- * headless Chromium has no session cookie to hit the auth-gated
- * `/api/files/...` route with.
+ * document exactly like that route, 404ing for a foreign/nonexistent
+ * document. Every image is inlined as a base64 data URI via
+ * `fileImageResolver` — Gotenberg's headless Chromium has no session cookie
+ * to hit the auth-gated `/api/files/...` route with.
  */
 export async function GET(_request: Request, { params }: { params: Promise<Params> }) {
   const session = await auth();
@@ -29,7 +28,7 @@ export async function GET(_request: Request, { params }: { params: Promise<Param
 
   const { documentId } = await params;
   const document = await getDocumentForBuilder(session.user, documentId);
-  if (!document || document.type !== "QUOTE") {
+  if (!document) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 

@@ -95,7 +95,6 @@ export type ToSheetAuthorInput = {
  * shape defensively at runtime (see `parseEntitySnapshot`) rather than
  * trusting the cast. */
 export type ToSheetDataDoc = {
-  type: "QUOTE" | "INVOICE";
   status: "DRAFT" | "FINAL";
   number: string | null;
   issueDate: Date;
@@ -228,16 +227,14 @@ export type DocSheetTotals = {
 };
 
 export type DocSheetData = {
-  type: "QUOTE" | "INVOICE";
-  /** Literal document title, per the plan: "QUOTATION" for a quote, exactly
-   * "INVOICE" for an invoice — deliberately not just a re-cased `type`. */
-  title: "QUOTATION" | "INVOICE";
+  /** Literal document title — every document is a quote, so this is always
+   * "QUOTATION". */
+  title: "QUOTATION";
   isDraft: boolean;
   number: string | null;
   issueDate: string;
-  /** `DD/MM/YYYY`, only ever set for a QUOTE whose `validityDays` is known
-   * (i.e. a finalized quote) — `null` for every invoice and for a
-   * not-yet-finalized quote draft. */
+  /** `DD/MM/YYYY`, only ever set once `validityDays` is known (i.e. a
+   * finalized quote) — `null` for a not-yet-finalized draft. */
   validityDate: string | null;
   logo: string | null;
   entity: DocSheetEntity;
@@ -248,7 +245,7 @@ export type DocSheetData = {
   items: DocSheetItem[];
   extraLines: DocSheetLine[];
   totals: DocSheetTotals;
-  /** Quotes only — an invoice never shows a signature area. */
+  /** Always true — every document shows the signature area. */
   showSignature: boolean;
   /** The document's author, for the "Prepared by" block — see
    * `DocSheetPreparedBy`. */
@@ -489,13 +486,11 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     lines: item.lines.map(toDocSheetLine),
   }));
 
-  const isQuote = doc.type === "QUOTE";
   const validityDate =
-    isQuote && doc.validityDays !== null ? formatDateAU(addDays(doc.issueDate, doc.validityDays)) : null;
+    doc.validityDays !== null ? formatDateAU(addDays(doc.issueDate, doc.validityDays)) : null;
 
   return {
-    type: doc.type,
-    title: isQuote ? "QUOTATION" : "INVOICE",
+    title: "QUOTATION",
     isDraft,
     number: doc.number,
     issueDate: formatDateAU(doc.issueDate),
@@ -518,6 +513,6 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
       taxAmount: doc.taxAmount,
       total: doc.total,
     },
-    showSignature: isQuote,
+    showSignature: true,
   };
 }

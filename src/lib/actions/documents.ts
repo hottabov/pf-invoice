@@ -13,7 +13,6 @@ import { isHtmlContent, sanitizeRichText } from "@/lib/rich-text";
 import {
   customLineSchema,
   discountPctSchema,
-  documentTypeSchema,
   idSchema,
   isPermutation,
   notesSchema,
@@ -21,10 +20,8 @@ import {
   optionalIdSchema,
   priceDisplaySchema,
   reorderSchema,
-  type DocumentTypeInput,
   type OptionSelectionInput,
 } from "@/lib/validation/documents";
-import { buildInvoiceCopyPayload, type QuoteForCopy } from "@/lib/invoice-from-quote";
 
 /**
  * `warning` is set on an otherwise-successful save that an ADMIN pushed
@@ -112,20 +109,14 @@ export async function recalcDocument(documentId: string): Promise<EngineViolatio
 // --- draft lifecycle -----------------------------------------------------
 
 /**
- * Creates a DRAFT document and redirects straight into its builder — the
- * "New quote"/"New invoice" buttons on /documents bind `type` and submit
- * with no other fields, so the draft exists before a client is even
- * picked (companyId stays null until setDocumentClient). Region/currency/
- * tax are snapshotted from the author's own region, falling back to AU for
- * an author with no region assigned yet.
+ * Creates a DRAFT quote and redirects straight into its builder — the
+ * "New quote" button on /documents submits with no fields, so the draft
+ * exists before a client is even picked (companyId stays null until
+ * setDocumentClient). Region/currency/tax are snapshotted from the author's
+ * own region, falling back to AU for an author with no region assigned yet.
  */
-export async function createDraft(type: DocumentTypeInput): Promise<void> {
+export async function createDraft(): Promise<void> {
   const session = await requireSession();
-
-  const parsedType = documentTypeSchema.safeParse(type);
-  if (!parsedType.success) {
-    throw new Error("Invalid document type");
-  }
 
   const region = session.user.regionId
     ? await db.region.findUnique({ where: { id: session.user.regionId } })
@@ -137,7 +128,7 @@ export async function createDraft(type: DocumentTypeInput): Promise<void> {
 
   const created = await db.document.create({
     data: {
-      type: parsedType.data,
+      type: "QUOTE",
       status: "DRAFT",
       authorId: session.user.id,
       regionId: resolvedRegion.id,
@@ -173,11 +164,7 @@ export async function deleteDraft(documentId: string): Promise<ActionResult> {
 
 /**
  * Permanently deletes a document of any status, from the /documents list.
- * Items/lines cascade via `onDelete: Cascade` (schema.prisma); any invoice
- * that was copied *from* this document as a source quote keeps existing —
- * `Document.sourceQuoteId` is `onDelete: SetNull`, so deleting a quote only
- * clears that back-reference on its invoice(s), never blocks the delete or
- * cascades into them.
+ * Items/lines cascade via `onDelete: Cascade` (schema.prisma).
  *
  * Scoped like every other action here (`documentWhereForUser`: a MANAGER
  * only ever finds their own documents, an ADMIN finds any), plus one extra
@@ -311,9 +298,9 @@ export async function addItem(documentId: string, productCode: string): Promise<
   }
 
   // Atomically read max sortOrder and create item in a single transaction to
-  // prevent concurrent adds from duplicating sortOrder, which would later
-  // corrupt quote→invoice line correlation. Interactive transaction ensures
-  // the aggregate(max) and create are not interleaved with other writes.
+  // prevent concurrent adds from duplicating sortOrder, which would corrupt
+  // display/reorder order. Interactive transaction ensures the aggregate(max)
+  // and create are not interleaved with other writes.
   await db.$transaction(async (tx) => {
     const maxSortOrder = await tx.documentItem.aggregate({
       where: { documentId: document.id },
@@ -771,11 +758,7 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
  * partial-update variant like the item discount fields have). Purely a
  * display flag pair, same as `setItemShowImage`: they never affect
  * `subtotal`/`taxAmount`/`total`, so there's no `recalcDocument` call here.
- * DRAFT-only and scoped like every other document mutation in this file —
- * meaningful only for a QUOTE in practice (the builder only renders the
- * toggle card for one), but not type-gated here since an INVOICE simply
- * never reads these flags back (see `toSheetData`, which the plain
- * document/invoice sheet keeps using unconditionally).
+ * DRAFT-only and scoped like every other document mutation in this file.
  */
 export async function setPriceDisplay(documentId: string, input: unknown): Promise<ActionResult> {
   const session = await requireSession();
@@ -809,8 +792,8 @@ export async function setPriceDisplay(documentId: string, input: unknown): Promi
  * Sets (or, given a blank body, clears) `Document.notes` — the builder's
  * freeform Notes section (HTML from the `RichTextEditor`, or legacy markdown
  * for a row a pre-migration editor saved and nobody has re-opened since;
- * rendered on both the quotation sheet and the plain document/invoice sheet
- * via `renderStoredRichText` — see `QuotationData.notesHtml`/
+ * rendered on both the quotation sheet and the plain document sheet via
+ * `renderStoredRichText` — see `QuotationData.notesHtml`/
  * `DocSheetData.notes`). HTML content is allowlist-sanitized before it ever
  * reaches the database (`sanitizeRichText`) — the read-side `renderStoredRichText`
  * sanitizes again defensively, but the write boundary is the one place that
@@ -818,8 +801,7 @@ export async function setPriceDisplay(documentId: string, input: unknown): Promi
  * and scoped like every other document mutation in this file; purely a
  * display field, so unlike `setItemDiscount`/`setDocumentDiscount` there's
  * no `recalcDocument` call here (mirrors `setItemShowImage`/
- * `setPriceDisplay`). Applies to both QUOTE and INVOICE documents — the
- * builder renders this SectionCard for either type.
+ * `setPriceDisplay`).
  */
 export async function setDocumentNotes(documentId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -845,198 +827,4 @@ export async function setDocumentNotes(documentId: string, formData: FormData): 
 
   revalidatePath(`/documents/${document.id}`);
   return {};
-}
-
-// --- create invoice from quote -----------------------------------------------
-
-/**
- * Copies an approved QUOTE straight into a new DRAFT INVOICE — the owner's
- * "sales approves the quote, invoice without re-entry" workflow. Loads the
- * QUOTE scoped to the caller (any status; there's no reason to forbid this
- * from a still-DRAFT quote, though the button is only prominent once it's
- * FINAL — see the builder page), maps it through the pure
- * `buildInvoiceCopyPayload` (src/lib/invoice-from-quote.ts) for the actual
- * copy-shape decisions, then persists it in two steps inside one
- * transaction: create the document with its items nested (that relation
- * *is* the immediate parent-child link Prisma can auto-wire), then a second
- * `createMany` for every line once the new item ids exist — item lines need
- * both `documentId` *and* `itemId`, and `documentId` isn't derivable from
- * the item-nesting path alone (same two-step shape `setItemOptions` already
- * uses for a single item, just batched here across every item at once).
- * Items are correlated to their new copy by `sortOrder`, which
- * `buildInvoiceCopyPayload` preserves unchanged and which is unique per
- * document — insertion order of a nested `create: [...]` isn't a contract
- * Prisma guarantees, so this never assumes the returned array matches input
- * order. On success, redirects straight into the new invoice's builder
- * (like `createDraft`); returns `{ error }` and doesn't navigate anywhere
- * otherwise.
- */
-export async function createInvoiceFromQuote(quoteId: string): Promise<ActionResult> {
-  const session = await requireSession();
-
-  const parsedQuoteId = idSchema.safeParse(quoteId);
-  if (!parsedQuoteId.success) return { error: NOT_FOUND_ERROR };
-
-  const quote = await db.document.findFirst({
-    where: { id: parsedQuoteId.data, type: "QUOTE", ...documentWhereForUser(session.user) },
-    include: {
-      items: {
-        orderBy: { sortOrder: "asc" },
-        include: { lines: { orderBy: { sortOrder: "asc" } } },
-      },
-      lines: { where: { itemId: null }, orderBy: { sortOrder: "asc" } },
-    },
-  });
-  if (!quote) return { error: NOT_FOUND_ERROR };
-
-  // Defensively re-normalize source items' sortOrder in-memory to handle any
-  // historical duplicates caused by non-transactional concurrent adds. Sort by
-  // (sortOrder, id) to get a canonical order, then assign sequential indices.
-  // This ensures the correlation Map keys are unique and stable.
-  const normalizedItems = quote.items
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
-    .map((item, index) => ({
-      ...item,
-      sortOrder: index,
-    }));
-
-  const quoteForCopy: QuoteForCopy = {
-    id: quote.id,
-    companyId: quote.companyId,
-    contactId: quote.contactId,
-    regionId: quote.regionId,
-    currency: quote.currency,
-    taxName: quote.taxName,
-    taxRate: quote.taxRate.toString(),
-    discountPct: quote.discountPct?.toString() ?? null,
-    notes: quote.notes,
-    showItemPrices: quote.showItemPrices,
-    showOptionPrices: quote.showOptionPrices,
-    items: normalizedItems.map((item) => ({
-      productId: item.productId,
-      sortOrder: item.sortOrder,
-      code: item.code,
-      name: item.name,
-      description: item.description,
-      unitPrice: item.unitPrice.toString(),
-      discountPct: item.discountPct?.toString() ?? null,
-      serialNumber: item.serialNumber,
-      showImage: item.showImage,
-      imageUrl: item.imageUrl,
-      lines: item.lines.map((line) => ({
-        kind: line.kind,
-        refId: line.refId,
-        code: line.code,
-        name: line.name,
-        description: line.description,
-        qty: line.qty,
-        unitPrice: line.unitPrice.toString(),
-        attributes: line.attributes,
-        showImage: line.showImage,
-        sortOrder: line.sortOrder,
-      })),
-    })),
-    lines: quote.lines.map((line) => ({
-      kind: line.kind,
-      refId: line.refId,
-      code: line.code,
-      name: line.name,
-      description: line.description,
-      qty: line.qty,
-      unitPrice: line.unitPrice.toString(),
-      attributes: line.attributes,
-      showImage: line.showImage,
-      sortOrder: line.sortOrder,
-    })),
-  };
-
-  const payload = buildInvoiceCopyPayload(quoteForCopy);
-
-  const created = await db.$transaction(async (tx) => {
-    const invoice = await tx.document.create({
-      data: {
-        type: payload.document.type,
-        status: payload.document.status,
-        authorId: session.user.id,
-        companyId: payload.document.companyId,
-        contactId: payload.document.contactId,
-        regionId: payload.document.regionId,
-        currency: payload.document.currency,
-        taxName: payload.document.taxName,
-        taxRate: new Prisma.Decimal(payload.document.taxRate),
-        discountPct: payload.document.discountPct !== null ? new Prisma.Decimal(payload.document.discountPct) : null,
-        notes: payload.document.notes,
-        showItemPrices: payload.document.showItemPrices,
-        showOptionPrices: payload.document.showOptionPrices,
-        sourceQuoteId: payload.document.sourceQuoteId,
-        items: {
-          create: payload.items.map((item) => ({
-            productId: item.productId,
-            sortOrder: item.sortOrder,
-            code: item.code,
-            name: item.name,
-            description: item.description,
-            unitPrice: new Prisma.Decimal(item.unitPrice),
-            discountPct: item.discountPct !== null ? new Prisma.Decimal(item.discountPct) : null,
-            serialNumber: item.serialNumber,
-            showImage: item.showImage,
-            imageUrl: item.imageUrl,
-          })),
-        },
-      },
-      include: { items: true },
-    });
-
-    // Map from normalized sortOrder (0, 1, 2, ...) to new item IDs. Safe because
-    // normalizedItems above ensured sortOrder is unique and sequential, matching
-    // each item's index. This map is keyed by index, not by original duplicate sortOrder.
-    const newItemIdByIndex = new Map(invoice.items.map((item) => [item.sortOrder, item.id]));
-
-    const itemLineRows: Prisma.DocumentLineCreateManyInput[] = payload.items.flatMap((item) => {
-      const newItemId = newItemIdByIndex.get(item.sortOrder);
-      // Always found — every payload item was just created above with this
-      // exact normalized sortOrder (which is guaranteed unique).
-      if (!newItemId) return [];
-      return item.lines.map((line) => ({
-        documentId: invoice.id,
-        itemId: newItemId,
-        kind: line.kind,
-        refId: line.refId,
-        code: line.code,
-        name: line.name,
-        description: line.description,
-        qty: line.qty,
-        unitPrice: new Prisma.Decimal(line.unitPrice),
-        attributes: line.attributes as Prisma.InputJsonValue | undefined,
-        showImage: line.showImage,
-        sortOrder: line.sortOrder,
-      }));
-    });
-
-    const extraLineRows: Prisma.DocumentLineCreateManyInput[] = payload.extraLines.map((line) => ({
-      documentId: invoice.id,
-      itemId: null,
-      kind: line.kind,
-      refId: line.refId,
-      code: line.code,
-      name: line.name,
-      description: line.description,
-      qty: line.qty,
-      unitPrice: new Prisma.Decimal(line.unitPrice),
-      attributes: line.attributes as Prisma.InputJsonValue | undefined,
-      showImage: line.showImage,
-      sortOrder: line.sortOrder,
-    }));
-
-    if (itemLineRows.length > 0 || extraLineRows.length > 0) {
-      await tx.documentLine.createMany({ data: [...itemLineRows, ...extraLineRows] });
-    }
-
-    return invoice;
-  });
-
-  await recalcDocument(created.id);
-
-  revalidatePath("/documents");
-  redirect(`/documents/${created.id}`);
 }

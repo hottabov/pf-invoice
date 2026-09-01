@@ -11,14 +11,13 @@ import type { ActionResult } from "@/lib/actions/documents";
 /**
  * The builder's "Notes" section (owner: freeform remarks on a document,
  * carried through to both renderers — the quotation sheet and the plain
- * document/invoice sheet, both via `renderStoredRichText`) — a smaller
- * sibling of `ContentBlockForm`'s `RichTextEditor` (WYSIWYG, formatted text
- * shows immediately, no separate preview pane) but without a title field or
- * a placeholder sidebar: just the editor, autosaved via `useAutosave`
+ * document sheet, both via `renderStoredRichText`) — a smaller sibling of
+ * `ContentBlockForm`'s `RichTextEditor` (WYSIWYG, formatted text shows
+ * immediately, no separate preview pane) but without a title field or a
+ * placeholder sidebar: just the editor, autosaved via `useAutosave`
  * (no Save button — see src/lib/use-autosave.ts) which calls
  * `setDocumentNotes` directly (DRAFT-only — see that action) 800ms after
- * typing settles. Rendered for both QUOTE and INVOICE documents (see the
- * builder page).
+ * typing settles.
  *
  * `notes` may still be a legacy markdown row (`toEditorHtml` normalizes it
  * to HTML for the editor on first load — see src/lib/rich-text.ts); once

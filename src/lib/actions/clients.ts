@@ -177,7 +177,7 @@ export async function deleteCompany(companyId: string): Promise<ActionResult> {
 
   const documentCount = await db.document.count({ where: { companyId } });
   if (documentCount > 0) {
-    return { error: "This company has quotes or invoices and can't be deleted." };
+    return { error: "This company has quotes and can't be deleted." };
   }
 
   // Contact rows cascade (Contact.companyId is onDelete: Cascade in the schema).

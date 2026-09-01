@@ -7,7 +7,7 @@ export const NAV_ITEMS = [
   {
     href: "/documents",
     label: "Documents",
-    description: "Quotes and invoices",
+    description: "Quotes",
     icon: FileText,
   },
   {

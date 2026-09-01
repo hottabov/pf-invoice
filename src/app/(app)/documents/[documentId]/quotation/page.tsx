@@ -21,12 +21,12 @@ export async function generateMetadata({
   params: Promise<Params>;
 }): Promise<Metadata> {
   const { documentId } = await params;
-  // Metadata runs before the page body — re-check scope (and type) here too
-  // so a manager browsing to a foreign or non-QUOTE document's quotation URL
-  // never even sees its number in the tab title.
+  // Metadata runs before the page body — re-check scope here too so a
+  // manager browsing to a foreign document's quotation URL never even sees
+  // its number in the tab title.
   const session = (await auth())!;
   const document = await getDocumentForBuilder(session.user, documentId);
-  if (!document || document.type !== "QUOTE") return { title: "Quotation" };
+  if (!document) return { title: "Quotation" };
   return { title: document.number ? `${document.number} — quotation` : "Quotation" };
 }
 
@@ -35,9 +35,7 @@ export async function generateMetadata({
  * the same `QuotationSheet` the quotation PDF route (`/api/documents/
  * [documentId]/quotation-pdf`) posts to Gotenberg — lets an author sanity-
  * check the full equipment write-up, terms, conditions and RSP detail
- * before downloading. QUOTE documents only; an INVOICE (which has no
- * content-block-driven detail) 404s here, same as a foreign/nonexistent
- * document. Images are passed straight through as their stored
+ * before downloading. Images are passed straight through as their stored
  * `/api/files/<name>` URL (the default resolver) since this page runs in an
  * already-authenticated browser tab.
  */
@@ -48,9 +46,9 @@ export default async function QuotationPreviewPage({ params }: { params: Promise
   const session = (await auth())!;
 
   const document = await getDocumentForBuilder(session.user, documentId);
-  // A foreign document, a nonexistent one, and an INVOICE (no quotation
-  // renderer) all 404 here — never distinguish which case it was.
-  if (!document || document.type !== "QUOTE") notFound();
+  // A foreign document and a nonexistent one both 404 here — never
+  // distinguish which case it was.
+  if (!document) notFound();
 
   const blocks = await getContentBlocksForRegion(document.regionId);
   const quotationData = buildQuotationData(document, blocks);

@@ -4,59 +4,43 @@
 // itself — the caller (finalizeDocument, src/lib/actions/finalize.ts) is
 // responsible for running it inside a Prisma interactive transaction, which
 // is what makes the allocation race-safe.
-import type { DocumentType, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
-const NUMBER_PREFIX: Record<DocumentType, string> = {
-  QUOTE: "Q",
-  INVOICE: "INV",
-};
+const QUOTE_PREFIX = "Q";
 
 /**
  * Formats a document's display number, e.g.
- * `formatDocNumber("QUOTE", "AU", 2026, 1)` -> `"Q-AU-2026-001"` and
- * `formatDocNumber("INVOICE", "AU", 2026, 1)` -> `"INV-AU-2026-001"`.
+ * `formatDocNumber("AU", 2026, 1)` -> `"Q-AU-2026-001"`.
  * The counter is zero-padded to 3 digits but is never truncated — once a
- * region/type/year sequence passes 999, the number simply grows wider
- * (`formatDocNumber("QUOTE", "AU", 2026, 1000)` -> `"Q-AU-2026-1000"`).
+ * region/year sequence passes 999, the number simply grows wider
+ * (`formatDocNumber("AU", 2026, 1000)` -> `"Q-AU-2026-1000"`).
  */
-export function formatDocNumber(
-  type: DocumentType,
-  regionCode: string,
-  year: number,
-  counter: number
-): string {
-  const padded = String(counter).padStart(3, "0");
-  return `${NUMBER_PREFIX[type]}-${regionCode}-${year}-${padded}`;
+export function formatDocNumber(regionCode: string, year: number, counter: number): string {
+  return `${QUOTE_PREFIX}-${regionCode}-${year}-${String(counter).padStart(3, "0")}`;
 }
-
-/** The subset of a Prisma (interactive-transaction) client this needs —
- * just the `numberSequence` delegate — so it can be called with either the
- * real `tx` handed to a `db.$transaction(async (tx) => ...)` callback, or a
- * lightweight test double. */
-type NumberSequenceTx = {
-  numberSequence: Prisma.TransactionClient["numberSequence"];
-};
 
 /**
  * Atomically allocates and returns the next counter for
- * (regionCode, docType, year) via `NumberSequence`
- * (`@@unique([regionCode, docType, year])` in schema.prisma). MUST be called
- * inside a Prisma interactive transaction — the upsert compiles to a single
+ * (regionCode, "QUOTE", year) via `NumberSequence`
+ * (`@@unique([regionCode, docType, year])` in schema.prisma — the `docType`
+ * column still exists until the schema migration in the next task, so it
+ * stays pinned to `"QUOTE"` here). MUST be called inside a Prisma
+ * interactive transaction — the upsert compiles to a single
  * `INSERT ... ON CONFLICT (regionCode, docType, year) DO UPDATE SET counter
  * = counter + 1` statement, so Postgres itself serializes concurrent
  * finalize calls for the same sequence (no JS-side read-modify-write race,
  * even under concurrent transactions targeting the same row).
  */
 export async function allocateNumber(
-  tx: NumberSequenceTx,
+  tx: Prisma.TransactionClient,
   regionCode: string,
-  docType: DocumentType,
   year: number
 ): Promise<number> {
-  const sequence = await tx.numberSequence.upsert({
-    where: { regionCode_docType_year: { regionCode, docType, year } },
-    create: { regionCode, docType, year, counter: 1 },
+  const row = await tx.numberSequence.upsert({
+    where: { regionCode_docType_year: { regionCode, docType: "QUOTE", year } },
+    create: { regionCode, docType: "QUOTE", year, counter: 1 },
     update: { counter: { increment: 1 } },
+    select: { counter: true },
   });
-  return sequence.counter;
+  return row.counter;
 }

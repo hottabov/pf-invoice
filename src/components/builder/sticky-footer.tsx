@@ -1,5 +1,5 @@
-import { FileText, Receipt } from "lucide-react";
-import type { DocumentStatus, DocumentType } from "@prisma/client";
+import { FileText } from "lucide-react";
+import type { DocumentStatus } from "@prisma/client";
 import { formatMoney } from "@/lib/format";
 import { StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { DeleteDraftButton } from "@/components/builder/delete-draft-button";
@@ -61,7 +61,7 @@ export function DocumentTotals({
 }
 
 /**
- * Sticky bottom bar for the <lg builder layout: the document's type/status
+ * Sticky bottom bar for the <lg builder layout: the document's status
  * badge, the live totals breakdown (recalculated server-side by every
  * mutating action — see recalcDocument in src/lib/actions/documents.ts),
  * and — for a DRAFT — the delete-draft control. Stays visible while
@@ -71,7 +71,6 @@ export function DocumentTotals({
  * sticky right-hand summary panel instead (see `[documentId]/page.tsx`).
  */
 export function StickyFooter({
-  type,
   status,
   taxName,
   taxRate,
@@ -83,7 +82,6 @@ export function StickyFooter({
   currency,
   deleteAction,
 }: {
-  type: DocumentType;
   status: DocumentStatus;
   deleteAction?: () => Promise<ActionResult>;
 } & TotalsProps) {
@@ -91,11 +89,7 @@ export function StickyFooter({
     <div className="pb-safe sticky bottom-0 -mx-4 border-t border-slate-200 bg-white px-4 py-3 sm:mx-0 sm:rounded-xl sm:border sm:px-6 lg:hidden">
       <div className="flex items-center justify-between gap-3">
         <StatusBadge tone={STATUS_TONE[status]} className="gap-1.5">
-          {type === "QUOTE" ? (
-            <FileText className="size-3.5" aria-hidden="true" />
-          ) : (
-            <Receipt className="size-3.5" aria-hidden="true" />
-          )}
+          <FileText className="size-3.5" aria-hidden="true" />
           {status === "DRAFT" ? "Draft" : "Final"}
         </StatusBadge>
         {deleteAction ? <DeleteDraftButton action={deleteAction} /> : null}

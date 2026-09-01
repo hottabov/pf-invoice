@@ -22,7 +22,7 @@ export async function generateMetadata({
   const { documentId } = await params;
   // Metadata runs before the page body — re-check scope here too so a
   // manager browsing to a foreign document's preview URL never even sees
-  // its number/type in the tab title.
+  // its number in the tab title.
   const session = (await auth())!;
   const document = await getDocumentForBuilder(session.user, documentId);
   if (!document) return { title: "Preview" };
@@ -53,12 +53,7 @@ export default async function DocumentPreviewPage({ params }: { params: Promise<
 
   const sheetData = toSheetData(document);
   const statusLabel = document.status === "DRAFT" ? "Draft" : "Final";
-  const numberLabel = document.number ?? `${document.type === "QUOTE" ? "Quote" : "Invoice"} draft`;
-  // A QUOTE also has the Phase 6 content-block-driven "Quotation" renderer
-  // — this page is its plain line-item counterpart, so its own PDF button
-  // is relabeled "Summary" and a link to the full quotation is added
-  // alongside it. An INVOICE has no quotation renderer, so it's unchanged.
-  const isQuote = document.type === "QUOTE";
+  const numberLabel = document.number ?? "Quote draft";
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 pb-8">
@@ -78,20 +73,18 @@ export default async function DocumentPreviewPage({ params }: { params: Promise<
           </StatusBadge>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          {isQuote ? (
-            <Link
-              href={`/documents/${document.id}/quotation`}
-              className="focus-ring inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-brand-dark transition-colors hover:bg-slate-50 sm:flex-none"
-            >
-              View full quotation
-            </Link>
-          ) : null}
+          <Link
+            href={`/documents/${document.id}/quotation`}
+            className="focus-ring inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-brand-dark transition-colors hover:bg-slate-50 sm:flex-none"
+          >
+            View full quotation
+          </Link>
           <a
             href={`/api/documents/${document.id}/pdf`}
             className={cn(buttonVariants(), "h-11 flex-1 bg-brand text-white hover:bg-brand/90 sm:flex-none")}
           >
             <Download className="size-4" data-icon="inline-start" aria-hidden="true" />
-            {isQuote ? "Download Summary PDF" : "Download PDF"}
+            Download Summary PDF
           </a>
         </div>
       </div>

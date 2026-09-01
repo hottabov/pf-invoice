@@ -16,7 +16,6 @@ import { getShowOptionIcons } from "@/lib/queries/settings";
 import {
   addCustomLine,
   addItem,
-  createInvoiceFromQuote,
   deleteDraft,
   removeItem,
   removeLine,
@@ -41,7 +40,6 @@ import { DocumentTotals, StickyFooter } from "@/components/builder/sticky-footer
 import { FinalizeButton } from "@/components/builder/finalize-button";
 import { UnfinalizeButton } from "@/components/builder/unfinalize-button";
 import { DeleteDraftButton } from "@/components/builder/delete-draft-button";
-import { CreateInvoiceButton } from "@/components/builder/create-invoice-button";
 
 export const dynamic = "force-dynamic";
 
@@ -54,12 +52,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { documentId } = await params;
   // Metadata runs before the page body — re-check scope here too so a
-  // manager browsing to a foreign document never even sees its number/type
-  // in the tab title.
+  // manager browsing to a foreign document never even sees its number in
+  // the tab title.
   const session = (await auth())!;
   const document = await getDocumentForBuilder(session.user, documentId);
   if (!document) return { title: "Document" };
-  return { title: document.number ?? (document.type === "QUOTE" ? "New quote" : "New invoice") };
+  return { title: document.number ?? "New quote" };
 }
 
 export default async function DocumentBuilderPage({ params }: { params: Promise<Params> }) {
@@ -107,9 +105,8 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
     compatibleOptionsEntries
   );
 
-  const typeLabel = document.type === "QUOTE" ? "Quote" : "Invoice";
-  const title = document.company?.name ?? `New ${typeLabel.toLowerCase()}`;
-  const description = `${typeLabel} · ${document.number ?? "draft"}${!isDraft ? " — final and read-only" : ""}`;
+  const title = document.company?.name ?? "New quote";
+  const description = `Quote · ${document.number ?? "draft"}${!isDraft ? " — final and read-only" : ""}`;
 
   return (
     <div className="flex flex-col gap-6 pb-4">
@@ -164,9 +161,8 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
             />
           </SectionCard>
 
-          {/* Both QUOTE and INVOICE — freeform remarks carried through to
-              whichever renderer the document uses (see NotesSection's doc
-              comment). */}
+          {/* Freeform remarks carried through to whichever renderer the
+              document uses (see NotesSection's doc comment). */}
           <SectionCard title="Notes">
             <NotesSection
               documentId={document.id}
@@ -176,19 +172,15 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
             />
           </SectionCard>
 
-          {/* QUOTE only — an INVOICE always shows full detail, no toggle
-              needed (see setPriceDisplay's doc comment). */}
-          {document.type === "QUOTE" ? (
-            <SectionCard title="Quotation pricing display">
-              <PriceDisplayToggles
-                documentId={document.id}
-                showItemPrices={document.showItemPrices}
-                showOptionPrices={document.showOptionPrices}
-                setPriceDisplayAction={setPriceDisplay}
-                readOnly={!isDraft}
-              />
-            </SectionCard>
-          ) : null}
+          <SectionCard title="Quotation pricing display">
+            <PriceDisplayToggles
+              documentId={document.id}
+              showItemPrices={document.showItemPrices}
+              showOptionPrices={document.showOptionPrices}
+              setPriceDisplayAction={setPriceDisplay}
+              readOnly={!isDraft}
+            />
+          </SectionCard>
         </div>
 
         {/* Desktop/tablet-lg summary: sticky so it stays visible while the
@@ -237,7 +229,6 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
       </div>
 
       <StickyFooter
-        type={document.type}
         status={document.status}
         taxName={document.taxName}
         taxRate={document.taxRate}
@@ -263,17 +254,6 @@ function DocumentSummaryHeader({ document }: { document: DocumentForBuilder }) {
           <span className="font-mono text-sm text-slate-600">{document.number}</span>
         ) : null}
       </div>
-      {/* Set only for an INVOICE created via "Create invoice" from a QUOTE
-          (see createInvoiceFromQuote) — links back to that quote's own
-          builder page. */}
-      {document.sourceQuoteId ? (
-        <Link
-          href={`/documents/${document.sourceQuoteId}`}
-          className="focus-ring w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100"
-        >
-          From quote {document.sourceQuoteNumber ?? "draft"}
-        </Link>
-      ) : null}
     </div>
   );
 }
@@ -290,14 +270,8 @@ function DocumentActions({
   isDraft: boolean;
   isAdmin: boolean;
 }) {
-  // QUOTE documents get a second, content-block-driven "Quotation"
-  // renderer (Phase 6) alongside the plain line-item sheet every document
-  // type has always had — so on a QUOTE, that original pair is relabeled
-  // "Summary" to distinguish it from the new "Quotation" pair. An INVOICE
-  // has no quotation renderer at all, so its links stay exactly as they
-  // were.
-  const isQuote = document.type === "QUOTE";
-
+  // Every document gets both the plain line-item sheet ("Summary") and the
+  // content-block-driven "Quotation" renderer (Phase 6).
   return (
     <div className="flex flex-col gap-2">
       {isDraft ? (
@@ -308,7 +282,7 @@ function DocumentActions({
 
       <Link href={`/documents/${document.id}/preview`} className={actionLinkClass}>
         <Eye className="size-4" aria-hidden="true" />
-        {isQuote ? "Summary preview" : "Preview"}
+        Summary preview
       </Link>
 
       {/* Available for DRAFT too — /api/documents/[id]/pdf renders a
@@ -316,31 +290,18 @@ function DocumentActions({
           FINAL-only. */}
       <a href={`/api/documents/${document.id}/pdf`} className={actionLinkClass}>
         <Download className="size-4" aria-hidden="true" />
-        {isQuote ? "Summary PDF" : "Download PDF"}
+        Summary PDF
       </a>
 
-      {isQuote ? (
-        <>
-          <Link href={`/documents/${document.id}/quotation`} className={actionLinkClass}>
-            <Eye className="size-4" aria-hidden="true" />
-            Quotation preview
-          </Link>
+      <Link href={`/documents/${document.id}/quotation`} className={actionLinkClass}>
+        <Eye className="size-4" aria-hidden="true" />
+        Quotation preview
+      </Link>
 
-          <a href={`/api/documents/${document.id}/quotation-pdf`} className={actionLinkClass}>
-            <Download className="size-4" aria-hidden="true" />
-            Quotation PDF
-          </a>
-
-          {/* Available for a DRAFT quote too, but only prominent (filled
-              brand button, rather than an outline one) once the quote is
-              FINAL — "sales approves the quote, invoice without re-entry"
-              is squarely a post-approval action. */}
-          <CreateInvoiceButton
-            action={createInvoiceFromQuote.bind(null, document.id)}
-            prominent={!isDraft}
-          />
-        </>
-      ) : null}
+      <a href={`/api/documents/${document.id}/quotation-pdf`} className={actionLinkClass}>
+        <Download className="size-4" aria-hidden="true" />
+        Quotation PDF
+      </a>
     </div>
   );
 }

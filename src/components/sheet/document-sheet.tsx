@@ -3,8 +3,8 @@ import { renderStoredRichText } from "@/lib/rich-text";
 import type { DocSheetData, DocSheetLine } from "@/lib/sheet-data";
 
 /**
- * The document sheet: a single, self-contained render of a quote/invoice
- * used by BOTH the in-app preview route (src/app/(app)/documents/
+ * The document sheet: a single, self-contained render of a quote used by
+ * BOTH the in-app preview route (src/app/(app)/documents/
  * [documentId]/preview/page.tsx) and, in a later task, the Gotenberg PDF
  * pipeline (src/lib/pdf.ts wraps this same markup in a full HTML document
  * and posts it to Gotenberg's headless Chromium).
@@ -130,8 +130,8 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
         ) : null}
 
         {/* Compact "Prepared by" line (owner reference doc) — minimal on
-            the plain invoice/summary sheet, unlike the quotation sheet's
-            full two-column header (see quotation-sheet.tsx): just a name/
+            the plain summary sheet, unlike the quotation sheet's full
+            two-column header (see quotation-sheet.tsx): just a name/
             email under BILL TO, no phone, no separate box. */}
         <div className="pq-prepared-by">
           Prepared by: {data.preparedBy.name ?? data.preparedBy.email}

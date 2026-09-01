@@ -106,7 +106,7 @@ export default async function CompanyEditorPage({ params }: { params: Promise<Pa
       <SectionCard
         tone="danger"
         title="Danger zone"
-        description="Deleting a company removes its contacts too. Companies with quotes or invoices can't be deleted."
+        description="Deleting a company removes its contacts too. Companies with quotes can't be deleted."
       >
         <DeleteCompanyButton action={deleteCompany.bind(null, company.id)} companyName={company.name} />
       </SectionCard>

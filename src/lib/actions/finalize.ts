@@ -79,13 +79,10 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
     });
   }
 
-  // Only quotes carry a validity window; read the org-wide default once
-  // (fallback applies both when the Setting row is missing and when its
-  // value isn't a finite number — see getQuoteValidityDays).
-  let validityDays: number | null = null;
-  if (document.type === "QUOTE") {
-    validityDays = await getQuoteValidityDays();
-  }
+  // Every document carries a validity window; read the org-wide default
+  // once (fallback applies both when the Setting row is missing and when
+  // its value isn't a finite number — see getQuoteValidityDays).
+  const validityDays = await getQuoteValidityDays();
 
   const entitySnapshot = {
     entityName: document.region.entityName,
@@ -123,8 +120,8 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
         // accepted per plan; revisit if this ever runs in a non-AU-local
         // deployment near a year boundary).
         const year = new Date().getFullYear();
-        const counter = await allocateNumber(tx, document.region.code, document.type, year);
-        resolvedNumber = formatDocNumber(document.type, document.region.code, year, counter);
+        const counter = await allocateNumber(tx, document.region.code, year);
+        resolvedNumber = formatDocNumber(document.region.code, year, counter);
       }
 
       // Guard against a concurrent finalize (e.g. a double-click, or two

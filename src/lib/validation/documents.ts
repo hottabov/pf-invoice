@@ -15,9 +15,6 @@ export const idSchema = z
   .min(10, "Invalid id")
   .max(40, "Invalid id");
 
-export const documentTypeSchema = z.enum(["QUOTE", "INVOICE"]);
-export type DocumentTypeInput = z.infer<typeof documentTypeSchema>;
-
 /** Optional variant of idSchema: missing/blank/`null` collapses to
  * `undefined` (used for `contactId?` on setDocumentClient — an absent
  * contact isn't an error, it tells the action to auto-assign the company's

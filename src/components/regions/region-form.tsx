@@ -207,7 +207,7 @@ export function RegionForm({
         <legend className="p-0 text-sm font-medium text-brand-dark">Bank details</legend>
         <BankDetailsEditor name="bankDetails" defaultValue={defaultValues.bankDetails} />
         <p className="text-sm text-slate-500">
-          Shown on invoices for this region — bank name, account number, SWIFT/BSB, etc.
+          Shown on quotes for this region — bank name, account number, SWIFT/BSB, etc.
         </p>
       </fieldset>
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { LucideIcon } from "lucide-react";
-import { FileText, Plus, Receipt } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 import { auth } from "@/auth";
 import { NAV_ITEMS } from "@/lib/nav-items";
 import { countsForDashboard, type DashboardCounts } from "@/lib/queries/dashboard";
@@ -40,22 +40,16 @@ export default async function DashboardPage() {
         title="Dashboard"
         description={
           session.user.role === "ADMIN"
-            ? "An overview of every quote and invoice across the business."
-            : "An overview of your quotes, invoices, and clients."
+            ? "An overview of every quote across the business."
+            : "An overview of your quotes and clients."
         }
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <form action={createDraft.bind(null, "QUOTE")}>
-          <Button type="submit" variant="outline" className="h-12 w-full text-base">
-            <Plus className="size-4" data-icon="inline-start" aria-hidden="true" />
-            New quote
-          </Button>
-        </form>
-        <form action={createDraft.bind(null, "INVOICE")}>
+      <div className="grid grid-cols-1 gap-3 sm:max-w-xs">
+        <form action={createDraft}>
           <Button type="submit" className="h-12 w-full bg-brand text-base text-white hover:bg-brand/90">
             <Plus className="size-4" data-icon="inline-start" aria-hidden="true" />
-            New invoice
+            New quote
           </Button>
         </form>
       </div>
@@ -75,7 +69,7 @@ export default async function DashboardPage() {
 
       <SectionCard
         title="Recent documents"
-        description="Your last 5 quotes and invoices"
+        description="Your last 5 quotes"
         actions={
           <Link href="/documents" className="focus-ring rounded-md text-sm font-medium text-brand hover:underline">
             View all
@@ -83,11 +77,7 @@ export default async function DashboardPage() {
         }
       >
         {recentDocuments.length === 0 ? (
-          <EmptyState
-            icon={FileText}
-            title="No documents yet"
-            description="Create your first quote or invoice above."
-          />
+          <EmptyState icon={FileText} title="No documents yet" description="Create your first quote above." />
         ) : (
           <ul className="flex flex-col divide-y divide-slate-100">
             {recentDocuments.map((document) => (
@@ -135,8 +125,6 @@ function NavCard({
 }
 
 function RecentDocumentRow({ document }: { document: DocumentListItem }) {
-  const Icon = document.type === "QUOTE" ? FileText : Receipt;
-
   return (
     <li>
       <Link
@@ -144,14 +132,13 @@ function RecentDocumentRow({ document }: { document: DocumentListItem }) {
         className="focus-ring flex min-h-14 items-center justify-between gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-slate-50"
       >
         <div className="flex min-w-0 items-center gap-3">
-          <Icon className="size-4 shrink-0 text-brand" aria-hidden="true" />
+          <FileText className="size-4 shrink-0 text-brand" aria-hidden="true" />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-brand-dark">
               {document.companyName ?? "No client"}
             </p>
             <p className="text-xs text-slate-500">
-              {document.number ?? (document.type === "QUOTE" ? "Quote draft" : "Invoice draft")} ·{" "}
-              {relativeDate(document.updatedAt)}
+              {document.number ?? "Quote draft"} · {relativeDate(document.updatedAt)}
             </p>
           </div>
         </div>
