@@ -48,9 +48,14 @@ export const mSeriesSpec: FormSpec = {
     // N8, not M8: the "Name:" label sits in the 4.3-character-wide L8 and
     // depends on overflowing rightwards. Writing into M8 clips it to "Nam".
     { cell: "N8", from: (c) => c.authorName },
+    // This form has no separate "Company:" row -- the End User block goes
+    // straight to "Address:" -- so the name takes the first of the three
+    // address slots and the address gets the other two. `companyAddressLines`
+    // can return three lines (street, locality, country), so the tail is
+    // joined into the last slot rather than silently dropping the country.
     { cell: "H13", from: (c) => c.company.name },
     { cell: "H14", from: (c) => c.company.addressLines[0] },
-    { cell: "H15", from: (c) => c.company.addressLines[1] },
+    { cell: "H15", from: (c) => c.company.addressLines.slice(1).join(", ") },
     { cell: "H16", from: (c) => c.contact.fullName },
     { cell: "H17", from: (c) => c.contact.position },
     { cell: "H18", from: (c) => c.contact.phone },

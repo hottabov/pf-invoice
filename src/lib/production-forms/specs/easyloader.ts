@@ -28,10 +28,16 @@ export const easyLoaderSpec: FormSpec = {
 
   values: [
     { cell: "G11", from: (c) => c.distributorName },
-    { cell: "N11", from: (c) => c.authorName },
-    { cell: "H16", from: (c) => c.company.name },
-    { cell: "H17", from: (c) => c.company.addressLines[0] },
-    { cell: "H18", from: (c) => c.company.addressLines[1] },
+    // O11, not N11: the "Name:" label sits in M11, which is 3.7 characters
+    // wide, so it needs N11 to overflow into. Writing there clips it to
+    // "Nam" -- the same trap the M-Series map fell into at M8.
+    { cell: "O11", from: (c) => c.authorName },
+    // H15 is the Company line: it looks borderless because the rule under it
+    // is drawn as H16's top border. H16-H18 are the three Address lines.
+    { cell: "H15", from: (c) => c.company.name },
+    { cell: "H16", from: (c) => c.company.addressLines[0] },
+    { cell: "H17", from: (c) => c.company.addressLines[1] },
+    { cell: "H18", from: (c) => c.company.addressLines[2] },
     { cell: "H19", from: (c) => c.contact.fullName },
     { cell: "H20", from: (c) => c.contact.position },
     { cell: "H21", from: (c) => c.contact.phone },

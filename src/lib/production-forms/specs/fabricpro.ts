@@ -18,10 +18,15 @@ export const fabricProSpec: FormSpec = {
 
   values: [
     { cell: "G10", from: (c) => c.distributorName },
-    { cell: "N10", from: (c) => c.authorName },
-    { cell: "H15", from: (c) => c.company.name },
-    { cell: "H16", from: (c) => c.company.addressLines[0] },
-    { cell: "H17", from: (c) => c.company.addressLines[1] },
+    // O10, not N10: "Name:" in M10 needs N10 to overflow into, or it clips
+    // to "Nam". Same trap as M-Series at M8 and EasyLoader at N11.
+    { cell: "O10", from: (c) => c.authorName },
+    // H14 is the Company line -- borderless because the rule under it is
+    // H15's top border. H15-H17 are the three Address lines.
+    { cell: "H14", from: (c) => c.company.name },
+    { cell: "H15", from: (c) => c.company.addressLines[0] },
+    { cell: "H16", from: (c) => c.company.addressLines[1] },
+    { cell: "H17", from: (c) => c.company.addressLines[2] },
     { cell: "H18", from: (c) => c.contact.fullName },
     { cell: "H19", from: (c) => c.contact.position },
     { cell: "H20", from: (c) => c.contact.phone },
