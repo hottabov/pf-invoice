@@ -281,8 +281,11 @@ describe('Catalog Extraction Validation', () => {
     // 81 -> 90: -1 (FM180 retired, not sold anymore -- see the "FM180
     // retirement" describe block below), +1 (JTP), +9 (SVC-* service
     // options) -- see MANUAL_OPTIONS in scripts/extract-catalog.ts.
-    it('should have exactly 90 global options', () => {
-      expect(catalog.options).toHaveLength(90);
+    // 90 -> 95: +1 (Crate-EL) +4 (EL-3220/EL-4030 Additional/Static table
+    // 1.2M lengths, priced null pending confirmation) -- production forms
+    // phase 2, Task 1.
+    it('should have exactly 95 global options', () => {
+      expect(catalog.options).toHaveLength(95);
     });
 
     // Most options are series-scoped (non-empty compatibleSeries). A few
@@ -306,7 +309,9 @@ describe('Catalog Extraction Validation', () => {
         expect(option.compatibleSeries).toEqual([]);
         expect(option.compatibleProducts).toBeDefined();
         expect(option.compatibleProducts!.length).toBeGreaterThan(0);
-        option.compatibleProducts!.forEach((code) => expect(['EL-2020', 'EL-2420']).toContain(code));
+        option.compatibleProducts!.forEach((code) =>
+          expect(['EL-2020', 'EL-2420', 'EL-3220', 'EL-4030']).toContain(code),
+        );
       });
     });
 

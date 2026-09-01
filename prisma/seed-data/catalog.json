@@ -758,6 +758,16 @@
       ]
     },
     {
+      "code": "Crate-EL",
+      "name": "Crate- Wooden crate for transport",
+      "description": "Crate- Wooden crate for transport",
+      "price": 1400,
+      "needsReview": true,
+      "compatibleSeries": [
+        "EL"
+      ]
+    },
+    {
       "code": "Crate-FP",
       "name": "Crate- Wooden Crate for transport",
       "description": "Crate- Wooden Crate for transport",
@@ -1069,6 +1079,50 @@
       "compatibleSeries": [],
       "compatibleProducts": [
         "EL-2420"
+      ]
+    },
+    {
+      "code": "EL-3220 Additional 1.2M lengths",
+      "name": "Additional 1.2M lengths",
+      "description": "Additional 1.2M lengths",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-3220"
+      ]
+    },
+    {
+      "code": "EL-3220 Static table 1.2M lengths",
+      "name": "Static table 1.2M lengths",
+      "description": "Static table 1.2M lengths",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-3220"
+      ]
+    },
+    {
+      "code": "EL-4030 Additional 1.2M lengths",
+      "name": "Additional 1.2M lengths",
+      "description": "Additional 1.2M lengths",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-4030"
+      ]
+    },
+    {
+      "code": "EL-4030 Static table 1.2M lengths",
+      "name": "Static table 1.2M lengths",
+      "description": "Static table 1.2M lengths",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-4030"
       ]
     },
     {
