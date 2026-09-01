@@ -35,7 +35,7 @@
 
 | File | Responsibility |
 |---|---|
-| `prisma/migrations/9_industry_and_production_spec/migration.sql` | `Industry` table, `Company.industryId`, `DocumentItem.productionSpec` + `lineGroup` |
+| `prisma/migrations/10_industry_and_production_spec/migration.sql` | `Industry` table, `Company.industryId`, `DocumentItem.productionSpec` + `lineGroup` |
 | `src/lib/validation/industries.ts` | `industryNameSchema` |
 | `src/lib/validation/production-spec.ts` | Per-series `productionSpec` schemas, `requiredKeysFor`, `missingKeys` |
 | `src/lib/queries/industries.ts` | `listIndustries`, `countCompaniesUsingIndustry` |
@@ -116,7 +116,7 @@ Expected: `Pages: 1`. That confirms the container converts the template to a sin
 
 **Files:**
 - Modify: `prisma/schema.prisma`
-- Create: `prisma/migrations/9_industry_and_production_spec/migration.sql`
+- Create: `prisma/migrations/10_industry_and_production_spec/migration.sql`
 
 - [ ] **Step 1: Add the model and columns to the schema**
 
@@ -166,7 +166,7 @@ In `model DocumentItem`, add after `showImage`:
 
 - [ ] **Step 2: Write the migration**
 
-Create `prisma/migrations/9_industry_and_production_spec/migration.sql`:
+Create `prisma/migrations/10_industry_and_production_spec/migration.sql`:
 
 ```sql
 -- Production order forms (docs/specs/2026-09-01-production-order-forms-design.md).
@@ -216,7 +216,7 @@ Expected: migration applies, `typecheck` passes.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add prisma/schema.prisma prisma/migrations/9_industry_and_production_spec
+git add prisma/schema.prisma prisma/migrations/10_industry_and_production_spec
 git commit -m "feat: industry lookup table, production spec and line group on items"
 ```
 
