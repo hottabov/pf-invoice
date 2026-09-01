@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pdfFilename, renderDocumentHtml, renderQuotationHtml } from "../src/lib/pdf";
+import { buildFooterHtml, pdfFilename, renderDocumentHtml, renderQuotationHtml } from "../src/lib/pdf";
 import { buildItemBreakdown } from "../src/lib/sheet-data";
 import type { DocSheetData } from "../src/lib/sheet-data";
 import type { QuotationData } from "../src/lib/quotation-data";
@@ -8,6 +8,26 @@ import type { QuotationData } from "../src/lib/quotation-data";
 // `fileImageResolver` need a live Gotenberg / real uploaded files
 // respectively and are code-verified rather than exercised here (see the
 // plan's Task C note: no live Gotenberg in this environment).
+
+describe("buildFooterHtml", () => {
+  it("sends a footer with the quote number and page numbers", () => {
+    const footer = buildFooterHtml("Q-AU-2026-001");
+    expect(footer).toContain("Q-AU-2026-001");
+    expect(footer).toContain('class="pageNumber"');
+    expect(footer).toContain('class="totalPages"');
+  });
+
+  it("falls back to 'Draft' when there is no document number yet", () => {
+    const footer = buildFooterHtml(null);
+    expect(footer).toContain("Draft");
+  });
+
+  it("HTML-escapes the document number rather than trusting its format", () => {
+    const footer = buildFooterHtml('<script>alert(1)</script>');
+    expect(footer).not.toContain("<script>alert(1)</script>");
+    expect(footer).toContain("&lt;script&gt;");
+  });
+});
 
 describe("pdfFilename", () => {
   it("uses the document number when present", () => {

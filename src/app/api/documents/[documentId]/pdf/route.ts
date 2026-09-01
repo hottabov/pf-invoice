@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { getDocumentForBuilder } from "@/lib/queries/documents";
 import { toSheetData } from "@/lib/sheet-data";
-import { renderDocumentHtml, htmlToPdf, fileImageResolver, pdfFilename } from "@/lib/pdf";
+import { renderDocumentHtml, htmlToPdf, fileImageResolver, pdfFilename, buildFooterHtml } from "@/lib/pdf";
 
 // `react-dom/server` (used transitively via src/lib/pdf.ts) and Gotenberg's
 // HTTP call both need the Node runtime — not available on the edge runtime.
@@ -35,7 +35,7 @@ export async function GET(_request: Request, { params }: { params: Promise<Param
 
   let pdf: Buffer;
   try {
-    pdf = await htmlToPdf(html);
+    pdf = await htmlToPdf(html, buildFooterHtml(document.number));
   } catch (error) {
     console.error("PDF generation failed", error);
     return Response.json({ error: "PDF service unavailable" }, { status: 502 });

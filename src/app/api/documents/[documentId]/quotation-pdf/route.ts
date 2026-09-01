@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { getDocumentForBuilder } from "@/lib/queries/documents";
 import { getContentBlocksForRegion } from "@/lib/queries/content";
 import { buildQuotationData } from "@/lib/quotation-data";
-import { renderQuotationHtml, htmlToPdf, fileImageResolver, quotationPdfFilename } from "@/lib/pdf";
+import { renderQuotationHtml, htmlToPdf, fileImageResolver, quotationPdfFilename, buildFooterHtml } from "@/lib/pdf";
 
 // `react-dom/server` (used transitively via src/lib/pdf.ts) and Gotenberg's
 // HTTP call both need the Node runtime — not available on the edge runtime.
@@ -38,7 +38,7 @@ export async function GET(_request: Request, { params }: { params: Promise<Param
 
   let pdf: Buffer;
   try {
-    pdf = await htmlToPdf(html);
+    pdf = await htmlToPdf(html, buildFooterHtml(document.number));
   } catch (error) {
     console.error("Quotation PDF generation failed", error);
     return Response.json({ error: "PDF service unavailable" }, { status: 502 });
