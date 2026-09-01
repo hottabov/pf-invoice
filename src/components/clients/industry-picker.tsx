@@ -1,7 +1,7 @@
 "use client";
 
 import { Pencil } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { fieldInputClass } from "@/components/ui-kit";
 import { createIndustry, renameIndustry, setCompanyIndustry } from "@/lib/actions/industries";
@@ -45,8 +45,34 @@ export function IndustryPicker({ id = "company-industry", companyId, industries,
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listboxId = `${id}-listbox`;
 
   const selected = industries.find((i) => i.id === selectedId) ?? null;
+
+  function dismiss() {
+    setOpen(false);
+    setQuery("");
+  }
+
+  // Closes on a genuine click/tap outside the picker. `pointerdown` (not
+  // `onBlur` on the input) so that clicking one of the list's own option
+  // buttons doesn't close the list before the click's `onClick` fires —
+  // moving focus from the input to a button would fire `onBlur` first and
+  // dismiss the list out from under the click. Registered only while `open`
+  // is true, and torn down on close/unmount, so there's no listener sitting
+  // on `document` for the common case where the picker is closed.
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(e: PointerEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        dismiss();
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open]);
 
   const matches = useMemo(() => {
     const key = normalizeIndustryName(query);
@@ -93,11 +119,29 @@ export function IndustryPicker({ id = "company-industry", companyId, industries,
   }
 
   return (
-    <div className="relative flex flex-col gap-1.5">
+    <div
+      ref={wrapperRef}
+      className="relative flex flex-col gap-1.5"
+      onKeyDown={(e) => {
+        // Escape closes the list regardless of which element inside the
+        // picker currently has focus (the input, or one of the option
+        // buttons after a Tab) and returns focus to the input.
+        if (e.key === "Escape" && open) {
+          dismiss();
+          inputRef.current?.focus();
+        }
+      }}
+    >
       <div className="flex items-center gap-2">
         <input
           id={id}
+          ref={inputRef}
           type="text"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listboxId}
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
           value={open ? query : (selected?.name ?? "")}
           placeholder="Search or add an industry"
           disabled={pending}
@@ -129,11 +173,13 @@ export function IndustryPicker({ id = "company-industry", companyId, industries,
       </div>
 
       {open && (
-        <ul className="absolute top-full z-10 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-md">
+        <ul id={listboxId} role="listbox" className="absolute top-full z-10 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-md">
           {selected && (
-            <li>
+            <li role="presentation">
               <button
                 type="button"
+                role="option"
+                aria-selected={false}
                 onClick={() => choose(null)}
                 disabled={pending}
                 className="focus-ring flex min-h-11 w-full items-center px-3 text-left text-sm text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -143,9 +189,11 @@ export function IndustryPicker({ id = "company-industry", companyId, industries,
             </li>
           )}
           {matches.map((industry) => (
-            <li key={industry.id}>
+            <li key={industry.id} role="presentation">
               <button
                 type="button"
+                role="option"
+                aria-selected={industry.id === selectedId}
                 onClick={() => choose(industry.id)}
                 disabled={pending}
                 className="focus-ring flex min-h-11 w-full items-center px-3 text-left text-sm text-brand-dark hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -155,9 +203,11 @@ export function IndustryPicker({ id = "company-industry", companyId, industries,
             </li>
           ))}
           {canCreate && (
-            <li>
+            <li role="presentation">
               <button
                 type="button"
+                role="option"
+                aria-selected={false}
                 onClick={create}
                 disabled={pending}
                 className="focus-ring flex min-h-11 w-full items-center px-3 text-left text-sm font-medium text-brand hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
