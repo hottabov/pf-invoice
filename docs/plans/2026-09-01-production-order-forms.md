@@ -733,10 +733,7 @@ Create `scripts/import-industries.ts`:
  * Usage: npx tsx scripts/import-industries.ts industries.txt
  */
 import { readFileSync } from "node:fs";
-import { PrismaClient } from "@prisma/client";
 import { industryNameSchema, normalizeIndustryName } from "../src/lib/validation/industries";
-
-const db = new PrismaClient();
 
 async function main() {
   const path = process.argv[2];
@@ -744,6 +741,13 @@ async function main() {
     console.error("Usage: npx tsx scripts/import-industries.ts <file>");
     process.exit(1);
   }
+
+  // Imported here, not at module scope. Prisma 7 in this project needs an
+  // explicit driver adapter (see src/lib/db.ts); a bare `new PrismaClient()`
+  // throws at module load, before the usage check above can run. Same lazy
+  // import that scripts/create-user.ts and scripts/import-product-images.ts
+  // use.
+  const { db } = await import("../src/lib/db");
 
   const existing = await db.industry.findMany();
   const seen = new Map(existing.map((row) => [normalizeIndustryName(row.name), row.name]));
@@ -781,7 +785,7 @@ main()
     console.error(error);
     process.exit(1);
   })
-  .finally(() => db.$disconnect());
+  .finally(() => process.exit(0));
 ```
 
 - [ ] **Step 2: Add the npm script**
