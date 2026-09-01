@@ -1,4 +1,4 @@
-import type { DocumentStatus, DocumentType, LineKind } from "@prisma/client";
+import type { DocumentStatus, LineKind } from "@prisma/client";
 import { db } from "@/lib/db";
 import { companyWhereForUser, documentWhereForUser, type ScopeUser } from "@/lib/scope";
 import { listProductsBySeries, listSeriesWithCounts } from "@/lib/queries/catalog";
@@ -9,7 +9,6 @@ import { compatibilityOrFilter } from "@/lib/catalog-compat";
 
 export type DocumentListItem = {
   id: string;
-  type: DocumentType;
   status: DocumentStatus;
   number: string | null;
   companyName: string | null;
@@ -44,7 +43,6 @@ export async function listDocuments(
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
-      type: true,
       status: true,
       number: true,
       total: true,
@@ -56,7 +54,6 @@ export async function listDocuments(
 
   return documents.map((d) => ({
     id: d.id,
-    type: d.type,
     status: d.status,
     number: d.number,
     companyName: d.company?.name ?? null,
@@ -191,7 +188,6 @@ export type BuilderItem = {
 
 export type DocumentForBuilder = {
   id: string;
-  type: DocumentType;
   status: DocumentStatus;
   number: string | null;
   issueDate: Date;
@@ -398,7 +394,6 @@ export async function getDocumentForBuilder(
 
   return {
     id: document.id,
-    type: document.type,
     status: document.status,
     number: document.number,
     issueDate: document.issueDate,

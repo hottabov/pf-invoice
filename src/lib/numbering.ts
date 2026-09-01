@@ -19,6 +19,14 @@ export function formatDocNumber(regionCode: string, year: number, counter: numbe
   return `${QUOTE_PREFIX}-${regionCode}-${year}-${String(counter).padStart(3, "0")}`;
 }
 
+/** The subset of a Prisma (interactive-transaction) client this needs —
+ * just the `numberSequence` delegate — so it can be called with either the
+ * real `tx` handed to a `db.$transaction(async (tx) => ...)` callback, or a
+ * lightweight test double. */
+type NumberSequenceTx = {
+  numberSequence: Prisma.TransactionClient["numberSequence"];
+};
+
 /**
  * Atomically allocates and returns the next counter for
  * (regionCode, "QUOTE", year) via `NumberSequence`
@@ -32,7 +40,7 @@ export function formatDocNumber(regionCode: string, year: number, counter: numbe
  * even under concurrent transactions targeting the same row).
  */
 export async function allocateNumber(
-  tx: Prisma.TransactionClient,
+  tx: NumberSequenceTx,
   regionCode: string,
   year: number
 ): Promise<number> {
