@@ -17,6 +17,7 @@ function item(overrides: Partial<FormItem> = {}): FormItem {
     spec: { ui: "+Y", knifeSize: "1.5x5.0", drills: { required: false, detail: "" } },
     optionCodes: [],
     optionAttributes: {},
+    optionQtys: [],
     ...overrides,
   };
 }
@@ -140,7 +141,9 @@ describe("missingRequirements", () => {
   });
 
   it("reports every requirement when the spec is empty", () => {
-    expect(missingRequirements(resolveForm("M5220")!, {})).toEqual(["ui", "knifeSize", "drills"]);
+    // "ui" is not among them: screenSideSchema defaults to -Y, so it can
+    // never be missing.
+    expect(missingRequirements(resolveForm("M5220")!, {})).toEqual(["knifeSize", "drills"]);
   });
 
   it("reports drills when they are required with no detail", () => {
@@ -153,7 +156,7 @@ describe("EasyLoader form", () => {
   const elItem = {
     id: "i", code: "EL-2420", name: "EasyLoader 2420", lineGroup: 1,
     spec: { ui: "-Y", usage: "onload", sections: [{ lengthM: 2.4, surface: "static" }] },
-    optionCodes: [], optionAttributes: {},
+    optionCodes: [], optionAttributes: {}, optionQtys: [],
   };
 
   it("matches EasyLoader codes only", () => {
@@ -192,8 +195,48 @@ describe("EasyLoader form", () => {
     expect(patches.find((p) => p.cell === "K49")?.value).toBe("X");
   });
 
-  it("requires screen side, usage and sections", () => {
-    expect(missingRequirements(resolveForm("EL-2420")!, {})).toEqual(["ui", "usage", "sections"]);
+  it("requires only usage -- screen side defaults and an empty section list means one undivided table", () => {
+    expect(missingRequirements(resolveForm("EL-2420")!, {})).toEqual(["usage"]);
+  });
+
+  it("ticks the roll holder box from the option, regardless of the width-specific catalog code", () => {
+    // EL-2020's code carries a stray "#" that EL-2420's does not -- matching
+    // on "Roll Holder" avoids depending on that inconsistency.
+    const withStray = { ...elItem, optionCodes: ["EL-2020 #ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg."] };
+    const withoutStray = { ...elItem, optionCodes: ["EL-2420 ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg."] };
+    expect(buildPatches(resolveForm("EL-2420")!, ctx({ item: withStray as never })).map((p) => p.cell)).toContain("D69");
+    expect(buildPatches(resolveForm("EL-2420")!, ctx({ item: withoutStray as never })).map((p) => p.cell)).toContain("D69");
+  });
+
+  it("ticks the crate box from the Crate-EL option", () => {
+    const item = { ...elItem, optionCodes: ["Crate-EL"] };
+    const cells = buildPatches(resolveForm("EL-2420")!, ctx({ item: item as never })).map((p) => p.cell);
+    expect(cells).toContain("D71");
+  });
+
+  it("does not report the crate or roll holder as unmapped options", () => {
+    const item = {
+      ...elItem,
+      optionCodes: ["Crate-EL", "EL-2420 ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg."],
+    };
+    expect(unmatchedOptionCodes(resolveForm("EL-2420")!, ctx({ item: item as never }))).toEqual([]);
+  });
+
+  it("prints the total table length at M54 from the options actually sold", () => {
+    const item = {
+      ...elItem,
+      optionQtys: [
+        { code: "EL-2420 Additional 1.2M lengths", qty: 6 },
+        { code: "EL-2420 Static table 1.2M lengths", qty: 2 },
+      ],
+    };
+    const patches = buildPatches(resolveForm("EL-2420")!, ctx({ item: item as never }));
+    expect(patches.find((p) => p.cell === "M54")?.value).toBe("Total Table is 9.6 m");
+  });
+
+  it("omits the M54 total when nothing was sold", () => {
+    const patches = buildPatches(resolveForm("EL-2420")!, ctx({ item: elItem as never }));
+    expect(patches.find((p) => p.cell === "M54")).toBeUndefined();
   });
 });
 
@@ -201,7 +244,7 @@ describe("FabricPro form", () => {
   const fpItem = {
     id: "i", code: "FP-220", name: "FabricPro 220", lineGroup: 1,
     spec: { ui: "+Y", travelPlatform: true, railLengthM: 6 },
-    optionCodes: [], optionAttributes: {},
+    optionCodes: [], optionAttributes: {}, optionQtys: [],
   };
 
   it("matches FP models but not the trolley", () => {
@@ -219,7 +262,7 @@ describe("FabricPro form", () => {
     expect(patches.find((p) => p.cell === "N46")?.value).toBe("6");
   });
 
-  it("requires only the screen side", () => {
-    expect(missingRequirements(resolveForm("FP-220")!, {})).toEqual(["ui"]);
+  it("requires nothing -- screen side defaults to -Y", () => {
+    expect(missingRequirements(resolveForm("FP-220")!, {})).toEqual([]);
   });
 });

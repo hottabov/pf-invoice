@@ -86,6 +86,31 @@ describe("buildFormContexts", () => {
     expect(item.optionAttributes["MTS"]).toEqual({ metres: 14 });
   });
 
+  it("pairs each option code with its sold quantity", () => {
+    const item = buildFormContexts(baseDocument as never)[0].item;
+    expect(item.optionQtys).toEqual([
+      { code: "MTS", qty: 1 },
+      { code: "ABR-M", qty: 1 },
+    ]);
+  });
+
+  it("carries a quantity greater than one through, not just presence", () => {
+    const doc = {
+      ...baseDocument,
+      items: [
+        {
+          ...baseDocument.items[0],
+          lines: [
+            { kind: "OPTION", code: "EL-2420 Additional 1.2M lengths", name: "Additional 1.2M lengths", qty: 6, attributes: null },
+          ],
+        },
+        baseDocument.items[1],
+      ],
+    };
+    const item = buildFormContexts(doc as never)[0].item;
+    expect(item.optionQtys).toEqual([{ code: "EL-2420 Additional 1.2M lengths", qty: 6 }]);
+  });
+
   it("exposes items without a form as software codes", () => {
     expect(buildFormContexts(baseDocument as never)[0].softwareCodes).toContain("PTW(I)");
   });

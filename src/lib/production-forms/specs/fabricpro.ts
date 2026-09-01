@@ -14,7 +14,9 @@ export const fabricProSpec: FormSpec = {
   sheetPath: "xl/worksheets/sheet1.xml",
   matches: (code) => CODE.test(code),
   specSchema: fabricProSpecSchema,
-  requires: ["ui"],
+  // "ui" is not listed: screenSideSchema defaults to -Y, so it can never be
+  // missing. FabricPro has no other required field.
+  requires: [],
 
   values: [
     { cell: "G10", from: (c) => c.distributorName },

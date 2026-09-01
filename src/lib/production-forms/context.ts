@@ -67,6 +67,9 @@ export function buildFormContexts(document: DocumentForForms): FormContext[] {
             .filter((line) => line.code && line.attributes)
             .map((line) => [line.code as string, line.attributes as Record<string, unknown>]),
         ),
+        optionQtys: options
+          .filter((line): line is typeof line & { code: string } => Boolean(line.code))
+          .map((line) => ({ code: line.code, qty: line.qty })),
       };
 
       return {

@@ -24,6 +24,10 @@ const ctx: FormContext = {
     spec: { ui: "+Y", knifeSize: "1.5x5.0", drills: { required: true, detail: "2 x 6mm" } },
     optionCodes: ["MTS", "ABR-M"],
     optionAttributes: { MTS: { metres: 14 } },
+    optionQtys: [
+      { code: "MTS", qty: 1 },
+      { code: "ABR-M", qty: 1 },
+    ],
   },
 };
 

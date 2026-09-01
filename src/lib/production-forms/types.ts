@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type { OptionQty } from "./table-sections";
 
 /** One quote item, flattened for form rendering. */
 export type FormItem = {
@@ -11,6 +12,13 @@ export type FormItem = {
   optionCodes: string[];
   /** Attribute bags keyed by option code, e.g. { MTS: { metres: 14 } }. */
   optionAttributes: Record<string, Record<string, unknown>>;
+  /**
+   * Option codes paired with their sold quantity, e.g.
+   * [{ code: "EL-2420 Additional 1.2M lengths", qty: 6 }]. `optionCodes` is
+   * a flat list with no quantity, but `tableLengthsFromOptions` needs a
+   * count per option to know how many 1.2m table units were actually sold.
+   */
+  optionQtys: OptionQty[];
 };
 
 /** Everything a form needs that is not the item itself. */

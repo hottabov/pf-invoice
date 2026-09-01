@@ -1,4 +1,5 @@
 import { easyLoaderSpecSchema } from "@/lib/validation/production-spec";
+import { tableLengthsFromOptions } from "../table-sections";
 import type { FormContext, FormSpec } from "../types";
 
 const CODE = /^EL-\d{4}$/;
@@ -9,6 +10,18 @@ type Section = { lengthM: number; surface: "static" | "conveyor" };
 
 const sections = (ctx: FormContext) => (ctx.item.spec.sections ?? []) as Section[];
 const spec = (key: string, want: string) => (ctx: FormContext) => ctx.item.spec[key] === want;
+
+/**
+ * An option tick. `covers` records the same pattern so `unmatchedOptionCodes`
+ * knows this form has a box for it -- without it, the crate and roll holder
+ * would be reported as unmapped and printed a second time on the
+ * "Additional items" sheet. Mirrors the helper in specs/m-series.ts.
+ */
+const optionTick = (cell: string, pattern: RegExp) => ({
+  cell,
+  when: (ctx: FormContext) => ctx.item.optionCodes.some((code) => pattern.test(code)),
+  covers: pattern,
+});
 
 /** Length value box and the two surface tick boxes, per table section. */
 const SECTION_CELLS = [
@@ -24,7 +37,12 @@ export const easyLoaderSpec: FormSpec = {
   sheetPath: "xl/worksheets/sheet1.xml",
   matches: (code) => CODE.test(code),
   specSchema: easyLoaderSpecSchema,
-  requires: ["ui", "usage", "sections"],
+  // "ui" is not listed: screenSideSchema defaults to -Y, so it can never be
+  // missing. "sections" is not listed either: an empty array legitimately
+  // means one undivided table -- see easyLoaderSpecSchema. What gates
+  // finalize is reconciling the layout against the options sold (Task 5),
+  // not the presence of this field.
+  requires: ["usage"],
 
   values: [
     { cell: "G11", from: (c) => c.distributorName },
@@ -56,6 +74,20 @@ export const easyLoaderSpec: FormSpec = {
       from: (c: FormContext) =>
         (c.item.spec.rollFeed as { distancesMm?: number[] })?.distancesMm?.[index],
     })),
+    // M54 is blank in the template, in the same notes column as the three
+    // "(Multiple of 1.2m...)" annotations, one row below section 3. The
+    // total is derived from what was actually sold, not typed -- it is the
+    // one place any form prints something the paper form never had, but the
+    // workshop currently has to add up three section boxes by hand to get
+    // it. Omitted entirely when nothing was sold: printing "Total Table is
+    // 0 m" is worse than printing nothing.
+    {
+      cell: "M54",
+      from: (c) => {
+        const totalM = tableLengthsFromOptions(c.item.optionQtys).totalM;
+        return totalM > 0 ? `Total Table is ${totalM} m` : null;
+      },
+    },
   ],
 
   // J35 holds the printed label "  Custom     ___________mm". There is no
@@ -86,9 +118,13 @@ export const easyLoaderSpec: FormSpec = {
       { cell: cells.conveyor, when: (c: FormContext) => sections(c)[index]?.surface === "conveyor" },
     ]),
 
-    { cell: "D56", when: (c) => /Syncronisation/i.test(c.item.optionCodes.join("|")), covers: /Syncronisation/i },
+    optionTick("D56", /Syncronisation/i),
     { cell: "D59", when: (c) => Boolean(c.item.spec.rollFeed) },
-    { cell: "D69", when: (c) => c.item.spec.paperRollHolder === true },
-    { cell: "D71", when: (c) => c.item.spec.crate === true },
+    // The perforated paper roll holder's catalog code differs per width and
+    // is inconsistent about it: "EL-2020 #ST620-2020 Roll Holder..." carries
+    // a stray "#" that "EL-2420 ST620-2420 Roll Holder..." does not. Match on
+    // "Roll Holder" rather than trying to be precise about the prefix.
+    optionTick("D69", /Roll Holder/i),
+    optionTick("D71", /^Crate-EL$/),
   ],
 };

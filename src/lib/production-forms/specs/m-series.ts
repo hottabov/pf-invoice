@@ -41,7 +41,10 @@ export const mSeriesSpec: FormSpec = {
   sheetPath: "xl/worksheets/sheet1.xml",
   matches: (code) => CODE.test(code),
   specSchema: mSeriesSpecSchema,
-  requires: ["ui", "knifeSize", "drills"],
+  // "ui" is not listed: screenSideSchema defaults to -Y, so it can never be
+  // missing -- leaving it here would permanently disable the download button
+  // for any spec stored before that default existed.
+  requires: ["knifeSize", "drills"],
 
   values: [
     { cell: "G8", from: (c) => c.distributorName },
