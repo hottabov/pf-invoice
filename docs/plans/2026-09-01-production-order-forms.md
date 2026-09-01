@@ -35,7 +35,7 @@
 
 | File | Responsibility |
 |---|---|
-| `prisma/migrations/9_industry_and_production_spec/migration.sql` | `Industry` table, `Company.industryId`, `DocumentItem.productionSpec` + `lineGroup` |
+| `prisma/migrations/10_industry_and_production_spec/migration.sql` | `Industry` table, `Company.industryId`, `DocumentItem.productionSpec` + `lineGroup` |
 | `src/lib/validation/industries.ts` | `industryNameSchema` |
 | `src/lib/validation/production-spec.ts` | Per-series `productionSpec` schemas, `requiredKeysFor`, `missingKeys` |
 | `src/lib/queries/industries.ts` | `listIndustries`, `countCompaniesUsingIndustry` |
@@ -116,7 +116,7 @@ Expected: `Pages: 1`. That confirms the container converts the template to a sin
 
 **Files:**
 - Modify: `prisma/schema.prisma`
-- Create: `prisma/migrations/9_industry_and_production_spec/migration.sql`
+- Create: `prisma/migrations/10_industry_and_production_spec/migration.sql`
 
 - [ ] **Step 1: Add the model and columns to the schema**
 
@@ -166,7 +166,7 @@ In `model DocumentItem`, add after `showImage`:
 
 - [ ] **Step 2: Write the migration**
 
-Create `prisma/migrations/9_industry_and_production_spec/migration.sql`:
+Create `prisma/migrations/10_industry_and_production_spec/migration.sql`:
 
 ```sql
 -- Production order forms (docs/specs/2026-09-01-production-order-forms-design.md).
@@ -216,7 +216,7 @@ Expected: migration applies, `typecheck` passes.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add prisma/schema.prisma prisma/migrations/9_industry_and_production_spec
+git add prisma/schema.prisma prisma/migrations/10_industry_and_production_spec
 git commit -m "feat: industry lookup table, production spec and line group on items"
 ```
 
@@ -363,19 +363,53 @@ Create `src/lib/actions/industries.ts`:
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
+import type { z } from "zod";
 import { db } from "@/lib/db";
-import { requireSession } from "@/lib/authz";
-import { idSchema, optionalIdSchema, flattenZodError } from "@/lib/validation/documents";
-import { industryNameSchema, normalizeIndustryName } from "@/lib/validation/industries";
+import { requireAdmin, requireSession } from "@/lib/authz";
 import { companyWhereForUser } from "@/lib/scope";
-import type { ActionResult } from "@/lib/actions/documents";
+import { idSchema, optionalIdSchema } from "@/lib/validation/documents";
+import { industryNameSchema, normalizeIndustryName } from "@/lib/validation/industries";
+
+export type ActionResult = { error?: string };
 
 const NOT_FOUND_ERROR = "Not found";
+
+/** Join every zod issue message (form-level + field-level) into one string
+ * for a plain `{ error }` result — same helper as actions/clients.ts, kept
+ * local here for the same reason: one tiny function is not worth a
+ * dependency between two action modules. */
+function flattenZodError(error: z.ZodError): string {
+  const flat = error.flatten();
+  const messages = [...flat.formErrors, ...Object.values(flat.fieldErrors).flat()].filter(
+    (m): m is string => Boolean(m)
+  );
+  return messages.length > 0 ? messages.join(" ") : "Invalid input";
+}
+
+/**
+ * Finds an industry by case-insensitive name, or null.
+ *
+ * Prisma cannot express `WHERE LOWER(name) = $1` against the functional index
+ * the migration creates, and `mode: "insensitive"` would not use it either.
+ * The table holds hundreds of rows at most, so reading them and comparing in
+ * JS is both correct and cheap.
+ */
+async function findByNormalizedName(name: string) {
+  const key = normalizeIndustryName(name);
+  return (await db.industry.findMany()).find((row) => normalizeIndustryName(row.name) === key) ?? null;
+}
 
 /**
  * Creates an industry, or returns the existing one when a case-insensitive
  * match is already present -- typing "automotive" next to an existing
  * "Automotive" must not grow the list by a near-duplicate.
+ *
+ * The pre-check alone is check-then-act and races: two people typing the same
+ * industry into the picker at the same moment would both pass it. The
+ * `Industry_name_lower_key` functional index in the migration is the real
+ * guarantee, so a unique violation here is an expected outcome, not an error
+ * -- it means someone else won, and their row is the answer.
  */
 export async function createIndustry(name: string): Promise<ActionResult & { id?: string }> {
   await requireSession();
@@ -383,24 +417,31 @@ export async function createIndustry(name: string): Promise<ActionResult & { id?
   const parsed = industryNameSchema.safeParse(name);
   if (!parsed.success) return { error: flattenZodError(parsed.error) };
 
-  const key = normalizeIndustryName(parsed.data);
-  const existing = (await db.industry.findMany()).find(
-    (row) => normalizeIndustryName(row.name) === key,
-  );
+  const existing = await findByNormalizedName(parsed.data);
   if (existing) return { id: existing.id };
 
-  const created = await db.industry.create({ data: { name: parsed.data } });
-
-  revalidatePath("/clients");
-  return { id: created.id };
+  try {
+    const created = await db.industry.create({ data: { name: parsed.data } });
+    revalidatePath("/clients");
+    return { id: created.id };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const winner = await findByNormalizedName(parsed.data);
+      if (winner) return { id: winner.id };
+    }
+    throw error;
+  }
 }
 
 /**
  * Renames the shared row. The caller shows the affected-company count first
  * (see `countCompaniesUsingIndustry`); this only guards the data.
  */
+// Admin-only, unlike createIndustry: creating is additive and deduplicated,
+// but renaming changes a value every manager's companies display and every
+// production form prints. Same rule as the other global tables.
 export async function renameIndustry(industryId: string, name: string): Promise<ActionResult> {
-  await requireSession();
+  await requireAdmin();
 
   const parsedId = idSchema.safeParse(industryId);
   if (!parsedId.success) return { error: NOT_FOUND_ERROR };
@@ -411,13 +452,20 @@ export async function renameIndustry(industryId: string, name: string): Promise<
   const industry = await db.industry.findUnique({ where: { id: parsedId.data } });
   if (!industry) return { error: NOT_FOUND_ERROR };
 
-  const key = normalizeIndustryName(parsed.data);
-  const clash = (await db.industry.findMany()).find(
-    (row) => row.id !== industry.id && normalizeIndustryName(row.name) === key,
-  );
-  if (clash) return { error: `"${clash.name}" already exists` };
+  const clash = await findByNormalizedName(parsed.data);
+  if (clash && clash.id !== industry.id) return { error: `"${clash.name}" already exists` };
 
-  await db.industry.update({ where: { id: industry.id }, data: { name: parsed.data } });
+  try {
+    await db.industry.update({ where: { id: industry.id }, data: { name: parsed.data } });
+  } catch (error) {
+    // Same race as createIndustry: another rename could have taken this name
+    // between the check above and the write. Report it as the collision it is
+    // rather than surfacing a raw database error.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { error: `"${parsed.data}" already exists` };
+    }
+    throw error;
+  }
 
   revalidatePath("/clients");
   return {};
@@ -454,7 +502,9 @@ export async function setCompanyIndustry(
 }
 ```
 
-Note: import `companyWhereForUser` from wherever `src/lib/actions/clients.ts` gets its company scoping — read that file and reuse the same helper rather than writing a second one. If it inlines the scope, extract it into `src/lib/scope.ts` and use it from both places.
+Note on the local helpers: every action module in this repo declares its own `ActionResult` and its own `flattenZodError`, each with a comment saying the duplication is deliberate rather than accidental. That is the established pattern — follow it. Do **not** try to import `flattenZodError` from `src/lib/actions/documents.ts`: it is not exported, and it cannot be, because a `"use server"` module may only export async server actions.
+
+`companyWhereForUser` and `requireSession` do already exist and are shared — import them from `@/lib/scope` and `@/lib/authz` as shown.
 
 - [ ] **Step 3: Verify types**
 
@@ -495,9 +545,15 @@ type Props = {
   selectedId: string | null;
   /** Companies using the currently selected industry, for the rename confirm. */
   usageCount: number;
+  /**
+   * Whether to offer the rename pencil. Renaming is admin-only (see
+   * `renameIndustry`): the row is shared, so the edit lands on every
+   * manager's companies. Creating and selecting stay open to everyone.
+   */
+  canRename: boolean;
 };
 
-export function IndustryPicker({ companyId, industries, selectedId, usageCount }: Props) {
+export function IndustryPicker({ companyId, industries, selectedId, usageCount, canRename }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -562,7 +618,7 @@ export function IndustryPicker({ companyId, industries, selectedId, usageCount }
           className="w-full rounded border px-2 py-1"
           aria-label="Industry"
         />
-        {selected && !open && (
+        {selected && !open && canRename && (
           <button type="button" onClick={rename} disabled={pending} aria-label="Rename industry">
             ✎
           </button>
@@ -677,10 +733,7 @@ Create `scripts/import-industries.ts`:
  * Usage: npx tsx scripts/import-industries.ts industries.txt
  */
 import { readFileSync } from "node:fs";
-import { PrismaClient } from "@prisma/client";
 import { industryNameSchema, normalizeIndustryName } from "../src/lib/validation/industries";
-
-const db = new PrismaClient();
 
 async function main() {
   const path = process.argv[2];
@@ -688,6 +741,13 @@ async function main() {
     console.error("Usage: npx tsx scripts/import-industries.ts <file>");
     process.exit(1);
   }
+
+  // Imported here, not at module scope. Prisma 7 in this project needs an
+  // explicit driver adapter (see src/lib/db.ts); a bare `new PrismaClient()`
+  // throws at module load, before the usage check above can run. Same lazy
+  // import that scripts/create-user.ts and scripts/import-product-images.ts
+  // use.
+  const { db } = await import("../src/lib/db");
 
   const existing = await db.industry.findMany();
   const seen = new Map(existing.map((row) => [normalizeIndustryName(row.name), row.name]));
@@ -725,7 +785,7 @@ main()
     console.error(error);
     process.exit(1);
   })
-  .finally(() => db.$disconnect());
+  .finally(() => process.exit(0));
 ```
 
 - [ ] **Step 2: Add the npm script**
@@ -1689,10 +1749,13 @@ export const mSeriesSpec: FormSpec = {
     optionTick("F57", /^IKA$/),
     optionTick("J57", /^AFP$/),
 
-    { cell: "P50", when: spec("voltage", "220V") },
-    { cell: "P52", when: spec("voltage", "400V") },
-    { cell: "P55", when: spec("voltage", "415V") },
-    { cell: "P57", when: spec("voltage", "480V") },
+    // O, not P. Every options row on this form is a box-then-label pair
+    // (F→G, J→K, O→P); P holds the printed "220V (TR220 External Xfmr)" text.
+    // The contract test caught this aimed one column right.
+    { cell: "O50", when: spec("voltage", "220V") },
+    { cell: "O52", when: spec("voltage", "400V") },
+    { cell: "O55", when: spec("voltage", "415V") },
+    { cell: "O57", when: spec("voltage", "480V") },
 
     { cell: "F62", when: integrated("PDG") },
     { cell: "J62", when: integrated("WPN") },
@@ -1709,7 +1772,7 @@ export const mSeriesSpec: FormSpec = {
 };
 ```
 
-The voltage tick cells (`P50`/`P52`/`P55`/`P57`) sit in the right-hand options column beside the `220V`/`400V`/`415V`/`480V` labels — confirm each against the template during Task 15's contract test, and visually the first time a form with a voltage is printed.
+The voltage ticks are the one coordinate the contract test in Task 15 caught: they were written as `P50`/`P52`/`P55`/`P57`, which is the *label* column holding "220V (TR220 External Xfmr)" and friends. Every options row on this form is a box-then-label pair — `F→G`, `J→K`, `O→P` — so the boxes are `O50`/`O52`/`O55`/`O57`. Still confirm them visually the first time a form with a voltage is printed.
 
 - [ ] **Step 3: Write the registry**
 
@@ -2531,7 +2594,10 @@ In `src/lib/queries/documents.ts`, add beside the existing builder query:
 ```ts
 export const productionFormsInclude = {
   region: true,
-  author: true,
+  // `select`, not `true`: `author: true` pulls the whole User row --
+  // passwordHash included -- into a payload that flows on to the renderer.
+  // The forms print one field, the salesperson's name.
+  author: { select: { name: true } },
   company: { include: { industry: true } },
   contact: true,
   items: { orderBy: { sortOrder: "asc" }, include: { lines: true } },

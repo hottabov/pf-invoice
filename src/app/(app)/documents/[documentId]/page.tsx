@@ -5,6 +5,7 @@ import { Download, Eye } from "lucide-react";
 import { auth } from "@/auth";
 import {
   getDocumentForBuilder,
+  getDocumentForForms,
   getItemPickerCatalog,
   listClientPickerCompanies,
   listCompatibleOptions,
@@ -38,6 +39,7 @@ import { DocumentDiscountField } from "@/components/builder/document-discount-fi
 import { PriceDisplayToggles } from "@/components/builder/price-display-toggles";
 import { NotesSection } from "@/components/builder/notes-section";
 import { ValidityDaysField } from "@/components/builder/validity-days-field";
+import { ProductionFormsSection } from "@/components/documents/production-forms-section";
 import { DocumentTotals, StickyFooter } from "@/components/builder/sticky-footer";
 import { FinalizeButton } from "@/components/builder/finalize-button";
 import { UnfinalizeButton } from "@/components/builder/unfinalize-button";
@@ -76,12 +78,16 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
   const isDraft = document.status === "DRAFT";
   const isAdmin = session.user.role === "ADMIN";
 
-  const [companies, catalog, showOptionIcons, regions, orgDefaultValidityDays] = await Promise.all([
+  const [companies, catalog, showOptionIcons, regions, orgDefaultValidityDays, formsDocument] = await Promise.all([
     listClientPickerCompanies(session.user),
     getItemPickerCatalog(document.regionCode),
     getShowOptionIcons(),
     listActiveRegions(),
     getQuoteValidityDays(),
+    // Separate, narrower payload (see `productionFormsInclude`) than
+    // `document` above -- `ProductionFormsSection` returns `null` itself for
+    // anything that isn't FINAL, so no status check is needed here.
+    getDocumentForForms(session.user, documentId),
   ]);
 
   // Compatible options are preloaded once per distinct (productId, seriesId)
@@ -201,6 +207,8 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
               readOnly={!isDraft}
             />
           </SectionCard>
+
+          {formsDocument ? <ProductionFormsSection document={formsDocument} /> : null}
         </div>
 
         {/* Desktop/tablet-lg summary: sticky so it stays visible while the

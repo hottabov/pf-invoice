@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FieldRow, fieldInputClass, CountrySelect } from "@/components/ui-kit";
+import { IndustryPicker, type IndustryOption } from "@/components/clients/industry-picker";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/clients";
 
@@ -29,6 +30,21 @@ export type CompanyFormValues = {
 };
 
 export type RegionOption = { code: string; name: string };
+
+/**
+ * Bundled props for the `IndustryPicker` field. The picker writes through
+ * its own server actions (see industry-picker.tsx), so it needs a real
+ * `companyId` to point at — it is only ever passed on the edit screen
+ * (src/app/(app)/clients/[companyId]/page.tsx). Left `undefined` on the
+ * "new client" screen, where no company exists yet to set an industry on.
+ */
+export type IndustryPickerProps = {
+  companyId: string;
+  industries: IndustryOption[];
+  selectedId: string | null;
+  usageCount: number;
+  canRename: boolean;
+};
 
 const initialState: ActionResult = {};
 
@@ -57,11 +73,14 @@ export function CompanyForm({
   defaultValues,
   regions,
   submitLabel,
+  industryPicker,
 }: {
   action: (formData: FormData) => Promise<ActionResult>;
   defaultValues: CompanyFormValues;
   regions: RegionOption[];
   submitLabel: string;
+  /** Omitted on the "new client" screen — see `IndustryPickerProps`. */
+  industryPicker?: IndustryPickerProps;
 }) {
   const [state, formAction, pending] = useActionState(
     (_prevState: ActionResult, formData: FormData) => action(formData),
@@ -128,6 +147,19 @@ export function CompanyForm({
             className={fieldInputClass}
           />
         </FieldRow>
+
+        {industryPicker && (
+          <FieldRow label="Industry" htmlFor="company-industry" className="lg:col-span-2">
+            <IndustryPicker
+              id="company-industry"
+              companyId={industryPicker.companyId}
+              industries={industryPicker.industries}
+              selectedId={industryPicker.selectedId}
+              usageCount={industryPicker.usageCount}
+              canRename={industryPicker.canRename}
+            />
+          </FieldRow>
+        )}
 
         <FieldRow label="Street" htmlFor="company-street">
           <input

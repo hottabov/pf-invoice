@@ -77,6 +77,8 @@ export type CompanyDetail = {
   taxId: string | null;
   notes: string | null;
   regionCode: string;
+  /** Null when unset. See `src/components/clients/industry-picker.tsx`. */
+  industryId: string | null;
   deliverySameAsMain: boolean;
   deliveryStreet: string | null;
   deliveryCity: string | null;
@@ -123,6 +125,7 @@ export async function getCompanyDetail(
     taxId: company.taxId,
     notes: company.notes,
     regionCode: company.region.code,
+    industryId: company.industryId,
     deliverySameAsMain: company.deliverySameAsMain,
     deliveryStreet: company.deliveryStreet,
     deliveryCity: company.deliveryCity,

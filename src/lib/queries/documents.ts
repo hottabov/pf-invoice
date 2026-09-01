@@ -1,4 +1,4 @@
-import type { DocumentStatus, LineKind } from "@prisma/client";
+import type { DocumentStatus, LineKind, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { companyWhereForUser, documentWhereForUser, type ScopeUser } from "@/lib/scope";
 import { listProductsBySeries, listSeriesWithCounts } from "@/lib/queries/catalog";
@@ -203,6 +203,15 @@ export type BuilderItem = {
    * (`PricingTotals.itemDiscounts`), never re-derived. Feeds
    * `ToSheetItemInput.discountAmount` / `ItemBreakdown.discount.amount`. */
   discountAmount: string;
+  /** `DocumentItem.lineGroup` — which production line this item belongs to.
+   * Only meaningful for an item `resolveForm` recognizes; read by
+   * `ProductionSpecEditor` for its line chip and by `setProductionSpec`'s
+   * `±Y` propagation (same lineGroup = same physical line). */
+  lineGroup: number;
+  /** `DocumentItem.productionSpec` exactly as stored (opaque `Json?`,
+   * validated by `specSchemaForCode` on write) — `{}` when nothing has been
+   * answered yet. Only meaningful for an item `resolveForm` recognizes. */
+  productionSpec: unknown;
 };
 
 export type DocumentForBuilder = {
@@ -511,6 +520,8 @@ export async function getDocumentForBuilder(
       lines: item.lines.map((line) => toBuilderLine(line, optionImageMap)),
       total: totals.itemTotals[index].toString(),
       discountAmount: totals.itemDiscounts[index].toString(),
+      lineGroup: item.lineGroup,
+      productionSpec: item.productionSpec,
     })),
     extraLines: document.lines.map((line) => toBuilderLine(line, optionImageMap)),
     notes: document.notes,
@@ -519,6 +530,34 @@ export async function getDocumentForBuilder(
     showOptionPrices: document.showOptionPrices,
     updatedAt: document.updatedAt,
   };
+}
+
+// --- production forms ---------------------------------------------------------
+
+export const productionFormsInclude = {
+  region: true,
+  // `select`, not `true`: `author: true` would pull the whole User row --
+  // passwordHash included -- into a payload that flows on to the form
+  // renderer. The forms print one field, the salesperson's name. Same
+  // narrowing getDocumentForBuilder does for the same reason.
+  author: { select: { name: true } },
+  company: { include: { industry: true } },
+  contact: true,
+  items: { orderBy: { sortOrder: "asc" }, include: { lines: true } },
+  lines: { where: { itemId: null } },
+} satisfies Prisma.DocumentInclude;
+
+export type DocumentForForms = Prisma.DocumentGetPayload<{ include: typeof productionFormsInclude }>;
+
+/**
+ * A document loaded for production form rendering, scoped to the caller the
+ * same way `getDocumentForBuilder` is.
+ */
+export async function getDocumentForForms(user: ScopeUser, documentId: string) {
+  return db.document.findFirst({
+    where: { id: documentId, ...documentWhereForUser(user) },
+    include: productionFormsInclude,
+  });
 }
 
 // --- client picker ---------------------------------------------------------

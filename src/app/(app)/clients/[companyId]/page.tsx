@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import { auth } from "@/auth";
 import { getCompanyDetail } from "@/lib/queries/clients";
 import { listActiveRegions } from "@/lib/queries/catalog";
+import { listIndustries, countCompaniesUsingIndustry } from "@/lib/queries/industries";
 import { updateCompany, deleteCompany, createContact, updateContact, deleteContact } from "@/lib/actions/clients";
 import { normalizeCountryInput } from "@/lib/countries";
 import { CompanyForm } from "@/components/clients/company-form";
@@ -35,14 +36,23 @@ export default async function CompanyEditorPage({ params }: { params: Promise<Pa
   // redirects unauthenticated requests, so a session is always present here.
   const session = (await auth())!;
 
-  const [company, regions] = await Promise.all([
+  const [company, regions, industries] = await Promise.all([
     getCompanyDetail(session.user, companyId),
     listActiveRegions(),
+    listIndustries(),
   ]);
 
   // A foreign company (belongs to another manager) resolves to the same
   // `null` as a nonexistent one — never leak which case it was.
   if (!company) notFound();
+
+  // Only counted once we know the company exists, since it depends on
+  // `company.industryId`. Renaming is admin-only (see `renameIndustry`) —
+  // the picker uses this to decide whether to show the pencil at all.
+  const industryUsageCount = company.industryId
+    ? await countCompaniesUsingIndustry(company.industryId)
+    : 0;
+  const canRenameIndustry = session.user.role === "ADMIN";
 
   return (
     <div className="flex flex-col gap-6">
@@ -92,6 +102,13 @@ export default async function CompanyEditorPage({ params }: { params: Promise<Pa
           }}
           regions={regions.map((r) => ({ code: r.code, name: r.name }))}
           submitLabel="Save changes"
+          industryPicker={{
+            companyId: company.id,
+            industries: industries.map((i) => ({ id: i.id, name: i.name })),
+            selectedId: company.industryId,
+            usageCount: industryUsageCount,
+            canRename: canRenameIndustry,
+          }}
         />
       </SectionCard>
 
