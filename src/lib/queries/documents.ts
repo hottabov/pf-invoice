@@ -504,7 +504,11 @@ export async function getDocumentForBuilder(
 
 export const productionFormsInclude = {
   region: true,
-  author: true,
+  // `select`, not `true`: `author: true` would pull the whole User row --
+  // passwordHash included -- into a payload that flows on to the form
+  // renderer. The forms print one field, the salesperson's name. Same
+  // narrowing getDocumentForBuilder does for the same reason.
+  author: { select: { name: true } },
   company: { include: { industry: true } },
   contact: true,
   items: { orderBy: { sortOrder: "asc" }, include: { lines: true } },

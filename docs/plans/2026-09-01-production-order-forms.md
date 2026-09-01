@@ -2591,7 +2591,10 @@ In `src/lib/queries/documents.ts`, add beside the existing builder query:
 ```ts
 export const productionFormsInclude = {
   region: true,
-  author: true,
+  // `select`, not `true`: `author: true` pulls the whole User row --
+  // passwordHash included -- into a payload that flows on to the renderer.
+  // The forms print one field, the salesperson's name.
+  author: { select: { name: true } },
   company: { include: { industry: true } },
   contact: true,
   items: { orderBy: { sortOrder: "asc" }, include: { lines: true } },
