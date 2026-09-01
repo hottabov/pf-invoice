@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
 import { companyWhereForUser, documentWhereForUser } from "@/lib/scope";
 import { compatibilityOrFilter } from "@/lib/catalog-compat";
-import { computeTotals, discountCents, effectivePct, toCents, type EngineInput, type EngineViolation } from "@/lib/pricing";
+import { capPct, computeTotals, discountCents, toCents, type EngineInput, type EngineViolation } from "@/lib/pricing";
 import { isHtmlContent, sanitizeRichText } from "@/lib/rich-text";
 import { formatMoney } from "@/lib/format";
 import {
@@ -723,10 +723,11 @@ function discountValueLabel(mode: DiscountModeInput, value: string, currency: st
   return mode === "PERCENT" ? `${value}%` : formatMoney(value, currency);
 }
 
-/** Trims a computed effective percentage to a display-friendly string (2dp,
- * no trailing zeros) — `effectivePct` returns a float that can carry
- * floating-point noise (e.g. `19.999999999999996`), which would look wrong
- * printed straight into a user-facing message. */
+/** Trims a computed cap-comparison percentage (see `capPct`) to a
+ * display-friendly string (2dp, no trailing zeros) — an AMOUNT discount's
+ * `effectivePct` returns a float that can carry floating-point noise (e.g.
+ * `19.999999999999996`), which would look wrong printed straight into a
+ * user-facing message. */
 function formatEffectivePct(pct: number): string {
   return (Math.round(pct * 100) / 100).toString();
 }
@@ -771,10 +772,11 @@ function discountCapMessage(
  *
  * A cash (AMOUNT) discount is converted back to an *effective* percentage of
  * the item's own base (unit price + its option lines) before the cap check
- * — see `effectivePct` in src/lib/pricing.ts — otherwise a manager blocked
- * from a 15% discount could simply type the equivalent dollar figure and
- * bypass the cap entirely. A PERCENT discount's effective percentage is
- * trivially itself.
+ * — otherwise a manager blocked from a 15% discount could simply type the
+ * equivalent dollar figure and bypass the cap entirely. A PERCENT discount
+ * is compared to the cap using the typed value directly instead — see
+ * `capPct` in src/lib/pricing.ts for why the two modes are compared
+ * differently.
  */
 export async function setItemDiscount(itemId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -808,7 +810,7 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
       toCents(item.unitPrice.toString()) +
       item.lines.reduce((sum, line) => sum + line.qty * toCents(line.unitPrice.toString()), 0);
     const discount = discountCents(baseCents, parsedMode.data, parsedValue.data);
-    const effPct = effectivePct(baseCents, discount);
+    const effPct = capPct(parsedMode.data, parsedValue.data, baseCents, discount);
     if (effPct > cap) {
       const message = discountCapMessage(
         parsedMode.data,
@@ -889,12 +891,12 @@ export async function setItemShowImage(itemId: string, show: boolean): Promise<A
  * MANAGER-blocked/ADMIN-warned enforcement as an item discount).
  *
  * A cash (AMOUNT) discount is converted back to an effective percentage of
- * the document's own subtotal before the cap check, same reasoning as
- * `setItemDiscount`. The subtotal used is the document's already-persisted
- * `subtotal` column (items + extra lines, computed by the last
- * `recalcDocument`) rather than a fresh engine run — this action never
- * touches items/lines, so that figure is already exactly right and re-deriving
- * it would just be the same read done twice.
+ * the document's own subtotal before the cap check, same reasoning (and the
+ * same `capPct` helper) as `setItemDiscount`. The subtotal used is the
+ * document's already-persisted `subtotal` column (items + extra lines,
+ * computed by the last `recalcDocument`) rather than a fresh engine run —
+ * this action never touches items/lines, so that figure is already exactly
+ * right and re-deriving it would just be the same read done twice.
  */
 export async function setDocumentDiscount(documentId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -923,7 +925,7 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
   if (parsedValue.data !== null && cap !== null) {
     const subtotalCents = toCents(document.subtotal.toString());
     const discount = discountCents(subtotalCents, parsedMode.data, parsedValue.data);
-    const effPct = effectivePct(subtotalCents, discount);
+    const effPct = capPct(parsedMode.data, parsedValue.data, subtotalCents, discount);
     if (effPct > cap) {
       const message = discountCapMessage(
         parsedMode.data,

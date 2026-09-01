@@ -229,6 +229,26 @@ export function effectivePct(baseCents: number, discount: number): number {
   return baseCents === 0 ? 0 : (discount / baseCents) * 100;
 }
 
+/** The percentage to compare against a discount cap (`maxDiscountPct` /
+ * `Region.maxDiscountPct`).
+ *
+ * PERCENT and AMOUNT are compared differently on purpose: a PERCENT
+ * discount's typed value IS the percentage, so it's compared to the cap
+ * directly — exactly as it was before discounts could be a cash amount.
+ * Routing it through `discountCents` (which rounds to whole cents) and then
+ * back through `effectivePct` would introduce cents-rounding noise that can
+ * push a borderline value fractionally to either side of the typed figure
+ * on a base that doesn't divide evenly — e.g. a $1.03 base with a typed 51%
+ * discount resolves to a 53c discount, which is 51.46% of base, not 51%; a
+ * cap of exactly 51% would then wrongly reject a discount that was, as
+ * typed, exactly at the limit. AMOUNT has no typed percentage of its own —
+ * `effectivePct` (the resolved cash discount as a percentage of `baseCents`)
+ * is the only way to compare it to the cap at all. */
+export function capPct(mode: DiscountMode, value: string | null, baseCents: number, discount: number): number {
+  if (value === null) return 0;
+  return mode === "PERCENT" ? Number(value) : effectivePct(baseCents, discount);
+}
+
 // ---------------------------------------------------------------------------
 // computeTotals
 // ---------------------------------------------------------------------------
@@ -240,9 +260,10 @@ export function effectivePct(baseCents: number, discount: number): number {
  * - Per item: base = unitPrice + Σ(line.qty * line.unitPrice); the item's
  *   discount (a mode + value, default "no discount" when the value is null —
  *   see `discountCents`) is resolved to cents and subtracted from base →
- *   itemTotal. The resolved discount is converted back to an effective
- *   percentage of base (see `effectivePct`) and compared against the item's
- *   cap (maxDiscountPct, default 100 = no cap); if it exceeds the cap, a
+ *   itemTotal. The discount's percentage (the typed value itself for
+ *   PERCENT, or the resolved cash amount converted back to a percentage of
+ *   base for AMOUNT — see `capPct`) is compared against the item's cap
+ *   (maxDiscountPct, default 100 = no cap); if it exceeds the cap, a
  *   violation is reported — the cap is NOT auto-applied, the math still uses
  *   the requested discount. Callers decide whether to reject the save when
  *   violations are present.
@@ -268,7 +289,7 @@ export function computeTotals(input: EngineInput): PricingTotals {
     const value = item.discountValue ?? null;
     const discount = discountCents(baseCents, mode, value);
     const allowedPct = item.maxDiscountPct ?? 100;
-    if (effectivePct(baseCents, discount) > allowedPct) {
+    if (capPct(mode, value, baseCents, discount) > allowedPct) {
       violations.push({ itemIndex, allowedPct });
     }
 

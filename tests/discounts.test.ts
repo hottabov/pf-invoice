@@ -125,6 +125,57 @@ describe("document-level discount mode", () => {
   });
 });
 
+describe("PERCENT cap comparison is not distorted by cents rounding (regression)", () => {
+  // discountCents for PERCENT computes the *kept* amount (base * (1 -
+  // pct/100), rounded half up) and subtracts it from base to get the
+  // discount — not `base * pct/100` rounded directly. That asymmetry means
+  // converting the resolved discount back to a percentage via `effectivePct`
+  // can land on either side of the typed value on a base that doesn't
+  // divide evenly. `capPct` (src/lib/pricing.ts) avoids this entirely for
+  // PERCENT by comparing the typed value to the cap directly.
+
+  it("does not flag a violation on the originally suspected case ($333.35 base, 10% discount, 10% cap)", () => {
+    // 10% of 33335c is 3333.5c. One might expect this to round up to 3334c
+    // (making the effective percentage 10.0015%, just over a 10% cap) — but
+    // discountCents actually rounds the *kept* 90% up (30001.5 -> 30002)
+    // and subtracts, giving a 3333c discount: 9.9985% of base, under the
+    // cap even via the old (buggy) effectivePct comparison. This case does
+    // NOT reproduce the regression; it's kept here as a documented negative.
+    const result = computeTotals({
+      items: [{ unitPrice: 333.35, discountMode: "PERCENT", discountValue: "10", maxDiscountPct: 10, lines: [] }],
+      extraLines: [],
+      documentDiscountValue: null,
+      taxRate: 0,
+    });
+    expect(result.violations).toEqual([]);
+  });
+
+  it("does not flag a violation for a discount typed at exactly the cap, on a base where rounding pushes the naive effective percentage over it", () => {
+    // $1.03 base, 51% discount: 51% of 103c is 52.53c, which rounds up to
+    // 53c — 51.46% of base. Routing this through effectivePct (as the code
+    // did before this fix) would report a violation for a discount typed at
+    // exactly the 51% cap; comparing the typed value directly does not.
+    const result = computeTotals({
+      items: [{ unitPrice: 1.03, discountMode: "PERCENT", discountValue: "51", maxDiscountPct: 51, lines: [] }],
+      extraLines: [],
+      documentDiscountValue: null,
+      taxRate: 0,
+    });
+    expect(result.violations).toEqual([]);
+    expect(result.itemTotals).toEqual([0.5]);
+  });
+
+  it("still flags a PERCENT discount that is genuinely above the cap on that same base", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 1.03, discountMode: "PERCENT", discountValue: "52", maxDiscountPct: 51, lines: [] }],
+      extraLines: [],
+      documentDiscountValue: null,
+      taxRate: 0,
+    });
+    expect(result.violations).toEqual([{ itemIndex: 0, allowedPct: 51 }]);
+  });
+});
+
 describe("no discount set (mode present, value null)", () => {
   it("treats a null discountValue as zero discount regardless of mode", () => {
     const percentMode = computeTotals({

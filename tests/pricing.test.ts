@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toCents, fromCents, computeTotals } from "../src/lib/pricing";
+import { toCents, fromCents, computeTotals, discountCents, capPct } from "../src/lib/pricing";
 
 describe("toCents", () => {
   it("converts a whole-dollar amount", () => {
@@ -384,5 +384,27 @@ describe("computeTotals", () => {
       taxRate: 0,
     });
     expect(result.negativeSubtotal).toBe(false);
+  });
+});
+
+describe("capPct", () => {
+  it("returns the typed value directly for PERCENT, ignoring the resolved cents discount", () => {
+    // A $1.03 base with a 51% discount resolves to a 53c discount (51.46% of
+    // base) — capPct must still report 51, not 51.46, for PERCENT.
+    const base = toCents(1.03);
+    const discount = discountCents(base, "PERCENT", "51");
+    expect(discount).toBe(53);
+    expect(capPct("PERCENT", "51", base, discount)).toBe(51);
+  });
+
+  it("returns the resolved effective percentage for AMOUNT", () => {
+    const base = toCents(100000);
+    const discount = discountCents(base, "AMOUNT", "20000");
+    expect(capPct("AMOUNT", "20000", base, discount)).toBe(20);
+  });
+
+  it("returns 0 for a null value regardless of mode", () => {
+    expect(capPct("PERCENT", null, 10000, 0)).toBe(0);
+    expect(capPct("AMOUNT", null, 10000, 0)).toBe(0);
   });
 });
