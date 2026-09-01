@@ -106,10 +106,13 @@ export const mSeriesSpec: FormSpec = {
     optionTick("F57", /^IKA$/),
     optionTick("J57", /^AFP$/),
 
-    { cell: "P50", when: spec("voltage", "220V") },
-    { cell: "P52", when: spec("voltage", "400V") },
-    { cell: "P55", when: spec("voltage", "415V") },
-    { cell: "P57", when: spec("voltage", "480V") },
+    // Box-then-label, same as every other tick in this column pair (F/G,
+    // J/K, O/P): the tick belongs in O, not in P where the voltage label
+    // text ("220V (TR220 External Xfmr)", etc.) actually lives.
+    { cell: "O50", when: spec("voltage", "220V") },
+    { cell: "O52", when: spec("voltage", "400V") },
+    { cell: "O55", when: spec("voltage", "415V") },
+    { cell: "O57", when: spec("voltage", "480V") },
 
     { cell: "F62", when: integrated("PDG") },
     { cell: "J62", when: integrated("WPN") },
