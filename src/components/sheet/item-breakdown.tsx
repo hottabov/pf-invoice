@@ -17,17 +17,27 @@ import type { ItemBreakdown } from "@/lib/sheet-data";
  *   (`breakdown.qty` — always 1 today, a product line is always one
  *   machine). The quantity label renders regardless of `showPrices`; only
  *   the price itself is gated.
- * - Every option row always renders (name + qty); its own price only when
- *   `showPrices` is on AND the option's `lineTotal` is non-null (already
- *   resolved by `buildItemBreakdown` from the `showOptionPrices` toggle, so
- *   this component never has to know the toggle itself — only whether
- *   `lineTotal` is null). The `showPrices` half of that check is a
- *   defense-in-depth backstop for the same "no money at all" rule below —
- *   in correct production data it's redundant (a `showOptionPrices`-off
- *   `lineTotal` is only ever null when `showItemPrices` is also off, since
- *   `showPrices` is `showItemPrices || showOptionPrices`), but it keeps
- *   the component's own guarantee self-contained rather than trusting the
- *   caller never to hand it an inconsistent breakdown.
+ * - Every option row always renders — `code`/name (as "`code` — `name`" when
+ *   `code` is set, plain `name` otherwise, exactly the "sheet" variant's old
+ *   hand-rolled `OptionRow` formatting), its own `description` underneath
+ *   when set, and qty — regardless of `showPrices`. Its own price only
+ *   renders when `showPrices` is on AND the option's `lineTotal` is
+ *   non-null (already resolved by `buildItemBreakdown` from the
+ *   `showOptionPrices` toggle, so this component never has to know the
+ *   toggle itself — only whether `lineTotal` is null). The `showPrices`
+ *   half of that check is a defense-in-depth backstop for the same "no
+ *   money at all" rule below — in correct production data it's redundant (a
+ *   `showOptionPrices`-off `lineTotal` is only ever null when
+ *   `showItemPrices` is also off, since `showPrices` is `showItemPrices ||
+ *   showOptionPrices`), but it keeps the component's own guarantee
+ *   self-contained rather than trusting the caller never to hand it an
+ *   inconsistent breakdown. The `"compact"` variant (the builder's own
+ *   internal card) renders only name/qty/price — it's a money-only summary
+ *   sitting above `ItemOptionsEditor`, which owns editing each option's
+ *   code (shown once its own "Edit options" panel is opened). This variant
+ *   is new (there is no prior builder-card behaviour to preserve here,
+ *   unlike the `"sheet"` variant's old hand-rolled `OptionRow`), so leaving
+ *   `description` off it is a deliberate scope choice, not a regression.
  * - The discount row renders only when `breakdown.discount` is set AND
  *   `showPrices` is on (a discount is pure money information — nothing
  *   useful to show about it with prices hidden).
@@ -98,7 +108,8 @@ function SheetBreakdownRows({
       {breakdown.options.map((option, index) => (
         <tr className="pq-option-row" key={`${option.name}-${index}`}>
           <td className="pq-col-item pq-option-indent">
-            <div className="pq-option-name">{option.name}</div>
+            <div className="pq-option-name">{option.code ? `${option.code} — ${option.name}` : option.name}</div>
+            {option.description ? <div className="pq-option-desc">{option.description}</div> : null}
           </td>
           <td className="pq-col-qty">{option.qty}</td>
           <td className="pq-col-amount pq-amount">

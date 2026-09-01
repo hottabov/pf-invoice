@@ -158,6 +158,36 @@ describe("renderDocumentHtml — item breakdown honours the price-display flags"
     expect(html).toContain("$215,425");
   });
 
+  it("still shows each option's code and description, same as the old hand-rolled OptionRow — the presenter dropped this, DocumentSheet has no Equipment Detail section to fall back on", async () => {
+    const html = await renderDocumentHtml(
+      baseSheetData({
+        showItemPrices: true,
+        showOptionPrices: true,
+        items: [
+          baseDocSheetItem({
+            code: "X-5180",
+            unitPrice: "175000.00",
+            total: "215425.00",
+            lines: [
+              {
+                id: "line-1",
+                code: "MTS",
+                name: "Machine Transfer System",
+                description: "Automated transfer of cut fabric off the table",
+                qty: 1,
+                unitPrice: "40425.00",
+                lineTotal: "40425.00",
+                image: null,
+              },
+            ],
+          }),
+        ],
+      })
+    );
+    expect(html).toContain("MTS — Machine Transfer System");
+    expect(html).toContain("Automated transfer of cut fabric off the table");
+  });
+
   it("used to ignore the price-display flags entirely — now renders no item money when both are off", async () => {
     const html = await renderDocumentHtml(
       baseSheetData({
@@ -345,6 +375,37 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
     expect(html).toContain("$175,000");
   });
 
+  it("shows each option's own code and description in the Investment Summary row itself, not just in Equipment Detail", async () => {
+    const data = baseQuotationData({
+      items: [
+        baseDocSheetItem({
+          code: "X-5180",
+          unitPrice: "175000.00",
+          total: "215425.00",
+          lines: [
+            {
+              id: "line-1",
+              code: "MTS",
+              name: "Machine Transfer System",
+              description: "Automated transfer of cut fabric off the table",
+              qty: 1,
+              unitPrice: "40425.00",
+              lineTotal: "40425.00",
+              image: null,
+            },
+          ],
+        }),
+      ],
+    });
+    const html = await renderQuotationHtml(data);
+    const summaryStart = html.indexOf('class="pq-section pq-summary-section"');
+    const summaryHtml = html.slice(summaryStart);
+
+    expect(summaryStart).toBeGreaterThan(-1);
+    expect(summaryHtml).toContain("MTS — Machine Transfer System");
+    expect(summaryHtml).toContain("Automated transfer of cut fabric off the table");
+  });
+
   it("adds a per-item subtotal row (base + options) only when the item has options", async () => {
     const withOptions = await renderQuotationHtml(
       baseQuotationData({
@@ -407,7 +468,7 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
             breakdown: {
               qty: 1,
               basePrice: "175000.00",
-              options: [{ name: "MTS", qty: 1, lineTotal: null }],
+              options: [{ name: "MTS", code: "MTS", description: null, qty: 1, lineTotal: null }],
               discount: null,
               subtotal: "215425.00",
             },

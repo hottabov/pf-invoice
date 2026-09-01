@@ -160,4 +160,47 @@ describe("toSheetData — item.breakdown", () => {
     const doc = baseDoc({ items: [baseItem({ discountValue: null })] });
     expect(toSheetData(doc).items[0].breakdown.discount).toBeNull();
   });
+
+  it("carries each option's own code and (deduped) description through, same as an item's own", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({
+          lines: [
+            {
+              id: "line-1",
+              code: "OPT-1",
+              name: "Winch upgrade",
+              description: "Heavy-duty electric winch, 2000kg capacity",
+              qty: 1,
+              unitPrice: "11000.00",
+            },
+            {
+              id: "line-2",
+              code: "OPT-2",
+              name: "Extra shelf",
+              description: "Extra shelf", // redundant with name — deduped to null
+              qty: 1,
+              unitPrice: "25.50",
+            },
+            {
+              id: "line-3",
+              code: null,
+              name: "No-code option",
+              description: null,
+              qty: 1,
+              unitPrice: "10.00",
+            },
+          ],
+        }),
+      ],
+    });
+    const options = toSheetData(doc).items[0].breakdown.options;
+
+    expect(options[0]).toMatchObject({
+      code: "OPT-1",
+      description: "Heavy-duty electric winch, 2000kg capacity",
+    });
+    expect(options[1]).toMatchObject({ code: "OPT-2", description: null });
+    expect(options[2]).toMatchObject({ code: null, description: null });
+  });
 });

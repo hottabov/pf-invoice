@@ -214,6 +214,15 @@ export type ItemBreakdown = {
   basePrice: string;
   options: Array<{
     name: string;
+    /** The option's own catalog code (e.g. "MTS"), or `null` when it has
+     * none — rendered ahead of `name` as "`code` — `name`", same as an
+     * item's own `code` alongside its name. Carried through unchanged from
+     * `ToSheetLineInput.code` (see `buildItemBreakdown`). */
+    code: string | null;
+    /** Deduped against `name` the same way `DocSheetLine.description` is
+     * (see `dedupeDescription`) — `null` when the option has no
+     * description of its own, or when it would just repeat `name`. */
+    description: string | null;
     qty: number;
     /** `null` when option prices are hidden (`showOptionPrices` off) — the
      * presenter renders no price for the row in that case rather than
@@ -511,6 +520,8 @@ export function buildItemBreakdown(
     basePrice: lineTotal(1, item.unitPrice),
     options: item.lines.map((line) => ({
       name: line.name,
+      code: line.code,
+      description: dedupeDescription(line.name, line.description),
       qty: line.qty,
       lineTotal: showOptionPrices ? lineTotal(line.qty, line.unitPrice) : null,
     })),
