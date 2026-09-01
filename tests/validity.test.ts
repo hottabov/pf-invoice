@@ -18,4 +18,9 @@ describe("validity days", () => {
     expect(validityDaysSchema.safeParse("0").success).toBe(false);
     expect(validityDaysSchema.safeParse("-5").success).toBe(false);
   });
+
+  it("accepts a year but rejects anything beyond it", () => {
+    expect(validityDaysSchema.safeParse("365").success).toBe(true);
+    expect(validityDaysSchema.safeParse("366").success).toBe(false);
+  });
 });

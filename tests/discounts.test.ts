@@ -8,6 +8,39 @@
 import { describe, it, expect } from "vitest";
 import { computeTotals } from "../src/lib/pricing";
 
+describe("a trade-in combined with a document-level cash discount", () => {
+  // The two ways a quote's total can be pulled down meet here: a negative
+  // extra line (Task 5, how a trade-in is entered) and an AMOUNT document
+  // discount (Task 6). Both reduce the same subtotal, so this locks in that
+  // they compose without producing a negative taxable base.
+  it("nets the trade-in off the subtotal before the cash discount applies", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 195000, discountMode: "PERCENT", discountValue: null, lines: [] }],
+      extraLines: [{ qty: 1, unitPrice: -15000 }],
+      documentDiscountMode: "AMOUNT",
+      documentDiscountValue: "5000",
+      taxRate: 0,
+    });
+    expect(result.subtotal).toBe(180000);
+    expect(result.negativeSubtotal).toBe(false);
+    expect(result.discountAmount).toBe(5000);
+    expect(result.total).toBe(175000);
+  });
+
+  it("clamps a cash discount that would swallow a subtotal already cut by a trade-in", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 20000, discountMode: "PERCENT", discountValue: null, lines: [] }],
+      extraLines: [{ qty: 1, unitPrice: -15000 }],
+      documentDiscountMode: "AMOUNT",
+      documentDiscountValue: "999999",
+      taxRate: 0,
+    });
+    expect(result.subtotal).toBe(5000);
+    expect(result.discountAmount).toBe(5000);
+    expect(result.total).toBe(0);
+  });
+});
+
 describe("item-level discount mode", () => {
   it("an AMOUNT discount below the base reduces the item total by exactly that amount", () => {
     const result = computeTotals({

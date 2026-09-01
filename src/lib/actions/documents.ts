@@ -75,9 +75,6 @@ type RecalcClient = { document: Prisma.TransactionClient["document"] };
 
 export type RecalcResult = { violations: EngineViolation[]; negativeSubtotal: boolean };
 
-// NOTE: callers currently ignore the returned violations. Phase 5 finalize MUST
-// check them (a region's maxDiscountPct can be lowered after an item discount was
-// saved) and refuse to finalize a document with violations.
 /**
  * Recomputes and persists a document's subtotal/taxAmount/total from its
  * current items, item lines and document-level lines, via the pure pricing
@@ -85,8 +82,10 @@ export type RecalcResult = { violations: EngineViolation[]; negativeSubtotal: bo
  * total. Every mutating action in this file ends by calling this, inside the
  * same `$transaction` as its own entity write when the mutation could ever
  * produce a negative subtotal (see `NegativeSubtotalError`'s doc comment and
- * every call site below). Returns the engine's discount-cap violations
- * (unchanged behavior — see the NOTE above) alongside `negativeSubtotal`;
+ * every call site below). Returns the engine's discount-cap violations —
+ * which `finalizeDocument` re-checks via `validateFinalizable`, since a
+ * region's maxDiscountPct can be lowered after a discount was saved —
+ * alongside `negativeSubtotal`;
  * this function itself never throws or refuses to persist — it's the
  * caller's job to inspect the result and decide whether to reject the save.
  * A missing document is treated as a no-op — the caller has already
