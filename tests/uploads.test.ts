@@ -1,6 +1,14 @@
 import { describe, it, expect } from "vitest";
 import path from "path";
-import { resolveUploadPath, IMAGE_URL_PATTERN, uploadsDir, sniffImageType } from "../src/lib/uploads";
+import {
+  resolveUploadPath,
+  IMAGE_URL_PATTERN,
+  uploadsDir,
+  sniffImageType,
+  assertAllowedType,
+  DOCUMENT_LINE_TYPES,
+  CATALOG_TYPES,
+} from "../src/lib/uploads";
 
 const VALID_NAME = "a1b2c3d4-e5f6-4789-a0b1-c2d3e4f56789.jpg";
 
@@ -152,5 +160,19 @@ describe("sniffImageType", () => {
 
   it("returns null for plain text that isn't XML or a known image format", () => {
     expect(sniffImageType(Buffer.from("just some text", "ascii"))).toBeNull();
+  });
+});
+
+describe("upload purpose type sets", () => {
+  it("rejects SVG for a document line", () => {
+    expect(() => assertAllowedType("svg", DOCUMENT_LINE_TYPES)).toThrow(/not allowed/i);
+  });
+
+  it("accepts SVG for the catalog", () => {
+    expect(() => assertAllowedType("svg", CATALOG_TYPES)).not.toThrow();
+  });
+
+  it("accepts a photo for a document line", () => {
+    expect(() => assertAllowedType("jpg", DOCUMENT_LINE_TYPES)).not.toThrow();
   });
 });

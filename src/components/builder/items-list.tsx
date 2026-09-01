@@ -4,10 +4,12 @@ import { useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import { formatMoney } from "@/lib/format";
+import { buildItemBreakdown } from "@/lib/sheet-data";
 import { RemoveItemButton } from "@/components/builder/remove-item-button";
 import { ItemOptionsEditor } from "@/components/builder/item-options-editor";
 import { ItemDiscountField } from "@/components/builder/item-discount-field";
 import { ItemShowImageToggle } from "@/components/builder/item-show-image-toggle";
+import { ItemBreakdownRows } from "@/components/sheet/item-breakdown";
 import { useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
@@ -312,6 +314,22 @@ export function ItemsList({
               )}
             >
               <div className="overflow-hidden">
+                {/* Base price / options / item discount / per-item subtotal
+                    — the same shared presenter the two customer-facing
+                    sheets use (see item-breakdown.tsx), rendered here with
+                    `showPrices` always true: the builder is internal to the
+                    salesperson, who always sees full pricing detail
+                    regardless of what the quote's own price-display toggles
+                    are currently set to for the customer. */}
+                <div className="mb-3">
+                  <ItemBreakdownRows
+                    breakdown={buildItemBreakdown(item, true)}
+                    code={item.code}
+                    currency={currency}
+                    showPrices={true}
+                    variant="compact"
+                  />
+                </div>
                 <ItemOptionsEditor
                   itemId={item.id}
                   currentLines={item.lines
@@ -327,8 +345,10 @@ export function ItemsList({
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
                   <ItemDiscountField
                     itemId={item.id}
-                    discountPct={item.discountPct}
+                    discountMode={item.discountMode}
+                    discountValue={item.discountValue}
                     maxDiscountPct={item.maxDiscountPct}
+                    currency={currency}
                     setDiscountAction={setItemDiscountAction}
                     readOnly={readOnly}
                   />

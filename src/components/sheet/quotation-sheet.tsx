@@ -1,6 +1,6 @@
-import { formatMoney } from "@/lib/format";
+import { formatMoney, isNegativeAmount } from "@/lib/format";
 import type { QuotationData } from "@/lib/quotation-data";
-import type { DocSheetLine } from "@/lib/sheet-data";
+import { ItemBreakdownRows } from "@/components/sheet/item-breakdown";
 
 /**
  * The extended quotation sheet (Phase 6): a single, self-contained render of
@@ -163,6 +163,12 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
           <span className="pq-total-banner-note">
             (incl. {totals.taxName} {totals.taxRate}%)
           </span>
+          {/* Repeats the header's "Valid until" (see pq-title-row above)
+              right next to the price it applies to (owner: "put the
+              valid-to in this total investment line, so it's obvious"). */}
+          {data.validityDate ? (
+            <span className="pq-total-banner-note">Valid until {data.validityDate}</span>
+          ) : null}
         </div>
 
         {data.machineSections.length > 0 ? (
@@ -315,63 +321,63 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                     {item.description ? <div className="pq-item-desc">{item.description}</div> : null}
                   </td>
                   <td className="pq-col-qty" />
-                  <td className="pq-col-amount pq-amount">
-                    {/* BASE unit price (the item's own snapshot price, no
-                        options folded in) — owner: the old lump-sum total
-                        here (base + every option) read as one confusing
-                        number; options now list their own price directly
-                        below, with the combined figure moved to its own
-                        "subtotal" row underneath them instead. */}
-                    {itemPriceVisible ? formatMoney(item.unitPrice, totals.currency) : null}
-                  </td>
+                  <td className="pq-col-amount pq-amount" />
                 </tr>
-                {item.lines.map((line) => (
-                  <OptionRow key={line.id} line={line} currency={totals.currency} visible={optionPriceVisible} />
-                ))}
-                {item.discountPct !== null && itemPriceVisible ? (
-                  <tr className="pq-discount-row">
-                    <td className="pq-col-item pq-option-indent">Item discount</td>
-                    <td className="pq-col-qty" />
-                    <td className="pq-col-amount pq-amount">-{item.discountPct}%</td>
-                  </tr>
-                ) : null}
-                {/* Per-item subtotal (base + every option, less the item
-                    discount above — the pricing engine's own `item.total`,
-                    never recomputed here) — only worth a line when the item
-                    actually has options to fold in; a bare item with no
-                    options would just repeat its own base-price row above. */}
-                {itemPriceVisible && item.lines.length > 0 ? (
-                  <tr className="pq-item-subtotal-row">
-                    <td className="pq-col-item pq-option-indent">{item.code} subtotal</td>
-                    <td className="pq-col-qty" />
-                    <td className="pq-col-amount pq-amount">{formatMoney(item.total, totals.currency)}</td>
-                  </tr>
-                ) : null}
+                {/* Base price, options, item discount, per-item subtotal —
+                    the shared presenter (see item-breakdown.tsx) so this
+                    three-part idea is expressed once, not per sheet. The
+                    old lump-sum total here (base + every option) used to
+                    read as one confusing number — the base price now always
+                    gets its own row. */}
+                <ItemBreakdownRows
+                  breakdown={item.breakdown}
+                  code={item.code}
+                  currency={totals.currency}
+                  showPrices={itemPriceVisible}
+                  variant="sheet"
+                />
               </tbody>
             ))}
 
             {data.extraLines.length > 0 ? (
               <tbody className="pq-item-group">
-                {data.extraLines.map((line) => (
-                  <tr className="pq-item-row" key={line.id}>
-                    <td className="pq-col-item">
-                      <div className="pq-item-name">{line.name}</div>
-                      {line.description ? <div className="pq-item-desc">{line.description}</div> : null}
-                    </td>
-                    <td className="pq-col-qty">
-                      {itemPriceVisible ? (
-                        <>
-                          {line.qty} × {formatMoney(line.unitPrice, totals.currency)}
-                        </>
-                      ) : (
-                        line.qty
-                      )}
-                    </td>
-                    <td className="pq-col-amount pq-amount">
-                      {itemPriceVisible ? formatMoney(line.lineTotal, totals.currency) : null}
-                    </td>
-                  </tr>
-                ))}
+                {data.extraLines.map((line) => {
+                  const isNegative = isNegativeAmount(line.unitPrice);
+                  return (
+                    <tr className="pq-item-row" key={line.id}>
+                      <td className="pq-col-item">
+                        <div className="pq-item-head">
+                          {line.image ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={line.image} alt={line.name} className="pq-thumb" />
+                          ) : null}
+                          <div>
+                            <div className="pq-item-name">{line.name}</div>
+                            {line.description ? <div className="pq-item-desc">{line.description}</div> : null}
+                          </div>
+                        </div>
+                      </td>
+                      <td className={isNegative && itemPriceVisible ? "pq-col-qty pq-negative" : "pq-col-qty"}>
+                        {itemPriceVisible ? (
+                          <>
+                            {line.qty} × {formatMoney(line.unitPrice, totals.currency)}
+                          </>
+                        ) : (
+                          line.qty
+                        )}
+                      </td>
+                      <td
+                        className={
+                          isNegative && itemPriceVisible
+                            ? "pq-col-amount pq-amount pq-negative"
+                            : "pq-col-amount pq-amount"
+                        }
+                      >
+                        {itemPriceVisible ? formatMoney(line.lineTotal, totals.currency) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             ) : null}
           </table>
@@ -381,9 +387,11 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
               <span>Subtotal</span>
               <span>{formatMoney(totals.subtotal, totals.currency)}</span>
             </div>
-            {totals.discountPct !== null ? (
+            {totals.discountValue !== null ? (
               <div className="pq-totals-row">
-                <span>Discount {totals.discountPct}%</span>
+                <span>
+                  Discount {totals.discountMode === "PERCENT" ? `${totals.discountValue}%` : formatMoney(totals.discountValue, totals.currency)}
+                </span>
                 <span>-{formatMoney(totals.discountAmount, totals.currency)}</span>
               </div>
             ) : null}
@@ -487,30 +495,6 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
         ) : null}
       </div>
     </div>
-  );
-}
-
-/** `visible` gates only the qty×price/amount columns (per `showOptionPrices`
- * — see `QuotationSheet`'s `optionPriceVisible`) — the option's name and
- * description always render regardless, same as an item row's name/qty. */
-function OptionRow({ line, currency, visible }: { line: DocSheetLine; currency: string; visible: boolean }) {
-  return (
-    <tr className="pq-option-row">
-      <td className="pq-col-item pq-option-indent">
-        <div className="pq-option-name">{line.code ? `${line.code} — ${line.name}` : line.name}</div>
-        {line.description ? <div className="pq-option-desc">{line.description}</div> : null}
-      </td>
-      <td className="pq-col-qty">
-        {visible ? (
-          <>
-            {line.qty} × {formatMoney(line.unitPrice, currency)}
-          </>
-        ) : (
-          line.qty
-        )}
-      </td>
-      <td className="pq-col-amount pq-amount">{visible ? formatMoney(line.lineTotal, currency) : null}</td>
-    </tr>
   );
 }
 
@@ -951,6 +935,19 @@ const SHEET_CSS = `
     page-break-inside: avoid;
     break-inside: avoid;
   }
+  .pq-item-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .pq-thumb {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    border: 1px solid #e4e4e4;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
   .pq-item-name {
     font-weight: 700;
     color: #2b304f;
@@ -1005,6 +1002,12 @@ const SHEET_CSS = `
   .pq-amount {
     text-align: right;
     white-space: nowrap;
+  }
+  /* A negative extra line (trade-in) — muted and italic so its amount
+     reads distinctly from an ordinary charge, never mistaken for one. */
+  .pq-negative {
+    color: #64748b;
+    font-style: italic;
   }
   .pq-totals {
     width: 60%;

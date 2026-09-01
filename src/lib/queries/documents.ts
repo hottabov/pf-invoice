@@ -1,4 +1,4 @@
-import type { DocumentStatus, DocumentType, LineKind } from "@prisma/client";
+import type { DocumentStatus, LineKind } from "@prisma/client";
 import { db } from "@/lib/db";
 import { companyWhereForUser, documentWhereForUser, type ScopeUser } from "@/lib/scope";
 import { listProductsBySeries, listSeriesWithCounts } from "@/lib/queries/catalog";
@@ -9,7 +9,6 @@ import { compatibilityOrFilter } from "@/lib/catalog-compat";
 
 export type DocumentListItem = {
   id: string;
-  type: DocumentType;
   status: DocumentStatus;
   number: string | null;
   companyName: string | null;
@@ -20,24 +19,20 @@ export type DocumentListItem = {
 
 /**
  * Documents visible to `user` (all for ADMIN, own-only for MANAGER, via
- * `documentWhereForUser`), optionally narrowed by type and/or a
- * case-insensitive search on the client company's name, newest-edited
- * first. A document with no client yet (`companyId` is null pre-Task-D-
- * finalize) never matches a non-empty `q`.
+ * `documentWhereForUser`), optionally narrowed by a case-insensitive search
+ * on the client company's name, newest-edited first. A document with no
+ * client yet (`companyId` is null pre-Task-D-finalize) never matches a
+ * non-empty `q`.
  */
 export async function listDocuments(
   user: ScopeUser,
-  params: { type?: string; q?: string } = {}
+  params: { q?: string } = {}
 ): Promise<DocumentListItem[]> {
-  const { type, q } = params;
+  const { q } = params;
 
   const where: NonNullable<Parameters<typeof db.document.findMany>[0]>["where"] = {
     ...documentWhereForUser(user),
   };
-
-  if (type === "QUOTE" || type === "INVOICE") {
-    where.type = type;
-  }
 
   if (q && q.trim()) {
     where.company = { name: { contains: q.trim(), mode: "insensitive" } };
@@ -48,7 +43,6 @@ export async function listDocuments(
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
-      type: true,
       status: true,
       number: true,
       total: true,
@@ -60,7 +54,6 @@ export async function listDocuments(
 
   return documents.map((d) => ({
     id: d.id,
-    type: d.type,
     status: d.status,
     number: d.number,
     companyName: d.company?.name ?? null,
@@ -123,15 +116,28 @@ export type BuilderLine = {
    * editor into storage and back. */
   attributes: Record<string, string | number> | null;
   sortOrder: number;
-  /** `Option.imageUrl` for an OPTION line, resolved by `refId` against the
+  /** For an OPTION line: `Option.imageUrl`, resolved by `refId` against the
    * catalog (see `getDocumentForBuilder`'s `optionImageMap`) — not a
-   * snapshot column on `DocumentLine` itself (there isn't one), so this
-   * always reflects the option's *current* catalog image, same live-lookup
-   * treatment `listCompatibleOptions` gives the options editor's own icons.
-   * `null` for a PRODUCT/CUSTOM line, an OPTION with no `refId`, or an
-   * OPTION whose catalog image isn't set. Feeds `QuotationLineInput.imageUrl`
-   * (src/lib/quotation-data.ts) for the quotation's unified options table. */
+   * snapshot column on `DocumentLine` itself, so this always reflects the
+   * option's *current* catalog image, same live-lookup treatment
+   * `listCompatibleOptions` gives the options editor's own icons. `null` for
+   * an OPTION with no `refId` or no catalog image set. Feeds
+   * `QuotationLineInput.imageUrl` (src/lib/quotation-data.ts) for the
+   * quotation's unified options table.
+   *
+   * For a CUSTOM (document-level extra) line: `DocumentLine.imageUrl`
+   * itself — a trade-in or bought-in item's own photo, since it has no
+   * catalog entry to inherit one from. `null` when none was attached.
+   *
+   * Always `null` for a PRODUCT line (the item's own image lives on
+   * `BuilderItem.imageUrl` instead). */
   imageUrl: string | null;
+  /** Whether the line's `imageUrl` should actually render on a sheet/PDF —
+   * same gating role as `BuilderItem.showImage`, but only ever set true for
+   * a CUSTOM line (by `addCustomLine`, when a photo was attached — there's
+   * no separate toggle for it, unlike an item's image). Always `false` for
+   * an OPTION line today (never set by `setItemOptions`). */
+  showImage: boolean;
 };
 
 export type BuilderItem = {
@@ -140,7 +146,8 @@ export type BuilderItem = {
   name: string;
   description: string | null;
   unitPrice: string;
-  discountPct: string | null;
+  discountMode: "PERCENT" | "AMOUNT";
+  discountValue: string | null;
   /** The document's region's discount cap (`Region.maxDiscountPct`) — the
    * same value on every item of a given document, not a per-item/per-series
    * value (discount caps moved from Series to Region — see setItemDiscount
@@ -191,25 +198,37 @@ export type BuilderItem = {
    * `recalcDocument` persists at the document level but isn't itself stored
    * per item. */
   total: string;
+  /** The item discount resolved to a cash amount (`0.00` when unset) — from
+   * the same `computeTotals` call that produces `total` above
+   * (`PricingTotals.itemDiscounts`), never re-derived. Feeds
+   * `ToSheetItemInput.discountAmount` / `ItemBreakdown.discount.amount`. */
+  discountAmount: string;
 };
 
 export type DocumentForBuilder = {
   id: string;
-  type: DocumentType;
   status: DocumentStatus;
   number: string | null;
   issueDate: Date;
-  /** Only ever non-null for a QUOTE, and only once it's been through
-   * `finalizeDocument` (see src/lib/actions/finalize.ts) — an INVOICE, and
-   * any still-DRAFT document, always has `null` here. */
+  /** `Document.validityDays` — `null` means "use the org-wide
+   * `quote.validityDays` setting" (see `getQuoteValidityDays`,
+   * src/lib/queries/settings.ts); a non-null value is a per-quote override
+   * set from the builder (see `setValidityDays`, src/lib/actions/documents.ts)
+   * for a customer whose approval process runs longer than the usual
+   * window. Frozen onto the document at finalize time either way — see
+   * `finalizeDocument`'s `document.validityDays ?? (await
+   * getQuoteValidityDays())` fallback — so this can be non-null on a DRAFT
+   * (an author's own override, not yet finalized) as well as on a FINAL
+   * document (the value frozen when it was finalized). */
   validityDays: number | null;
   currency: string;
   taxName: string;
   taxRate: string;
-  discountPct: string | null;
+  discountMode: "PERCENT" | "AMOUNT";
+  discountValue: string | null;
   subtotal: string;
   /** subtotal - taxableBase, i.e. the amount the document-level discount
-   * removes — 0 when `discountPct` is null. Surfaced so the sticky footer
+   * removes — 0 when `discountValue` is null. Surfaced so the sticky footer
    * can show "Discount: -$X" only when a document discount is actually set. */
   discountAmount: string;
   taxAmount: string;
@@ -254,24 +273,17 @@ export type DocumentForBuilder = {
    * `QuotationDataDoc` regardless of `type` (see `buildQuotationData`). */
   showItemPrices: boolean;
   showOptionPrices: boolean;
-  /** Set only for an INVOICE created via "Create invoice" from a QUOTE (see
-   * `createInvoiceFromQuote`) — `null` for every QUOTE and for an INVOICE
-   * created from scratch. `sourceQuoteNumber` is `null` whenever
-   * `sourceQuoteId` is (nothing to look up) and also, defensively, if the
-   * source quote row itself no longer resolves (deleted while still a
-   * DRAFT — the FK is `ON DELETE SET NULL`, so that combination shouldn't
-   * actually occur in practice by the time this query runs).
-   */
-  sourceQuoteId: string | null;
-  sourceQuoteNumber: string | null;
   updatedAt: Date;
 };
 
 /**
  * `optionImageMap` (optionId -> Option.imageUrl, built once per
  * `getDocumentForBuilder` call from every OPTION line's `refId` — see
- * below) resolves `imageUrl` for an OPTION line; a PRODUCT/CUSTOM line, or
- * an OPTION with no `refId`/no matching catalog image, always gets `null`.
+ * below) resolves `imageUrl` for an OPTION line (an OPTION with no `refId`
+ * or no matching catalog image gets `null`); a CUSTOM line uses its own
+ * `imageUrl`/`showImage` columns instead (there's no catalog entry to
+ * resolve); a PRODUCT line always gets `null` (its image lives on
+ * `BuilderItem.imageUrl`).
  */
 function toBuilderLine(
   line: {
@@ -285,6 +297,8 @@ function toBuilderLine(
     attributes: unknown;
     sortOrder: number;
     refId: string | null;
+    imageUrl: string | null;
+    showImage: boolean;
   },
   optionImageMap: Map<string, string>
 ): BuilderLine {
@@ -301,7 +315,13 @@ function toBuilderLine(
         ? (line.attributes as Record<string, string | number>)
         : null,
     sortOrder: line.sortOrder,
-    imageUrl: line.kind === "OPTION" && line.refId ? (optionImageMap.get(line.refId) ?? null) : null,
+    imageUrl:
+      line.kind === "OPTION"
+        ? line.refId
+          ? (optionImageMap.get(line.refId) ?? null)
+          : null
+        : line.imageUrl,
+    showImage: line.kind === "OPTION" ? false : line.showImage,
   };
 }
 
@@ -361,7 +381,6 @@ export async function getDocumentForBuilder(
         where: { itemId: null },
         orderBy: { sortOrder: "asc" },
       },
-      sourceQuote: { select: { number: true } },
     },
   });
   if (!document) return null;
@@ -401,19 +420,20 @@ export async function getDocumentForBuilder(
   const engineInput: EngineInput = {
     items: document.items.map((item) => ({
       unitPrice: Number(item.unitPrice),
-      discountPct: item.discountPct !== null ? Number(item.discountPct) : null,
+      discountMode: item.discountMode,
+      discountValue: item.discountValue !== null ? item.discountValue.toString() : null,
       maxDiscountPct: regionMaxDiscountPct,
       lines: item.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
     })),
     extraLines: document.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
-    documentDiscountPct: document.discountPct !== null ? Number(document.discountPct) : null,
+    documentDiscountMode: document.discountMode,
+    documentDiscountValue: document.discountValue !== null ? document.discountValue.toString() : null,
     taxRate: Number(document.taxRate),
   };
   const totals = computeTotals(engineInput);
 
   return {
     id: document.id,
-    type: document.type,
     status: document.status,
     number: document.number,
     issueDate: document.issueDate,
@@ -421,7 +441,8 @@ export async function getDocumentForBuilder(
     currency: document.currency,
     taxName: document.taxName,
     taxRate: document.taxRate.toString(),
-    discountPct: document.discountPct?.toString() ?? null,
+    discountMode: document.discountMode,
+    discountValue: document.discountValue?.toString() ?? null,
     subtotal: document.subtotal.toString(),
     discountAmount: totals.discountAmount.toString(),
     taxAmount: document.taxAmount.toString(),
@@ -475,7 +496,8 @@ export async function getDocumentForBuilder(
       name: item.name,
       description: item.description,
       unitPrice: item.unitPrice.toString(),
-      discountPct: item.discountPct?.toString() ?? null,
+      discountMode: item.discountMode,
+      discountValue: item.discountValue?.toString() ?? null,
       maxDiscountPct: document.region.maxDiscountPct?.toString() ?? null,
       seriesId: item.product?.seriesId ?? null,
       seriesCode: item.product?.series.code ?? null,
@@ -488,14 +510,13 @@ export async function getDocumentForBuilder(
       sortOrder: item.sortOrder,
       lines: item.lines.map((line) => toBuilderLine(line, optionImageMap)),
       total: totals.itemTotals[index].toString(),
+      discountAmount: totals.itemDiscounts[index].toString(),
     })),
     extraLines: document.lines.map((line) => toBuilderLine(line, optionImageMap)),
     notes: document.notes,
     author: { name: document.author.name, email: document.author.email, phone: document.author.phone },
     showItemPrices: document.showItemPrices,
     showOptionPrices: document.showOptionPrices,
-    sourceQuoteId: document.sourceQuoteId,
-    sourceQuoteNumber: document.sourceQuote?.number ?? null,
     updatedAt: document.updatedAt,
   };
 }

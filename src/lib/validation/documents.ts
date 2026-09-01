@@ -1,8 +1,11 @@
 // Pure zod validation for the document builder (Phase 4 Task C). No imports
 // from `@/lib/db` or any Prisma types — this module must be safely
 // importable from a plain unit test and from the server actions that call
-// it. Mirrors the style of src/lib/validation/clients.ts.
+// it. Mirrors the style of src/lib/validation/clients.ts. `@/lib/uploads` is
+// safe to import here too (see `customLineSchema.imageUrl` below): it's a
+// pure fs/path/crypto module with the same no-db/no-next discipline.
 import { z } from "zod";
+import { IMAGE_URL_PATTERN } from "@/lib/uploads";
 
 /** Every id in this app is a Prisma `cuid()` — 25 lowercase base36
  * characters starting with "c". We don't couple to that exact alphabet
@@ -14,9 +17,6 @@ export const idSchema = z
   .trim()
   .min(10, "Invalid id")
   .max(40, "Invalid id");
-
-export const documentTypeSchema = z.enum(["QUOTE", "INVOICE"]);
-export type DocumentTypeInput = z.infer<typeof documentTypeSchema>;
 
 /** Optional variant of idSchema: missing/blank/`null` collapses to
  * `undefined` (used for `contactId?` on setDocumentClient — an absent
@@ -50,7 +50,26 @@ const qtySchema = z.coerce
   .min(1, "Qty must be at least 1")
   .max(999, "Qty must be at most 999");
 
-const NON_NEGATIVE_AMOUNT_REGEX = /^\d+(\.\d{1,2})?$/;
+/** A custom line may be negative: a trade-in is entered as a line with a minus,
+ * which keeps one mechanism serving many purposes (see the P0 spec, Part C).
+ * Option and product lines keep the non-negative rule — a negative option is a
+ * data error, not a discount. */
+const SIGNED_AMOUNT_REGEX = /^-?\d+(\.\d{1,2})?$/;
+
+/** Optional `/api/files/<name>` URL for a custom line's own photo (see
+ * `DocumentLine.imageUrl` — a trade-in or bought-in item can carry a photo
+ * the same way a product line does). Missing/blank collapses to `undefined`,
+ * same preprocessing pattern as `customLineDescriptionSchema`. Validated
+ * against the shared `IMAGE_URL_PATTERN` so a client can never smuggle an
+ * arbitrary URL onto a document line — only a URL this app's own upload
+ * route could have produced. */
+const customLineImageUrlSchema = z.preprocess(
+  (value) =>
+    value === null || value === undefined || (typeof value === "string" && value.trim() === "")
+      ? undefined
+      : value,
+  z.string().regex(IMAGE_URL_PATTERN, "Invalid image URL").optional()
+);
 
 /** A freeform document-level line (e.g. "Delivery", "Install") added via the
  * builder's "Extra lines" section. `unitPrice` is kept as a validated string
@@ -63,22 +82,43 @@ export const customLineSchema = z.object({
   unitPrice: z
     .string()
     .trim()
-    .regex(NON_NEGATIVE_AMOUNT_REGEX, "Unit price must be a non-negative number with at most 2 decimal places"),
+    .regex(SIGNED_AMOUNT_REGEX, "Unit price must be a number with at most 2 decimal places"),
   description: customLineDescriptionSchema,
+  imageUrl: customLineImageUrlSchema,
 });
 export type CustomLineInput = z.infer<typeof customLineSchema>;
 
-const DISCOUNT_PCT_REGEX = /^\d{1,3}(\.\d{1,2})?$/;
+/**
+ * A discount's mode (item- or document-level): "PERCENT" (a share of the
+ * base) or "AMOUNT" (a fixed cash figure in the document's currency) — see
+ * the `DiscountMode` enum in schema.prisma. No `null`/empty collapsing here
+ * (unlike `discountValueSchema`): the mode always has a value, defaulting to
+ * "PERCENT" server-side when a caller omits it (matches the column default).
+ */
+export const discountModeSchema = z.enum(["PERCENT", "AMOUNT"]);
+export type DiscountModeInput = z.infer<typeof discountModeSchema>;
+
+const DISCOUNT_VALUE_REGEX = /^\d{1,9}(\.\d{1,2})?$/;
 
 /**
- * A discount percentage field (item- or document-level): an empty string
- * (or a missing/`null` FormData value) means "clear the discount" and
- * collapses to `null`; otherwise it must be a decimal in 0..100 with at
- * most 2 decimal places, parsed to a `number`. "101" and "10.555" both
- * fail — the former out of range, the latter too many decimal places —
- * while "10.55" and "" (→ `null`) both succeed.
+ * A discount's value (item- or document-level): an empty string (or a
+ * missing/`null` FormData value) means "clear the discount" and collapses to
+ * `null`; otherwise it must be a non-negative decimal with at most 2 decimal
+ * places, kept as a string (not `Number`-transformed) so it can go straight
+ * to `new Prisma.Decimal(...)` without a float round-trip — same pattern as
+ * `customLineSchema.unitPrice`. Deliberately permissive on range: up to 9
+ * digits before the point covers a plausible AMOUNT figure, and the engine
+ * (`discountCents` in src/lib/pricing.ts) clamps an AMOUNT to its base
+ * regardless of what's typed here.
+ *
+ * This schema alone cannot enforce "a PERCENT value must be 0..100" — it has
+ * no way to know which mode a given value is paired with (that's a property
+ * of the *pair*, not the value in isolation). That check lives in
+ * `exceedsPercentCeiling` below instead, called once mode and value are both
+ * known — see its own doc comment for why that's the one place it can't be
+ * bypassed.
  */
-export const discountPctSchema = z.preprocess(
+export const discountValueSchema = z.preprocess(
   (value) =>
     value === null || value === undefined || (typeof value === "string" && value.trim() === "")
       ? null
@@ -88,12 +128,26 @@ export const discountPctSchema = z.preprocess(
     z
       .string()
       .trim()
-      .regex(DISCOUNT_PCT_REGEX, "Discount must be a number between 0 and 100 with at most 2 decimal places")
-      .transform((value) => Number(value))
-      .refine((value) => value >= 0 && value <= 100, "Discount must be between 0 and 100"),
+      .regex(DISCOUNT_VALUE_REGEX, "Enter a number with at most 2 decimal places"),
   ])
 );
-export type DiscountPctInput = z.infer<typeof discountPctSchema>;
+export type DiscountValueInput = z.infer<typeof discountValueSchema>;
+
+/**
+ * `true` when `mode`/`value` together describe an out-of-range PERCENT
+ * discount (over 100%) — `discountValueSchema` validates `value`'s shape in
+ * isolation and has no way to apply this rule itself (see its doc comment).
+ * Every write path that accepts a discount (`setItemDiscount`/
+ * `setDocumentDiscount` in src/lib/actions/documents.ts) parses `mode` and
+ * `value` and then calls this exactly once before persisting, so there is
+ * one single place the 100% ceiling is enforced — not duplicated per call
+ * site, where a future third call site could forget it. An AMOUNT value (or
+ * a cleared/`null` value) is never subject to this check: the engine clamps
+ * an AMOUNT to its base instead (see `discountCents`).
+ */
+export function exceedsPercentCeiling(mode: DiscountModeInput, value: DiscountValueInput): boolean {
+  return mode === "PERCENT" && value !== null && Number(value) > 100;
+}
 
 /** One option selection from the item options editor: the option's code,
  * the quantity of it on the item, and (when the option carries an
@@ -157,6 +211,17 @@ export const notesSchema = z.preprocess(
   z.union([z.null(), z.string().trim().max(5000, "Notes must be at most 5000 characters")])
 );
 export type NotesInput = z.infer<typeof notesSchema>;
+
+// --- validity (per-quote override) ------------------------------------------
+
+/** Days a quote stays valid. Null means "use the org-wide setting". Over 30 is
+ * allowed — a customer's capex approval can genuinely take six weeks — and the
+ * UI warns rather than blocks. */
+export const validityDaysSchema = z.preprocess(
+  (v) => (v === null || v === undefined || (typeof v === "string" && v.trim() === "") ? null : v),
+  z.union([z.null(), z.coerce.number().int().min(1).max(365)])
+);
+export type ValidityDaysInput = z.infer<typeof validityDaysSchema>;
 
 /**
  * Pure set-equality check used to validate a proposed reorder: `proposed`

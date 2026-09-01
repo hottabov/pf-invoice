@@ -4,53 +4,68 @@ import { useState } from "react";
 import { AutosaveIndicator } from "@/components/builder/autosave-indicator";
 import { fieldInputClass, useToast } from "@/components/ui-kit";
 import { useAutosave } from "@/lib/use-autosave";
+import { currencySymbol, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
+import type { DiscountMode } from "@/lib/pricing";
 
 /**
- * The document-level "Discount %" field. Autosaves `setDocumentDiscount`
- * 800ms after typing settles (see src/lib/use-autosave.ts) — no Save
- * button. Enforced against the same region cap as an item's discount (see
- * `setDocumentDiscount` in src/lib/actions/documents.ts): a MANAGER is
- * blocked outright, the rejection surfacing as the autosave indicator's
- * error message, while an ADMIN's save still succeeds and comes back with
- * `warning` instead, surfaced here as a non-blocking toast — same split as
- * `ItemDiscountField`. Lives in its own "Discounts" section on the builder
- * page; the totals breakdown shows the resulting discount amount once one
- * is set.
+ * The document-level "Discount" field, with the same mode toggle (`%` /
+ * currency symbol) as `ItemDiscountField` — see its doc comment for the
+ * autosave/mode-switch/cap-enforcement behavior, which this mirrors exactly
+ * (`setDocumentDiscount` instead of `setItemDiscount`, and the cap is
+ * checked against the document's subtotal rather than an item's base).
+ * Lives in its own "Discounts" section on the builder page; the totals
+ * breakdown shows the resulting discount amount once one is set.
  */
 export function DocumentDiscountField({
   documentId,
-  discountPct,
+  discountMode,
+  discountValue,
+  currency,
   setDiscountAction,
   readOnly = false,
 }: {
   documentId: string;
-  discountPct: string | null;
+  discountMode: DiscountMode;
+  discountValue: string | null;
+  currency: string;
   setDiscountAction: (documentId: string, formData: FormData) => Promise<ActionResult>;
   readOnly?: boolean;
 }) {
   const toast = useToast();
-  const [pct, setPct] = useState(discountPct ?? "");
+  const [mode, setMode] = useState<DiscountMode>(discountMode);
+  const [value, setValue] = useState(discountValue ?? "");
+
+  // See ItemDiscountField's doc comment for why mode+value share one
+  // composite autosave value.
   const { status, error } = useAutosave({
-    value: pct,
+    value: `${mode}|${value}`,
     enabled: !readOnly,
-    onSave: async (nextPct) => {
+    onSave: async (composite) => {
+      const [nextMode, nextValue] = composite.split("|");
       const formData = new FormData();
-      formData.set("pct", nextPct);
+      formData.set("mode", nextMode);
+      formData.set("value", nextValue);
       const result = await setDiscountAction(documentId, formData);
       if (result.warning) toast.info(result.warning);
       return result.error ? { error: result.error } : {};
     },
   });
 
-  if (readOnly) {
-    return (
-      <p className="text-sm text-slate-700">
-        {discountPct ? `${discountPct}% off the subtotal` : "No document discount applied."}
-      </p>
-    );
+  function switchMode(next: DiscountMode) {
+    if (next === mode) return;
+    setMode(next);
+    setValue("");
   }
+
+  if (readOnly) {
+    if (!discountValue) return <p className="text-sm text-slate-700">No document discount applied.</p>;
+    const label = discountMode === "PERCENT" ? `${discountValue}% off the subtotal` : `${formatMoney(discountValue, currency)} off the subtotal`;
+    return <p className="text-sm text-slate-700">{label}</p>;
+  }
+
+  const symbol = currencySymbol(currency);
 
   return (
     <div className="flex flex-col gap-1">
@@ -62,12 +77,36 @@ export function DocumentDiscountField({
           id="document-discount"
           type="text"
           inputMode="decimal"
-          value={pct}
-          onChange={(e) => setPct(e.target.value)}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
           placeholder="0"
           className={cn(fieldInputClass, "h-11 w-24 sm:h-10")}
         />
-        <span className="text-sm text-slate-500">%</span>
+        <div
+          role="group"
+          aria-label="Discount type"
+          className="flex overflow-hidden rounded-md border border-slate-200 text-sm font-medium"
+        >
+          <button
+            type="button"
+            onClick={() => switchMode("PERCENT")}
+            aria-pressed={mode === "PERCENT"}
+            className={cn("h-10 px-3", mode === "PERCENT" ? "bg-brand-dark text-white" : "bg-white text-slate-500")}
+          >
+            %
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode("AMOUNT")}
+            aria-pressed={mode === "AMOUNT"}
+            className={cn(
+              "h-10 border-l border-slate-200 px-3",
+              mode === "AMOUNT" ? "bg-brand-dark text-white" : "bg-white text-slate-500"
+            )}
+          >
+            {symbol}
+          </button>
+        </div>
         <AutosaveIndicator status={status} error={error} />
       </div>
     </div>

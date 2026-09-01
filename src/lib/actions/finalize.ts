@@ -56,8 +56,12 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
 
   // Recompute totals first (a discount cap may have been lowered since this
   // was last saved) and check the violations it reports before allowing the
-  // document to become FINAL.
-  const violations = await recalcDocument(document.id);
+  // document to become FINAL. `negativeSubtotal` isn't consulted here — the
+  // mutating actions in documents.ts already refuse to save a change that
+  // would produce one (see NegativeSubtotalError there), so a DRAFT reaching
+  // this point should never carry one; rejecting finalize on it is a later
+  // task's concern (see the P0 plan's validity-fields task), not this one's.
+  const { violations } = await recalcDocument(document.id);
 
   const validationError = validateFinalizable(
     { companyId: document.companyId, items: document.items, lines: document.lines },
@@ -79,13 +83,13 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
     });
   }
 
-  // Only quotes carry a validity window; read the org-wide default once
-  // (fallback applies both when the Setting row is missing and when its
+  // Every document carries a validity window. A draft may already carry its
+  // own override (see `setValidityDays` in actions/documents.ts — a
+  // salesperson giving one customer a longer capex-approval window); only
+  // when it doesn't do we fall back to the org-wide default (read once here;
+  // that fallback applies both when the Setting row is missing and when its
   // value isn't a finite number — see getQuoteValidityDays).
-  let validityDays: number | null = null;
-  if (document.type === "QUOTE") {
-    validityDays = await getQuoteValidityDays();
-  }
+  const validityDays = document.validityDays ?? (await getQuoteValidityDays());
 
   const entitySnapshot = {
     entityName: document.region.entityName,
@@ -123,8 +127,8 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
         // accepted per plan; revisit if this ever runs in a non-AU-local
         // deployment near a year boundary).
         const year = new Date().getFullYear();
-        const counter = await allocateNumber(tx, document.region.code, document.type, year);
-        resolvedNumber = formatDocNumber(document.type, document.region.code, year, counter);
+        const counter = await allocateNumber(tx, document.region.code, year);
+        resolvedNumber = formatDocNumber(document.region.code, year, counter);
       }
 
       // Guard against a concurrent finalize (e.g. a double-click, or two

@@ -1,6 +1,7 @@
-import { FileText, Receipt } from "lucide-react";
-import type { DocumentStatus, DocumentType } from "@prisma/client";
+import { FileText } from "lucide-react";
+import type { DocumentStatus } from "@prisma/client";
 import { formatMoney } from "@/lib/format";
+import type { DiscountMode } from "@/lib/pricing";
 import { StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { DeleteDraftButton } from "@/components/builder/delete-draft-button";
 import type { ActionResult } from "@/lib/actions/documents";
@@ -9,9 +10,12 @@ type TotalsProps = {
   taxName: string;
   taxRate: string;
   subtotal: string;
-  /** The document-level discount percentage, or `null` when none is set —
-   * the discount row below only renders when this is non-null. */
-  discountPct: string | null;
+  /** How to read `discountValue` below. */
+  discountMode: DiscountMode;
+  /** The document-level discount's value in its own mode's terms (a plain
+   * percentage or a cash figure), or `null` when none is set — the discount
+   * row below only renders when this is non-null. */
+  discountValue: string | null;
   discountAmount: string;
   taxAmount: string;
   total: string;
@@ -28,7 +32,8 @@ export function DocumentTotals({
   taxName,
   taxRate,
   subtotal,
-  discountPct,
+  discountMode,
+  discountValue,
   discountAmount,
   taxAmount,
   total,
@@ -40,9 +45,11 @@ export function DocumentTotals({
         <dt className="text-slate-500">Subtotal</dt>
         <dd className="tabular-nums text-slate-700">{formatMoney(subtotal, currency)}</dd>
       </div>
-      {discountPct !== null ? (
+      {discountValue !== null ? (
         <div className="flex justify-between">
-          <dt className="text-slate-500">Discount ({discountPct}%)</dt>
+          <dt className="text-slate-500">
+            Discount ({discountMode === "PERCENT" ? `${discountValue}%` : formatMoney(discountValue, currency)})
+          </dt>
           <dd className="tabular-nums text-slate-700">-{formatMoney(discountAmount, currency)}</dd>
         </div>
       ) : null}
@@ -61,7 +68,7 @@ export function DocumentTotals({
 }
 
 /**
- * Sticky bottom bar for the <lg builder layout: the document's type/status
+ * Sticky bottom bar for the <lg builder layout: the document's status
  * badge, the live totals breakdown (recalculated server-side by every
  * mutating action — see recalcDocument in src/lib/actions/documents.ts),
  * and — for a DRAFT — the delete-draft control. Stays visible while
@@ -71,19 +78,18 @@ export function DocumentTotals({
  * sticky right-hand summary panel instead (see `[documentId]/page.tsx`).
  */
 export function StickyFooter({
-  type,
   status,
   taxName,
   taxRate,
   subtotal,
-  discountPct,
+  discountMode,
+  discountValue,
   discountAmount,
   taxAmount,
   total,
   currency,
   deleteAction,
 }: {
-  type: DocumentType;
   status: DocumentStatus;
   deleteAction?: () => Promise<ActionResult>;
 } & TotalsProps) {
@@ -91,11 +97,7 @@ export function StickyFooter({
     <div className="pb-safe sticky bottom-0 -mx-4 border-t border-slate-200 bg-white px-4 py-3 sm:mx-0 sm:rounded-xl sm:border sm:px-6 lg:hidden">
       <div className="flex items-center justify-between gap-3">
         <StatusBadge tone={STATUS_TONE[status]} className="gap-1.5">
-          {type === "QUOTE" ? (
-            <FileText className="size-3.5" aria-hidden="true" />
-          ) : (
-            <Receipt className="size-3.5" aria-hidden="true" />
-          )}
+          <FileText className="size-3.5" aria-hidden="true" />
           {status === "DRAFT" ? "Draft" : "Final"}
         </StatusBadge>
         {deleteAction ? <DeleteDraftButton action={deleteAction} /> : null}
@@ -106,7 +108,8 @@ export function StickyFooter({
           taxName={taxName}
           taxRate={taxRate}
           subtotal={subtotal}
-          discountPct={discountPct}
+          discountMode={discountMode}
+          discountValue={discountValue}
           discountAmount={discountAmount}
           taxAmount={taxAmount}
           total={total}

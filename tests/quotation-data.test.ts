@@ -158,7 +158,9 @@ function baseItem(overrides: Partial<QuotationItemInput> = {}): QuotationItemInp
     name: "M5180 Cutting System",
     description: null,
     unitPrice: "175000.00",
-    discountPct: null,
+    discountMode: "PERCENT",
+    discountValue: null,
+    discountAmount: "0.00",
     total: "175000.00",
     imageUrl: null,
     showImage: false,
@@ -172,7 +174,6 @@ function baseItem(overrides: Partial<QuotationItemInput> = {}): QuotationItemInp
 
 function baseDoc(overrides: Partial<QuotationDataDoc> = {}): QuotationDataDoc {
   return {
-    type: "QUOTE",
     status: "DRAFT",
     number: null,
     issueDate: new Date("2026-08-30T00:00:00.000Z"),
@@ -187,7 +188,8 @@ function baseDoc(overrides: Partial<QuotationDataDoc> = {}): QuotationDataDoc {
     bankDetails: { bank: "ANZ Westfield", bsb: "013 442", accountNo: "4405 63886" },
     logoUrl: null,
     footerText: null,
-    discountPct: null,
+    discountMode: "PERCENT",
+    discountValue: null,
     subtotal: "175000.00",
     discountAmount: "0.00",
     taxAmount: "17500.00",
@@ -344,6 +346,47 @@ describe("buildQuotationData", () => {
     // a raw decimal string.
     expect(data.machineSections[0].titleBlockHtml).toContain("Price: $180,000");
     expect(data.machineSections[0].titleBlockHtml).not.toContain("175000");
+  });
+
+  it("substitutes {{basePrice}} with the machine's own price, distinct from the combined {{price}} total", () => {
+    const basePriceBlock: ContentBlockRow = {
+      key: "machine.m-series",
+      regionId: null,
+      title: "M-Series",
+      body: "Base: {{basePrice}}\n\nTotal: {{price}}",
+      sortOrder: 1,
+    };
+    const doc = baseDoc({
+      showItemPrices: true,
+      showOptionPrices: false,
+      items: [baseItem({ unitPrice: "175000.00", total: "180000.00" })],
+    });
+    const data = buildQuotationData(doc, [basePriceBlock]);
+    // {{basePrice}} resolves to the bare machine price (175000), while the
+    // pre-existing {{price}} keeps meaning the combined subtotal (180000,
+    // incl. the option) — so catalogue templates that already reference
+    // {{price}} keep working unchanged.
+    expect(data.machineSections[0].titleBlockHtml).toContain("Base: $175,000");
+    expect(data.machineSections[0].titleBlockHtml).toContain("Total: $180,000");
+  });
+
+  it("strips the {{basePrice}} line (never a blank) when both price-display toggles are off", () => {
+    const basePriceBlock: ContentBlockRow = {
+      key: "machine.m-series",
+      regionId: null,
+      title: "M-Series",
+      body: "Model {{model}}.\n\nBase: {{basePrice}}",
+      sortOrder: 1,
+    };
+    const doc = baseDoc({
+      showItemPrices: false,
+      showOptionPrices: false,
+      items: [baseItem({ code: "M450" })],
+    });
+    const data = buildQuotationData(doc, [basePriceBlock]);
+    expect(data.machineSections[0].titleBlockHtml).not.toContain("Base");
+    expect(data.machineSections[0].titleBlockHtml).not.toContain("____");
+    expect(data.machineSections[0].titleBlockHtml).toContain("Model M450");
   });
 
   it("substitutes the real price when only showOptionPrices is on (implies item prices visible)", () => {

@@ -23,6 +23,39 @@ export function formatMoney(amount: Moneyish, currency: string, locale = "en-AU"
 }
 
 /**
+ * The currency's bare symbol (e.g. "$", "A$", "£") derived from
+ * `Intl.NumberFormat` rather than a hardcoded currency->symbol map, so a
+ * distributor/region added later with an unusual currency code still gets a
+ * sensible symbol for free. Used by the discount field's mode toggle (see
+ * item-discount-field.tsx/document-discount-field.tsx) to label the "cash
+ * amount" option next to "%". Falls back to the currency code itself if the
+ * formatter's parts (for some exotic/invalid code) don't include one.
+ */
+export function currencySymbol(currency: string, locale = "en-AU"): string {
+  const parts = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    currencyDisplay: "narrowSymbol",
+  }).formatToParts(0);
+  return parts.find((part) => part.type === "currency")?.value ?? currency;
+}
+
+/**
+ * True when a decimal-string money amount (e.g. `DocSheetLine.unitPrice` /
+ * `.lineTotal`) is negative — a trade-in extra line (see `customLineSchema`
+ * in src/lib/validation/documents.ts) is the only way this ever happens.
+ * Used by the document/quotation sheets to give a negative line distinct
+ * "cannot be misread as a charge" styling — `formatMoney` already renders
+ * the leading `-` from `Intl.NumberFormat`, this just tells the caller
+ * whether to also apply the muted treatment. A plain string sign check
+ * (not `Number(value) < 0`) since the value is already a validated decimal
+ * string, no float parsing needed.
+ */
+export function isNegativeAmount(value: string): boolean {
+  return value.trim().startsWith("-");
+}
+
+/**
  * Formats a date as `DD/MM/YYYY` — the en-AU convention used throughout
  * document-facing dates (issue date, quote validity). Zero-padded by hand
  * rather than via `Intl.DateTimeFormat("en-AU")` so the exact digit order

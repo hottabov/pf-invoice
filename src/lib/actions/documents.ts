@@ -8,12 +8,14 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
 import { companyWhereForUser, documentWhereForUser } from "@/lib/scope";
 import { compatibilityOrFilter } from "@/lib/catalog-compat";
-import { computeTotals, type EngineInput, type EngineViolation } from "@/lib/pricing";
+import { capPct, computeTotals, discountCents, toCents, type EngineInput, type EngineViolation } from "@/lib/pricing";
 import { isHtmlContent, sanitizeRichText } from "@/lib/rich-text";
+import { formatMoney } from "@/lib/format";
 import {
   customLineSchema,
-  discountPctSchema,
-  documentTypeSchema,
+  discountModeSchema,
+  discountValueSchema,
+  exceedsPercentCeiling,
   idSchema,
   isPermutation,
   notesSchema,
@@ -21,10 +23,10 @@ import {
   optionalIdSchema,
   priceDisplaySchema,
   reorderSchema,
-  type DocumentTypeInput,
+  validityDaysSchema,
+  type DiscountModeInput,
   type OptionSelectionInput,
 } from "@/lib/validation/documents";
-import { buildInvoiceCopyPayload, type QuoteForCopy } from "@/lib/invoice-from-quote";
 
 /**
  * `warning` is set on an otherwise-successful save that an ADMIN pushed
@@ -37,6 +39,16 @@ export type ActionResult = { error?: string; warning?: string };
 
 const NOT_FOUND_ERROR = "Not found";
 const FALLBACK_REGION_CODE = "AU";
+const NEGATIVE_SUBTOTAL_ERROR = "Discounts and trade-ins cannot exceed the value of the quote.";
+
+/** Thrown inside a `db.$transaction(async (tx) => ...)` callback to abort
+ * and roll it back when `recalcDocument` reports `negativeSubtotal` — see
+ * the mutating actions below, each of which runs its entity write and the
+ * recalc in the same transaction so a rejected save never leaves a
+ * negative-subtotal line (or a stale total) committed. Never surfaced to a
+ * caller directly; every site that can throw it catches it immediately and
+ * maps it to `{ error: NEGATIVE_SUBTOTAL_ERROR }`. */
+class NegativeSubtotalError extends Error {}
 
 /** Join every zod issue message (form-level + field-level) into one string
  * for a plain `{ error }` result — same helper as actions/catalog.ts, kept
@@ -52,27 +64,40 @@ function flattenZodError(error: z.ZodError): string {
 
 // --- recalculation --------------------------------------------------------
 
-// NOTE: callers currently ignore the returned violations. Phase 5 finalize MUST
-// check them (a region's maxDiscountPct can be lowered after an item discount was
-// saved) and refuse to finalize a document with violations.
+/** The subset of a Prisma client `recalcDocument` needs (just the `document`
+ * delegate) — structurally satisfied by both the plain `db` singleton and
+ * the `tx` handed to a `db.$transaction(async (tx) => ...)` callback, so
+ * callers that need the recalc to roll back along with their own write (see
+ * `NegativeSubtotalError` above) pass `tx`; callers that don't (e.g.
+ * `finalizeDocument`, which only reads the returned violations) can omit it
+ * and get the default `db`. */
+type RecalcClient = { document: Prisma.TransactionClient["document"] };
+
+export type RecalcResult = { violations: EngineViolation[]; negativeSubtotal: boolean };
+
 /**
  * Recomputes and persists a document's subtotal/taxAmount/total from its
  * current items, item lines and document-level lines, via the pure pricing
  * engine (src/lib/pricing.ts) — the single source of truth for every money
- * total. Every mutating action in this file ends by calling this. Returns
- * the engine's discount-cap violations (if any) so a caller that just
- * changed a discount can decide whether to reject the save; callers that
- * can't produce a violation (adding/removing an item or line) can ignore
- * the return value. A missing document is treated as a no-op — the caller
- * has already scope-checked it before mutating.
+ * total. Every mutating action in this file ends by calling this, inside the
+ * same `$transaction` as its own entity write when the mutation could ever
+ * produce a negative subtotal (see `NegativeSubtotalError`'s doc comment and
+ * every call site below). Returns the engine's discount-cap violations —
+ * which `finalizeDocument` re-checks via `validateFinalizable`, since a
+ * region's maxDiscountPct can be lowered after a discount was saved —
+ * alongside `negativeSubtotal`;
+ * this function itself never throws or refuses to persist — it's the
+ * caller's job to inspect the result and decide whether to reject the save.
+ * A missing document is treated as a no-op — the caller has already
+ * scope-checked it before mutating.
  *
  * The discount cap fed to the engine is the document's region cap
  * (`Region.maxDiscountPct`) — the same value applied to every item, not a
  * per-item/series value (discount caps moved from Series to Region — see
  * `setItemDiscount` below).
  */
-export async function recalcDocument(documentId: string): Promise<EngineViolation[]> {
-  const document = await db.document.findUnique({
+export async function recalcDocument(documentId: string, client: RecalcClient = db): Promise<RecalcResult> {
+  const document = await client.document.findUnique({
     where: { id: documentId },
     include: {
       items: { include: { lines: true } },
@@ -80,24 +105,26 @@ export async function recalcDocument(documentId: string): Promise<EngineViolatio
       region: true,
     },
   });
-  if (!document) return [];
+  if (!document) return { violations: [], negativeSubtotal: false };
 
   const regionMaxDiscountPct = document.region.maxDiscountPct ? Number(document.region.maxDiscountPct) : null;
   const engineInput: EngineInput = {
     items: document.items.map((item) => ({
       unitPrice: Number(item.unitPrice),
-      discountPct: item.discountPct !== null ? Number(item.discountPct) : null,
+      discountMode: item.discountMode,
+      discountValue: item.discountValue !== null ? item.discountValue.toString() : null,
       maxDiscountPct: regionMaxDiscountPct,
       lines: item.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
     })),
     extraLines: document.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
-    documentDiscountPct: document.discountPct !== null ? Number(document.discountPct) : null,
+    documentDiscountMode: document.discountMode,
+    documentDiscountValue: document.discountValue !== null ? document.discountValue.toString() : null,
     taxRate: Number(document.taxRate),
   };
 
   const totals = computeTotals(engineInput);
 
-  await db.document.update({
+  await client.document.update({
     where: { id: documentId },
     data: {
       subtotal: totals.subtotal,
@@ -106,26 +133,20 @@ export async function recalcDocument(documentId: string): Promise<EngineViolatio
     },
   });
 
-  return totals.violations;
+  return { violations: totals.violations, negativeSubtotal: totals.negativeSubtotal };
 }
 
 // --- draft lifecycle -----------------------------------------------------
 
 /**
- * Creates a DRAFT document and redirects straight into its builder — the
- * "New quote"/"New invoice" buttons on /documents bind `type` and submit
- * with no other fields, so the draft exists before a client is even
- * picked (companyId stays null until setDocumentClient). Region/currency/
- * tax are snapshotted from the author's own region, falling back to AU for
- * an author with no region assigned yet.
+ * Creates a DRAFT quote and redirects straight into its builder — the
+ * "New quote" button on /documents submits with no fields, so the draft
+ * exists before a client is even picked (companyId stays null until
+ * setDocumentClient). Region/currency/tax are snapshotted from the author's
+ * own region, falling back to AU for an author with no region assigned yet.
  */
-export async function createDraft(type: DocumentTypeInput): Promise<void> {
+export async function createDraft(): Promise<void> {
   const session = await requireSession();
-
-  const parsedType = documentTypeSchema.safeParse(type);
-  if (!parsedType.success) {
-    throw new Error("Invalid document type");
-  }
 
   const region = session.user.regionId
     ? await db.region.findUnique({ where: { id: session.user.regionId } })
@@ -137,7 +158,6 @@ export async function createDraft(type: DocumentTypeInput): Promise<void> {
 
   const created = await db.document.create({
     data: {
-      type: parsedType.data,
       status: "DRAFT",
       authorId: session.user.id,
       regionId: resolvedRegion.id,
@@ -173,11 +193,7 @@ export async function deleteDraft(documentId: string): Promise<ActionResult> {
 
 /**
  * Permanently deletes a document of any status, from the /documents list.
- * Items/lines cascade via `onDelete: Cascade` (schema.prisma); any invoice
- * that was copied *from* this document as a source quote keeps existing —
- * `Document.sourceQuoteId` is `onDelete: SetNull`, so deleting a quote only
- * clears that back-reference on its invoice(s), never blocks the delete or
- * cascades into them.
+ * Items/lines cascade via `onDelete: Cascade` (schema.prisma).
  *
  * Scoped like every other action here (`documentWhereForUser`: a MANAGER
  * only ever finds their own documents, an ADMIN finds any), plus one extra
@@ -310,39 +326,48 @@ export async function addItem(documentId: string, productCode: string): Promise<
     return { error: `Price required for ${product.code} in ${document.region.code}` };
   }
 
-  // Atomically read max sortOrder and create item in a single transaction to
-  // prevent concurrent adds from duplicating sortOrder, which would later
-  // corrupt quote→invoice line correlation. Interactive transaction ensures
-  // the aggregate(max) and create are not interleaved with other writes.
-  await db.$transaction(async (tx) => {
-    const maxSortOrder = await tx.documentItem.aggregate({
-      where: { documentId: document.id },
-      _max: { sortOrder: true },
-    });
+  // Atomically read max sortOrder, create the item, and recompute totals in
+  // a single transaction: an item's price is always positive so this can
+  // never actually push the subtotal negative, but every mutation here goes
+  // through the same guarded pattern (see `NegativeSubtotalError`) rather
+  // than special-casing "safe" ones. Interactive transaction also still
+  // ensures the aggregate(max) and create are not interleaved with other
+  // writes.
+  try {
+    await db.$transaction(async (tx) => {
+      const maxSortOrder = await tx.documentItem.aggregate({
+        where: { documentId: document.id },
+        _max: { sortOrder: true },
+      });
 
-    await tx.documentItem.create({
-      data: {
-        documentId: document.id,
-        productId: product.id,
-        sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
-        code: product.code,
-        name: product.name,
-        description: product.description,
-        unitPrice: price.amount,
-        imageUrl: product.imageUrl,
-        // Quotation-first default (behavior change): a newly added item with a
-        // product image starts with its image already switched on for display
-        // — the owner's quotes almost always show it (full-width, right under
-        // the product title — see quotation-sheet.tsx), so requiring an extra
-        // manual toggle on every single item added defeats the point. Still
-        // author-togglable afterwards via `setItemShowImage`, and a product
-        // with no image simply has nothing to default on (`false` either way).
-        showImage: Boolean(product.imageUrl),
-      },
-    });
-  });
+      await tx.documentItem.create({
+        data: {
+          documentId: document.id,
+          productId: product.id,
+          sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
+          code: product.code,
+          name: product.name,
+          description: product.description,
+          unitPrice: price.amount,
+          imageUrl: product.imageUrl,
+          // Quotation-first default (behavior change): a newly added item with a
+          // product image starts with its image already switched on for display
+          // — the owner's quotes almost always show it (full-width, right under
+          // the product title — see quotation-sheet.tsx), so requiring an extra
+          // manual toggle on every single item added defeats the point. Still
+          // author-togglable afterwards via `setItemShowImage`, and a product
+          // with no image simply has nothing to default on (`false` either way).
+          showImage: Boolean(product.imageUrl),
+        },
+      });
 
-  await recalcDocument(document.id);
+      const { negativeSubtotal } = await recalcDocument(document.id, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${document.id}`);
   return {};
@@ -366,9 +391,19 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
   });
   if (!item) return { error: NOT_FOUND_ERROR };
 
-  await db.documentItem.delete({ where: { id: item.id } });
-
-  await recalcDocument(item.documentId);
+  // Removing an item can reveal a negative subtotal (a trade-in extra line
+  // that was previously offset by this item's price) — same guarded
+  // transaction pattern as every other mutation here.
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentItem.delete({ where: { id: item.id } });
+      const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${item.documentId}`);
   return {};
@@ -470,8 +505,16 @@ export async function setItemOptions(
   if (!item.product) return { error: "This item has no product to attach options to" };
 
   if (codes.length === 0) {
-    await db.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } });
-    await recalcDocument(item.documentId);
+    try {
+      await db.$transaction(async (tx) => {
+        await tx.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } });
+        const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
+        if (negativeSubtotal) throw new NegativeSubtotalError();
+      });
+    } catch (error) {
+      if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+      throw error;
+    }
     revalidatePath(`/documents/${item.documentId}`);
     return {};
   }
@@ -520,30 +563,41 @@ export async function setItemOptions(
     return { error: `Price required for: ${unpricedCodes.join(", ")}` };
   }
 
-  await db.$transaction([
-    db.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } }),
-    ...parsedSelections.data.map((selection, index) => {
-      const option = optionByCode.get(selection.optionCode)!;
-      const price = option.prices[0]!;
-      return db.documentLine.create({
-        data: {
-          documentId: item.documentId,
-          itemId: item.id,
-          kind: "OPTION",
-          refId: option.id,
-          code: option.code,
-          name: option.name,
-          description: option.shortDescription,
-          qty: selection.qty,
-          unitPrice: price.amount,
-          attributes: selection.attributes as Prisma.InputJsonValue | undefined,
-          sortOrder: index,
-        },
-      });
-    }),
-  ]);
-
-  await recalcDocument(item.documentId);
+  // Delete+create+recalc all in one interactive transaction (previously
+  // delete+create alone, as a batch `$transaction([...])`; folding the
+  // recalc in means a failed create *or* a resulting negative subtotal both
+  // roll back the whole thing, never leaving an item with no options where
+  // it had some a moment ago, or a set of options committed that the
+  // negative-subtotal guard should have rejected).
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } });
+      for (const [index, selection] of parsedSelections.data.entries()) {
+        const option = optionByCode.get(selection.optionCode)!;
+        const price = option.prices[0]!;
+        await tx.documentLine.create({
+          data: {
+            documentId: item.documentId,
+            itemId: item.id,
+            kind: "OPTION",
+            refId: option.id,
+            code: option.code,
+            name: option.name,
+            description: option.shortDescription,
+            qty: selection.qty,
+            unitPrice: price.amount,
+            attributes: selection.attributes as Prisma.InputJsonValue | undefined,
+            sortOrder: index,
+          },
+        });
+      }
+      const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${item.documentId}`);
   return {};
@@ -567,6 +621,7 @@ export async function addCustomLine(documentId: string, formData: FormData): Pro
     qty: formData.get("qty"),
     unitPrice: formData.get("unitPrice"),
     description: formData.get("description"),
+    imageUrl: formData.get("imageUrl"),
   });
   if (!parsed.success) return { error: flattenZodError(parsed.error) };
 
@@ -580,20 +635,36 @@ export async function addCustomLine(documentId: string, formData: FormData): Pro
     _max: { sortOrder: true },
   });
 
-  await db.documentLine.create({
-    data: {
-      documentId: document.id,
-      itemId: null,
-      kind: "CUSTOM",
-      name: parsed.data.name,
-      description: parsed.data.description ?? null,
-      qty: parsed.data.qty,
-      unitPrice: new Prisma.Decimal(parsed.data.unitPrice),
-      sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
-    },
-  });
+  // A negative unitPrice (a trade-in — see customLineSchema) can push the
+  // document's subtotal below zero; create + recalc run in one transaction
+  // so a rejected save never leaves the line committed with a stale total.
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentLine.create({
+        data: {
+          documentId: document.id,
+          itemId: null,
+          kind: "CUSTOM",
+          name: parsed.data.name,
+          description: parsed.data.description ?? null,
+          qty: parsed.data.qty,
+          unitPrice: new Prisma.Decimal(parsed.data.unitPrice),
+          imageUrl: parsed.data.imageUrl ?? null,
+          // Same "image present -> show it" default as `addItem` gives a
+          // product image: a custom line has no separate show/hide toggle
+          // of its own, so attaching a photo is what turns this on.
+          showImage: Boolean(parsed.data.imageUrl),
+          sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
+        },
+      });
 
-  await recalcDocument(document.id);
+      const { negativeSubtotal } = await recalcDocument(document.id, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${document.id}`);
   return {};
@@ -623,29 +694,89 @@ export async function removeLine(lineId: string): Promise<ActionResult> {
   });
   if (!line) return { error: NOT_FOUND_ERROR };
 
-  await db.documentLine.delete({ where: { id: line.id } });
-
-  await recalcDocument(line.documentId);
+  // Removing a positive extra line can reveal a negative subtotal (e.g. a
+  // trade-in line elsewhere that this one was offsetting) — same guarded
+  // transaction pattern as every other mutation here.
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentLine.delete({ where: { id: line.id } });
+      const { negativeSubtotal } = await recalcDocument(line.documentId, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${line.documentId}`);
   return {};
 }
 
-// --- discounts (Task D) -----------------------------------------------------
+// --- discounts (Task D, extended for mode+value in Task 6) ------------------
+
+/** Renders a discount's value in its own mode's terms — "20%" or a
+ * currency-formatted cash figure — for the cap-exceeded message below.
+ * Never called with a `null` value (both call sites below only build the
+ * message once `exceedsCap` is true, which already implies a non-null
+ * value). */
+function discountValueLabel(mode: DiscountModeInput, value: string, currency: string): string {
+  return mode === "PERCENT" ? `${value}%` : formatMoney(value, currency);
+}
+
+/** Trims a computed cap-comparison percentage (see `capPct`) to a
+ * display-friendly string (2dp, no trailing zeros) — an AMOUNT discount's
+ * `effectivePct` returns a float that can carry floating-point noise (e.g.
+ * `19.999999999999996`), which would look wrong printed straight into a
+ * user-facing message. */
+function formatEffectivePct(pct: number): string {
+  return (Math.round(pct * 100) / 100).toString();
+}
 
 /**
- * Sets (or, given an empty `pct`, clears) an item's discount percentage.
- * The document's region cap (`Region.maxDiscountPct`, admin-editable on
- * /settings/regions — see `RegionForm`/`updateRegion`) is enforced *before*
- * persisting — unlike the pricing engine's own violation reporting (which
- * happily computes with whatever percentage is already stored and just
- * flags it, see `EngineViolation`) — but ONLY for a MANAGER: a save that
- * exceeds the cap is refused outright for them, so a violating discount is
- * never actually written by a manager's save. An ADMIN may exceed the cap;
- * the save still succeeds but comes back with `warning` set (rather than
- * `error`) so the caller can surface a non-blocking "exceeds cap" toast
- * instead of rejecting the save. A region with no cap configured
- * (`maxDiscountPct` null) allows any 0..100 discount for either role.
+ * Builds the region-cap-exceeded message shared by `setItemDiscount` and
+ * `setDocumentDiscount`, always naming both figures the owner asked for: the
+ * discount as entered (in its own mode) and the percentage of `scope` it
+ * works out to — e.g. "A $20,000.00 discount is 20% of this item — above the
+ * 10% limit for Australia." For a PERCENT discount the two figures are the
+ * same number by construction, which is fine — the sentence still reads
+ * correctly, just without new information the reader didn't already have.
+ */
+function discountCapMessage(
+  mode: DiscountModeInput,
+  value: string,
+  effPct: number,
+  cap: number,
+  regionName: string,
+  currency: string,
+  scope: "item" | "quote"
+): string {
+  const valueLabel = discountValueLabel(mode, value, currency);
+  return `A ${valueLabel} discount is ${formatEffectivePct(effPct)}% of this ${scope} — above the ${cap}% limit for ${regionName}.`;
+}
+
+/**
+ * Sets (or, given an empty `value`, clears) an item's discount — a mode
+ * ("PERCENT" | "AMOUNT") plus a value (see `DiscountMode` in
+ * schema.prisma). The document's region cap (`Region.maxDiscountPct`,
+ * admin-editable on /settings/regions — see `RegionForm`/`updateRegion`) is
+ * enforced *before* persisting — unlike the pricing engine's own violation
+ * reporting (which happily computes with whatever discount is already
+ * stored and just flags it, see `EngineViolation`) — but ONLY for a
+ * MANAGER: a save that exceeds the cap is refused outright for them, so a
+ * violating discount is never actually written by a manager's save. An
+ * ADMIN may exceed the cap; the save still succeeds but comes back with
+ * `warning` set (rather than `error`) so the caller can surface a
+ * non-blocking "exceeds cap" toast instead of rejecting the save. A region
+ * with no cap configured (`maxDiscountPct` null) allows any discount for
+ * either role.
+ *
+ * A cash (AMOUNT) discount is converted back to an *effective* percentage of
+ * the item's own base (unit price + its option lines) before the cap check
+ * — otherwise a manager blocked from a 15% discount could simply type the
+ * equivalent dollar figure and bypass the cap entirely. A PERCENT discount
+ * is compared to the cap using the typed value directly instead — see
+ * `capPct` in src/lib/pricing.ts for why the two modes are compared
+ * differently.
  */
 export async function setItemDiscount(itemId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -653,36 +784,69 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
   const parsedItemId = idSchema.safeParse(itemId);
   if (!parsedItemId.success) return { error: NOT_FOUND_ERROR };
 
-  const parsedPct = discountPctSchema.safeParse(formData.get("pct"));
-  if (!parsedPct.success) return { error: flattenZodError(parsedPct.error) };
+  const parsedMode = discountModeSchema.safeParse(formData.get("mode"));
+  if (!parsedMode.success) return { error: flattenZodError(parsedMode.error) };
+  const parsedValue = discountValueSchema.safeParse(formData.get("value"));
+  if (!parsedValue.success) return { error: flattenZodError(parsedValue.error) };
+
+  if (exceedsPercentCeiling(parsedMode.data, parsedValue.data)) {
+    return { error: "A percentage discount cannot exceed 100%." };
+  }
 
   const item = await db.documentItem.findFirst({
     where: {
       id: parsedItemId.data,
       document: { status: "DRAFT", ...documentWhereForUser(session.user) },
     },
-    include: { document: { include: { region: true } } },
+    include: { document: { include: { region: true } }, lines: true },
   });
   if (!item) return { error: NOT_FOUND_ERROR };
 
   const cap = item.document.region.maxDiscountPct ? Number(item.document.region.maxDiscountPct) : null;
-  const exceedsCap = parsedPct.data !== null && cap !== null && parsedPct.data > cap;
 
   let warning: string | undefined;
-  if (exceedsCap) {
-    const regionName = item.document.region.name;
-    if (session.user.role !== "ADMIN") {
-      return { error: `Max discount for ${regionName} is ${cap}%` };
+  if (parsedValue.data !== null && cap !== null) {
+    const baseCents =
+      toCents(item.unitPrice.toString()) +
+      item.lines.reduce((sum, line) => sum + line.qty * toCents(line.unitPrice.toString()), 0);
+    const discount = discountCents(baseCents, parsedMode.data, parsedValue.data);
+    const effPct = capPct(parsedMode.data, parsedValue.data, baseCents, discount);
+    if (effPct > cap) {
+      const message = discountCapMessage(
+        parsedMode.data,
+        parsedValue.data,
+        effPct,
+        cap,
+        item.document.region.name,
+        item.document.currency,
+        "item"
+      );
+      if (session.user.role !== "ADMIN") {
+        return { error: message };
+      }
+      warning = message;
     }
-    warning = `Exceeds region cap of ${cap}%`;
   }
 
-  await db.documentItem.update({
-    where: { id: item.id },
-    data: { discountPct: parsedPct.data === null ? null : new Prisma.Decimal(parsedPct.data) },
-  });
-
-  await recalcDocument(item.documentId);
+  // A larger item discount can reveal a negative subtotal (e.g. against a
+  // trade-in extra line elsewhere on the document) — same guarded
+  // transaction pattern as every other mutation here.
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentItem.update({
+        where: { id: item.id },
+        data: {
+          discountMode: parsedMode.data,
+          discountValue: parsedValue.data === null ? null : new Prisma.Decimal(parsedValue.data),
+        },
+      });
+      const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${item.documentId}`);
   return warning ? { warning } : {};
@@ -721,10 +885,18 @@ export async function setItemShowImage(itemId: string, show: boolean): Promise<A
 }
 
 /**
- * Sets (or clears) the document-level discount percentage. Enforced against
- * the same region cap as `setItemDiscount` above (this used to be uncapped
- * at the document level; it now shares the exact same
+ * Sets (or clears) the document-level discount — same mode + value shape as
+ * `setItemDiscount`, enforced against the same region cap (this used to be
+ * uncapped at the document level; it now shares the exact same
  * MANAGER-blocked/ADMIN-warned enforcement as an item discount).
+ *
+ * A cash (AMOUNT) discount is converted back to an effective percentage of
+ * the document's own subtotal before the cap check, same reasoning (and the
+ * same `capPct` helper) as `setItemDiscount`. The subtotal used is the
+ * document's already-persisted `subtotal` column (items + extra lines,
+ * computed by the last `recalcDocument`) rather than a fresh engine run —
+ * this action never touches items/lines, so that figure is already exactly
+ * right and re-deriving it would just be the same read done twice.
  */
 export async function setDocumentDiscount(documentId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -732,8 +904,14 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
   const parsedDocumentId = idSchema.safeParse(documentId);
   if (!parsedDocumentId.success) return { error: NOT_FOUND_ERROR };
 
-  const parsedPct = discountPctSchema.safeParse(formData.get("pct"));
-  if (!parsedPct.success) return { error: flattenZodError(parsedPct.error) };
+  const parsedMode = discountModeSchema.safeParse(formData.get("mode"));
+  if (!parsedMode.success) return { error: flattenZodError(parsedMode.error) };
+  const parsedValue = discountValueSchema.safeParse(formData.get("value"));
+  if (!parsedValue.success) return { error: flattenZodError(parsedValue.error) };
+
+  if (exceedsPercentCeiling(parsedMode.data, parsedValue.data)) {
+    return { error: "A percentage discount cannot exceed 100%." };
+  }
 
   const document = await db.document.findFirst({
     where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
@@ -742,22 +920,50 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
   if (!document) return { error: NOT_FOUND_ERROR };
 
   const cap = document.region.maxDiscountPct ? Number(document.region.maxDiscountPct) : null;
-  const exceedsCap = parsedPct.data !== null && cap !== null && parsedPct.data > cap;
 
   let warning: string | undefined;
-  if (exceedsCap) {
-    if (session.user.role !== "ADMIN") {
-      return { error: `Max discount for ${document.region.name} is ${cap}%` };
+  if (parsedValue.data !== null && cap !== null) {
+    const subtotalCents = toCents(document.subtotal.toString());
+    const discount = discountCents(subtotalCents, parsedMode.data, parsedValue.data);
+    const effPct = capPct(parsedMode.data, parsedValue.data, subtotalCents, discount);
+    if (effPct > cap) {
+      const message = discountCapMessage(
+        parsedMode.data,
+        parsedValue.data,
+        effPct,
+        cap,
+        document.region.name,
+        document.currency,
+        "quote"
+      );
+      if (session.user.role !== "ADMIN") {
+        return { error: message };
+      }
+      warning = message;
     }
-    warning = `Exceeds region cap of ${cap}%`;
   }
 
-  await db.document.update({
-    where: { id: document.id },
-    data: { discountPct: parsedPct.data === null ? null : new Prisma.Decimal(parsedPct.data) },
-  });
-
-  await recalcDocument(document.id);
+  // The document-level discount is applied *after* `negativeSubtotal` is
+  // computed (see computeTotals — the flag reflects the pre-discount
+  // subtotal), so this can never actually trigger the guard on its own; the
+  // same transaction pattern is still used for consistency with every other
+  // mutation here, and as a defensive backstop should that ever change.
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.document.update({
+        where: { id: document.id },
+        data: {
+          discountMode: parsedMode.data,
+          discountValue: parsedValue.data === null ? null : new Prisma.Decimal(parsedValue.data),
+        },
+      });
+      const { negativeSubtotal } = await recalcDocument(document.id, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${document.id}`);
   return warning ? { warning } : {};
@@ -771,11 +977,7 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
  * partial-update variant like the item discount fields have). Purely a
  * display flag pair, same as `setItemShowImage`: they never affect
  * `subtotal`/`taxAmount`/`total`, so there's no `recalcDocument` call here.
- * DRAFT-only and scoped like every other document mutation in this file —
- * meaningful only for a QUOTE in practice (the builder only renders the
- * toggle card for one), but not type-gated here since an INVOICE simply
- * never reads these flags back (see `toSheetData`, which the plain
- * document/invoice sheet keeps using unconditionally).
+ * DRAFT-only and scoped like every other document mutation in this file.
  */
 export async function setPriceDisplay(documentId: string, input: unknown): Promise<ActionResult> {
   const session = await requireSession();
@@ -809,8 +1011,8 @@ export async function setPriceDisplay(documentId: string, input: unknown): Promi
  * Sets (or, given a blank body, clears) `Document.notes` — the builder's
  * freeform Notes section (HTML from the `RichTextEditor`, or legacy markdown
  * for a row a pre-migration editor saved and nobody has re-opened since;
- * rendered on both the quotation sheet and the plain document/invoice sheet
- * via `renderStoredRichText` — see `QuotationData.notesHtml`/
+ * rendered on both the quotation sheet and the plain document sheet via
+ * `renderStoredRichText` — see `QuotationData.notesHtml`/
  * `DocSheetData.notes`). HTML content is allowlist-sanitized before it ever
  * reaches the database (`sanitizeRichText`) — the read-side `renderStoredRichText`
  * sanitizes again defensively, but the write boundary is the one place that
@@ -818,8 +1020,7 @@ export async function setPriceDisplay(documentId: string, input: unknown): Promi
  * and scoped like every other document mutation in this file; purely a
  * display field, so unlike `setItemDiscount`/`setDocumentDiscount` there's
  * no `recalcDocument` call here (mirrors `setItemShowImage`/
- * `setPriceDisplay`). Applies to both QUOTE and INVOICE documents — the
- * builder renders this SectionCard for either type.
+ * `setPriceDisplay`).
  */
 export async function setDocumentNotes(documentId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -847,196 +1048,45 @@ export async function setDocumentNotes(documentId: string, formData: FormData): 
   return {};
 }
 
-// --- create invoice from quote -----------------------------------------------
+// --- validity (per-quote override) ------------------------------------------
 
 /**
- * Copies an approved QUOTE straight into a new DRAFT INVOICE — the owner's
- * "sales approves the quote, invoice without re-entry" workflow. Loads the
- * QUOTE scoped to the caller (any status; there's no reason to forbid this
- * from a still-DRAFT quote, though the button is only prominent once it's
- * FINAL — see the builder page), maps it through the pure
- * `buildInvoiceCopyPayload` (src/lib/invoice-from-quote.ts) for the actual
- * copy-shape decisions, then persists it in two steps inside one
- * transaction: create the document with its items nested (that relation
- * *is* the immediate parent-child link Prisma can auto-wire), then a second
- * `createMany` for every line once the new item ids exist — item lines need
- * both `documentId` *and* `itemId`, and `documentId` isn't derivable from
- * the item-nesting path alone (same two-step shape `setItemOptions` already
- * uses for a single item, just batched here across every item at once).
- * Items are correlated to their new copy by `sortOrder`, which
- * `buildInvoiceCopyPayload` preserves unchanged and which is unique per
- * document — insertion order of a nested `create: [...]` isn't a contract
- * Prisma guarantees, so this never assumes the returned array matches input
- * order. On success, redirects straight into the new invoice's builder
- * (like `createDraft`); returns `{ error }` and doesn't navigate anywhere
- * otherwise.
+ * Sets (or, given a blank value, clears) `Document.validityDays` — a
+ * per-quote override of the org-wide "quote.validityDays" setting (see
+ * `getQuoteValidityDays`, src/lib/queries/settings.ts). A salesperson uses
+ * this when a particular customer's capex approval process runs longer than
+ * the usual window (owner: "I'll give you eight [weeks]" in place of the
+ * default). `validityDaysSchema` allows any value 1..365 — the 30-day norm
+ * enforced elsewhere is a UI-level warning, not a hard cap here, since a
+ * genuinely slower approval process is a legitimate reason to exceed it and
+ * the discount cap already covers the case where money is actually at risk.
+ * Clearing the field back to blank reverts the document to the org-wide
+ * default at finalize time (see `finalizeDocument`'s
+ * `document.validityDays ?? (await getQuoteValidityDays())` fallback).
+ * DRAFT-only and scoped like every other document mutation in this file;
+ * purely a display/finalize-time field, so — like `setItemShowImage`/
+ * `setPriceDisplay`/`setDocumentNotes` — there's no `recalcDocument` call
+ * here.
  */
-export async function createInvoiceFromQuote(quoteId: string): Promise<ActionResult> {
+export async function setValidityDays(documentId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
 
-  const parsedQuoteId = idSchema.safeParse(quoteId);
-  if (!parsedQuoteId.success) return { error: NOT_FOUND_ERROR };
+  const parsedDocumentId = idSchema.safeParse(documentId);
+  if (!parsedDocumentId.success) return { error: NOT_FOUND_ERROR };
 
-  const quote = await db.document.findFirst({
-    where: { id: parsedQuoteId.data, type: "QUOTE", ...documentWhereForUser(session.user) },
-    include: {
-      items: {
-        orderBy: { sortOrder: "asc" },
-        include: { lines: { orderBy: { sortOrder: "asc" } } },
-      },
-      lines: { where: { itemId: null }, orderBy: { sortOrder: "asc" } },
-    },
+  const parsedValidityDays = validityDaysSchema.safeParse(formData.get("validityDays"));
+  if (!parsedValidityDays.success) return { error: flattenZodError(parsedValidityDays.error) };
+
+  const document = await db.document.findFirst({
+    where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
   });
-  if (!quote) return { error: NOT_FOUND_ERROR };
+  if (!document) return { error: NOT_FOUND_ERROR };
 
-  // Defensively re-normalize source items' sortOrder in-memory to handle any
-  // historical duplicates caused by non-transactional concurrent adds. Sort by
-  // (sortOrder, id) to get a canonical order, then assign sequential indices.
-  // This ensures the correlation Map keys are unique and stable.
-  const normalizedItems = quote.items
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
-    .map((item, index) => ({
-      ...item,
-      sortOrder: index,
-    }));
-
-  const quoteForCopy: QuoteForCopy = {
-    id: quote.id,
-    companyId: quote.companyId,
-    contactId: quote.contactId,
-    regionId: quote.regionId,
-    currency: quote.currency,
-    taxName: quote.taxName,
-    taxRate: quote.taxRate.toString(),
-    discountPct: quote.discountPct?.toString() ?? null,
-    notes: quote.notes,
-    showItemPrices: quote.showItemPrices,
-    showOptionPrices: quote.showOptionPrices,
-    items: normalizedItems.map((item) => ({
-      productId: item.productId,
-      sortOrder: item.sortOrder,
-      code: item.code,
-      name: item.name,
-      description: item.description,
-      unitPrice: item.unitPrice.toString(),
-      discountPct: item.discountPct?.toString() ?? null,
-      serialNumber: item.serialNumber,
-      showImage: item.showImage,
-      imageUrl: item.imageUrl,
-      lines: item.lines.map((line) => ({
-        kind: line.kind,
-        refId: line.refId,
-        code: line.code,
-        name: line.name,
-        description: line.description,
-        qty: line.qty,
-        unitPrice: line.unitPrice.toString(),
-        attributes: line.attributes,
-        showImage: line.showImage,
-        sortOrder: line.sortOrder,
-      })),
-    })),
-    lines: quote.lines.map((line) => ({
-      kind: line.kind,
-      refId: line.refId,
-      code: line.code,
-      name: line.name,
-      description: line.description,
-      qty: line.qty,
-      unitPrice: line.unitPrice.toString(),
-      attributes: line.attributes,
-      showImage: line.showImage,
-      sortOrder: line.sortOrder,
-    })),
-  };
-
-  const payload = buildInvoiceCopyPayload(quoteForCopy);
-
-  const created = await db.$transaction(async (tx) => {
-    const invoice = await tx.document.create({
-      data: {
-        type: payload.document.type,
-        status: payload.document.status,
-        authorId: session.user.id,
-        companyId: payload.document.companyId,
-        contactId: payload.document.contactId,
-        regionId: payload.document.regionId,
-        currency: payload.document.currency,
-        taxName: payload.document.taxName,
-        taxRate: new Prisma.Decimal(payload.document.taxRate),
-        discountPct: payload.document.discountPct !== null ? new Prisma.Decimal(payload.document.discountPct) : null,
-        notes: payload.document.notes,
-        showItemPrices: payload.document.showItemPrices,
-        showOptionPrices: payload.document.showOptionPrices,
-        sourceQuoteId: payload.document.sourceQuoteId,
-        items: {
-          create: payload.items.map((item) => ({
-            productId: item.productId,
-            sortOrder: item.sortOrder,
-            code: item.code,
-            name: item.name,
-            description: item.description,
-            unitPrice: new Prisma.Decimal(item.unitPrice),
-            discountPct: item.discountPct !== null ? new Prisma.Decimal(item.discountPct) : null,
-            serialNumber: item.serialNumber,
-            showImage: item.showImage,
-            imageUrl: item.imageUrl,
-          })),
-        },
-      },
-      include: { items: true },
-    });
-
-    // Map from normalized sortOrder (0, 1, 2, ...) to new item IDs. Safe because
-    // normalizedItems above ensured sortOrder is unique and sequential, matching
-    // each item's index. This map is keyed by index, not by original duplicate sortOrder.
-    const newItemIdByIndex = new Map(invoice.items.map((item) => [item.sortOrder, item.id]));
-
-    const itemLineRows: Prisma.DocumentLineCreateManyInput[] = payload.items.flatMap((item) => {
-      const newItemId = newItemIdByIndex.get(item.sortOrder);
-      // Always found — every payload item was just created above with this
-      // exact normalized sortOrder (which is guaranteed unique).
-      if (!newItemId) return [];
-      return item.lines.map((line) => ({
-        documentId: invoice.id,
-        itemId: newItemId,
-        kind: line.kind,
-        refId: line.refId,
-        code: line.code,
-        name: line.name,
-        description: line.description,
-        qty: line.qty,
-        unitPrice: new Prisma.Decimal(line.unitPrice),
-        attributes: line.attributes as Prisma.InputJsonValue | undefined,
-        showImage: line.showImage,
-        sortOrder: line.sortOrder,
-      }));
-    });
-
-    const extraLineRows: Prisma.DocumentLineCreateManyInput[] = payload.extraLines.map((line) => ({
-      documentId: invoice.id,
-      itemId: null,
-      kind: line.kind,
-      refId: line.refId,
-      code: line.code,
-      name: line.name,
-      description: line.description,
-      qty: line.qty,
-      unitPrice: new Prisma.Decimal(line.unitPrice),
-      attributes: line.attributes as Prisma.InputJsonValue | undefined,
-      showImage: line.showImage,
-      sortOrder: line.sortOrder,
-    }));
-
-    if (itemLineRows.length > 0 || extraLineRows.length > 0) {
-      await tx.documentLine.createMany({ data: [...itemLineRows, ...extraLineRows] });
-    }
-
-    return invoice;
+  await db.document.update({
+    where: { id: document.id },
+    data: { validityDays: parsedValidityDays.data },
   });
 
-  await recalcDocument(created.id);
-
-  revalidatePath("/documents");
-  redirect(`/documents/${created.id}`);
+  revalidatePath(`/documents/${document.id}`);
+  return {};
 }

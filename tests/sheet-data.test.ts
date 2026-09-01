@@ -40,7 +40,9 @@ function baseItem(overrides: Partial<ToSheetItemInput> = {}): ToSheetItemInput {
     name: "EasyLoader 2020",
     description: null,
     unitPrice: "1000.00",
-    discountPct: null,
+    discountMode: "PERCENT",
+    discountValue: null,
+    discountAmount: "0.00",
     total: "1000.00",
     imageUrl: null,
     showImage: false,
@@ -51,7 +53,6 @@ function baseItem(overrides: Partial<ToSheetItemInput> = {}): ToSheetItemInput {
 
 function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
   return {
-    type: "INVOICE",
     status: "DRAFT",
     number: null,
     issueDate: new Date("2026-08-30T00:00:00.000Z"),
@@ -66,7 +67,8 @@ function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
     bankDetails: { bank: "Live Bank", bsb: "000 000", accountNo: "111 111" },
     logoUrl: null,
     footerText: "Live footer",
-    discountPct: null,
+    discountMode: "PERCENT",
+    discountValue: null,
     subtotal: "1000.00",
     discountAmount: "0.00",
     taxAmount: "100.00",
@@ -77,6 +79,8 @@ function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
     extraLines: [],
     author: { name: "Jane Author", email: "jane@example.com", phone: null },
     notes: null,
+    showItemPrices: true,
+    showOptionPrices: true,
     ...overrides,
   };
 }
@@ -96,7 +100,7 @@ describe("toSheetData — FINAL vs DRAFT entity source", () => {
   it("prefers the frozen entitySnapshot over live region fields for a FINAL document", () => {
     const doc = baseDoc({
       status: "FINAL",
-      number: "INV-AU-2026-001",
+      number: "Q-AU-2026-001",
       // Deliberately different from the "live" entityName/entityAddress/etc.
       // above — if the mapper ever regressed to reading the live fields for
       // a FINAL doc, these assertions would catch it immediately.
@@ -124,7 +128,7 @@ describe("toSheetData — FINAL vs DRAFT entity source", () => {
     // Defensive case: `entitySnapshot` is an opaque Json column with no
     // compile-time shape guarantee — a hand-edited or corrupted row must
     // never crash the renderer.
-    const doc = baseDoc({ status: "FINAL", number: "INV-AU-2026-002", entitySnapshot: { garbage: true } });
+    const doc = baseDoc({ status: "FINAL", number: "Q-AU-2026-002", entitySnapshot: { garbage: true } });
     const sheet = toSheetData(doc);
 
     expect(sheet.entity.name).toBe("Live Region Entity");
@@ -142,19 +146,13 @@ describe("toSheetData — FINAL vs DRAFT entity source", () => {
 });
 
 describe("toSheetData — validity date", () => {
-  it("is null for an invoice regardless of validityDays", () => {
-    const doc = baseDoc({ type: "INVOICE", validityDays: 7 });
-    expect(toSheetData(doc).validityDate).toBeNull();
-  });
-
   it("is null for a quote with no validityDays (not yet finalized)", () => {
-    const doc = baseDoc({ type: "QUOTE", validityDays: null });
+    const doc = baseDoc({ validityDays: null });
     expect(toSheetData(doc).validityDate).toBeNull();
   });
 
   it("is issueDate + validityDays, formatted DD/MM/YYYY, for a finalized quote", () => {
     const doc = baseDoc({
-      type: "QUOTE",
       status: "FINAL",
       number: "Q-AU-2026-001",
       issueDate: new Date("2026-08-30T00:00:00.000Z"),
@@ -166,14 +164,14 @@ describe("toSheetData — validity date", () => {
     expect(sheet.validityDate).toBe("06/09/2026");
   });
 
-  it("sets the literal title QUOTATION for a quote and INVOICE for an invoice", () => {
-    expect(toSheetData(baseDoc({ type: "QUOTE" })).title).toBe("QUOTATION");
-    expect(toSheetData(baseDoc({ type: "INVOICE" })).title).toBe("INVOICE");
+  it("titles every document QUOTATION", () => {
+    const data = toSheetData(baseDoc());
+    expect(data.title).toBe("QUOTATION");
   });
 
-  it("only shows the signature area for quotes", () => {
-    expect(toSheetData(baseDoc({ type: "QUOTE" })).showSignature).toBe(true);
-    expect(toSheetData(baseDoc({ type: "INVOICE" })).showSignature).toBe(false);
+  it("always shows the signature block", () => {
+    const data = toSheetData(baseDoc());
+    expect(data.showSignature).toBe(true);
   });
 });
 
@@ -254,12 +252,21 @@ describe("toSheetData — delivery address block", () => {
 });
 
 describe("toSheetData — items and lines", () => {
-  it("carries the item discount percentage through untouched, null when unset", () => {
-    const withDiscount = toSheetData(baseDoc({ items: [baseItem({ discountPct: "15" })] }));
-    expect(withDiscount.items[0].discountPct).toBe("15");
+  it("carries the item discount mode and value through untouched, null when unset", () => {
+    const withDiscount = toSheetData(
+      baseDoc({ items: [baseItem({ discountMode: "PERCENT", discountValue: "15" })] })
+    );
+    expect(withDiscount.items[0].discountMode).toBe("PERCENT");
+    expect(withDiscount.items[0].discountValue).toBe("15");
 
-    const withoutDiscount = toSheetData(baseDoc({ items: [baseItem({ discountPct: null })] }));
-    expect(withoutDiscount.items[0].discountPct).toBeNull();
+    const withAmount = toSheetData(
+      baseDoc({ items: [baseItem({ discountMode: "AMOUNT", discountValue: "20000.00" })] })
+    );
+    expect(withAmount.items[0].discountMode).toBe("AMOUNT");
+    expect(withAmount.items[0].discountValue).toBe("20000.00");
+
+    const withoutDiscount = toSheetData(baseDoc({ items: [baseItem({ discountValue: null })] }));
+    expect(withoutDiscount.items[0].discountValue).toBeNull();
   });
 
   it("computes each option line's lineTotal as qty * unitPrice", () => {
@@ -304,6 +311,35 @@ describe("toSheetData — items and lines", () => {
     const doc = baseDoc({ items: [baseItem({ showImage: true, imageUrl: "/api/files/missing.jpg" })] });
     const sheet = toSheetData(doc, () => undefined);
     expect(sheet.items[0].image).toBeNull();
+  });
+
+  it("only shows an extra line's image when showImage is true AND an imageUrl is present", () => {
+    const noFlag = toSheetData(
+      baseDoc({
+        extraLines: [
+          { id: "extra-1", code: null, name: "Trade-in", description: null, qty: 1, unitPrice: "-500", showImage: false, imageUrl: "/api/files/a.jpg" },
+        ],
+      })
+    );
+    expect(noFlag.extraLines[0].image).toBeNull();
+
+    const noUrl = toSheetData(
+      baseDoc({
+        extraLines: [
+          { id: "extra-1", code: null, name: "Trade-in", description: null, qty: 1, unitPrice: "-500", showImage: true, imageUrl: null },
+        ],
+      })
+    );
+    expect(noUrl.extraLines[0].image).toBeNull();
+
+    const both = toSheetData(
+      baseDoc({
+        extraLines: [
+          { id: "extra-1", code: null, name: "Trade-in", description: null, qty: 1, unitPrice: "-500", showImage: true, imageUrl: "/api/files/a.jpg" },
+        ],
+      })
+    );
+    expect(both.extraLines[0].image).toBe("/api/files/a.jpg");
   });
 });
 
@@ -362,7 +398,8 @@ describe("toSheetData — totals passthrough", () => {
   it("passes the document totals straight through", () => {
     const doc = baseDoc({
       subtotal: "1000.00",
-      discountPct: "10",
+      discountMode: "PERCENT",
+      discountValue: "10",
       discountAmount: "100.00",
       taxAmount: "90.00",
       total: "990.00",
@@ -374,7 +411,8 @@ describe("toSheetData — totals passthrough", () => {
     expect(sheet.totals).toEqual({
       currency: "USD",
       subtotal: "1000.00",
-      discountPct: "10",
+      discountMode: "PERCENT",
+      discountValue: "10",
       discountAmount: "100.00",
       taxName: "Sales Tax",
       taxRate: "0",

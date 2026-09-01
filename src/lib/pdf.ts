@@ -50,6 +50,35 @@ export async function renderQuotationHtml(data: QuotationData): Promise<string> 
   return `<!doctype html><html><head><meta charSet="utf-8"><style>@page{size:A4;margin:15mm} body{margin:0}</style></head><body>${body}</body></html>`;
 }
 
+// --- footer -----------------------------------------------------------
+
+/** Minimal HTML-escape — the document number is server-generated (see
+ * `formatDocNumber`, src/lib/numbering.ts) and never expected to carry
+ * markup, but it's still interpolated into HTML here, so it's escaped
+ * rather than trusted to stay within its expected `Q-AU-2026-001` shape
+ * forever. Same five-entity escape as `escapeHtml` in src/lib/markdown.ts,
+ * duplicated locally (that one isn't exported) rather than importing a
+ * markdown-rendering module for one string helper. */
+function escapeHtmlAttr(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Gotenberg substitutes the pageNumber/totalPages spans from Chromium's own
+ * print classes; everything else is literal markup. Font size is set inline
+ * because the footer is rendered in its own document with no stylesheet. */
+export function buildFooterHtml(documentNumber: string | null): string {
+  const left = escapeHtmlAttr(documentNumber ?? "Draft");
+  return `<div style="width:100%;font-size:8px;font-family:sans-serif;color:#666;padding:0 12mm;display:flex;justify-content:space-between;">
+  <span>${left}</span>
+  <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
+</div>`;
+}
+
 // --- Gotenberg conversion -------------------------------------------------
 
 const GOTENBERG_TIMEOUT_MS = 30_000;
@@ -61,8 +90,20 @@ const GOTENBERG_TIMEOUT_MS = 30_000;
  * margin as part of the page content — doubling it up via Gotenberg's own
  * margin options would push the sheet's own padding further in than
  * intended.
+ *
+ * `footerHtml` (see `buildFooterHtml`) is optional so callers that don't
+ * pass one keep today's exact zero-margin behavior. When it IS passed,
+ * Chromium's `header.html`/`footer.html` mechanism renders it INSIDE the
+ * `marginBottom` band from `Page.printToPDF` — a completely separate
+ * reservation from the `@page{margin:15mm}` CSS rule the sheet's own content
+ * relies on. With `marginBottom` left at 0, Gotenberg would have no room to
+ * place the footer and it would be clipped, so a non-zero `marginBottom` is
+ * set whenever a footer is supplied (~10mm — enough for the single-line
+ * footer `buildFooterHtml` builds). That reservation stacks on top of, not
+ * instead of, the sheet's own 15mm bottom padding, so page content simply
+ * ends a little higher up the page — never clipped.
  */
-export async function htmlToPdf(html: string): Promise<Buffer> {
+export async function htmlToPdf(html: string, footerHtml?: string): Promise<Buffer> {
   const baseUrl = process.env.GOTENBERG_URL;
   if (!baseUrl) {
     throw new Error("GOTENBERG_URL is not configured");
@@ -73,9 +114,15 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
   form.set("paperWidth", "8.27");
   form.set("paperHeight", "11.69");
   form.set("marginTop", "0");
-  form.set("marginBottom", "0");
+  form.set("marginBottom", footerHtml ? "0.4" : "0");
   form.set("marginLeft", "0");
   form.set("marginRight", "0");
+  if (footerHtml) {
+    // `printBackground` isn't needed here — `buildFooterHtml`'s markup has
+    // no background of its own — so it's left at Gotenberg's default rather
+    // than turned on for a case that doesn't use it.
+    form.append("files", new Blob([footerHtml], { type: "text/html" }), "footer.html");
+  }
 
   const response = await fetch(`${baseUrl}/forms/chromium/convert/html`, {
     method: "POST",

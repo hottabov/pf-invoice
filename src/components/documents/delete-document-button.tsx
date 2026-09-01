@@ -31,8 +31,8 @@ export function DeleteDocumentButton({
   action,
 }: {
   documentId: string;
-  /** Display number (or "Quote draft"/"Invoice draft" fallback) used in the
-   * aria-label and confirm dialog copy. */
+  /** Display number (or "Quote draft" fallback) used in the aria-label and
+   * confirm dialog copy. */
   numberLabel: string;
   status: DocumentStatus;
   action: (documentId: string) => Promise<ActionResult>;
