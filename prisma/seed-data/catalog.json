@@ -762,7 +762,7 @@
       "name": "Crate- Wooden crate for transport",
       "description": "Crate- Wooden crate for transport",
       "price": 1400,
-      "needsReview": true,
+      "needsReview": false,
       "compatibleSeries": [
         "EL"
       ]
