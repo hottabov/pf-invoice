@@ -31,7 +31,8 @@ same code twice.
 3. `Valid until` date visible in the Total Investment block, overridable per quote.
 4. Page numbers in PDF footers.
 5. Extra lines accept negative amounts (trade-in) and a photo.
-6. Invoice support removed completely — code, schema, tests, data.
+6. Discounts can be a percentage or a fixed cash amount, at item and document level.
+7. Invoice support removed completely — code, schema, tests, data.
 
 ## Non-goals
 
@@ -170,8 +171,12 @@ type ItemBreakdown = {
   qty: number;          // always 1 today; rendered, never multiplied
   basePrice: string;    // the machine on its own
   options: Array<{ name: string; qty: number; lineTotal: string | null }>;
-  discountPct: number | null;
-  subtotal: string;     // base + options - item discount
+  discount: {
+    mode: "PERCENT" | "AMOUNT";
+    value: string;      // what the salesperson typed: 5 (%) or 20000 ($)
+    amount: string;     // the cash actually deducted, always resolved
+  } | null;
+  subtotal: string;     // base + options - discount
 };
 ```
 
@@ -296,6 +301,80 @@ routes (summary and full quotation) inherit it.
 
 ---
 
+## Part F — percentage or fixed-amount discounts
+
+### F1. Problem
+
+Both discount fields are percentage-only: `Document.discountPct` and
+`DocumentItem.discountPct`, enforced by `discountPctSchema`
+(`validation/documents.ts:81-95`) and applied in `pricing.ts:216-231`. A
+salesperson who has agreed "twenty grand off" has to compute the equivalent
+percentage and accept the rounding, or push it into an extra line where it is
+not a discount at all.
+
+### F2. Model
+
+Each discount becomes a mode plus a value, replacing the bare percentage:
+
+```prisma
+enum DiscountMode { PERCENT AMOUNT }
+
+// on both Document and DocumentItem
+discountMode  DiscountMode @default(PERCENT)
+discountValue Decimal?     @db.Decimal(12, 2)
+```
+
+Migration `12_discount_mode` renames `discountPct` to `discountValue`, widens it
+from `Decimal(5,2)` to `Decimal(12,2)`, and adds `discountMode` defaulting to
+`PERCENT`. Every existing row is a percentage, so the default is correct and no
+data conversion is needed.
+
+Storing a mode rather than two nullable columns (`discountPct` and
+`discountAmount`) means the invalid state — both set, disagreeing — cannot be
+represented.
+
+### F3. Pricing
+
+`computeTotals` resolves each discount to a cash amount before subtracting:
+
+- `PERCENT`: `amount = round(base * value / 100)`, matching today's behaviour.
+- `AMOUNT`: `amount = toCents(value)`, capped at `base` so a discount can never
+  exceed what it applies to.
+
+Rounding stays where it is now — cents, integer arithmetic, no floats.
+
+### F4. Discount cap
+
+`Region.maxDiscountPct` is a percentage, and it must keep working for cash
+discounts or the cap becomes trivially avoidable — "10% max" means nothing if
+the same salesperson can type an unlimited dollar figure.
+
+For an `AMOUNT` discount, the effective percentage is
+`amount / base * 100`, checked against the same cap with the same roles:
+MANAGER is rejected over the cap, ADMIN gets a warning and the save proceeds
+(`actions/documents.ts:668-678`, `:744-753`). The rejection message states both
+figures: the cash amount and the percentage it works out to.
+
+Because the cap is relative to the base, an amount discount must be re-validated
+whenever the item's base or options change — otherwise removing an option could
+silently push a fixed discount over the cap. `recalcDocument` performs this
+check and surfaces a violation the same way an over-cap percentage does today.
+
+### F5. UI
+
+The discount field gains a mode toggle beside the number input: `%` and the
+region's currency symbol. Switching mode clears the value rather than converting
+it — a converted number invites the salesperson to accept a figure they did not
+choose. Present on both the item discount field
+(`components/builder/item-discount-field.tsx`) and the document one
+(`components/builder/document-discount-field.tsx`).
+
+The sheets print `Discount 5%` or `Discount −$20,000.00` from the resolved
+breakdown, so a reader always sees the cash effect regardless of how it was
+entered.
+
+---
+
 ## Testing
 
 Baseline before any change: 752 tests across 28 files, all passing.
@@ -322,6 +401,11 @@ Baseline before any change: 752 tests across 28 files, all passing.
   `purpose=catalog` as ADMIN; `document-line` rejected for a non-authenticated
   caller.
 - numbering: sequence allocation is per `(region, year)` after `docType` is gone.
+- discounts: percentage behaviour unchanged to the cent; an amount discount
+  deducts exactly what was typed; an amount larger than the base is capped at
+  the base; an amount over `Region.maxDiscountPct` is rejected for MANAGER and
+  warned for ADMIN; removing an option re-validates a fixed discount against the
+  smaller base.
 
 Test-driven per `superpowers:test-driven-development` — each behaviour gets a
 failing test before the code that satisfies it.
@@ -331,13 +415,14 @@ failing test before the code that satisfies it.
 ## Rollout
 
 1. Work in `.worktrees/p0` on `feat/p0-quote-correctness`.
-2. Land in this order: invoice removal (code, then migration), then the shared
-   presenter, then extra lines, then validity, then the PDF footer. Removal
-   first because it deletes branches the presenter would otherwise have to
-   preserve.
-3. Two migrations, not one: `10_remove_invoices` and `11_document_line_image`.
-   They are independent, and a failure in the destructive one should not roll
-   back a harmless column addition.
+2. Land in this order: invoice removal (code, then migration), then the discount
+   model, then the shared presenter, then extra lines, then validity, then the
+   PDF footer. Removal first because it deletes branches the presenter would
+   otherwise have to preserve; the discount model before the presenter because
+   the presenter renders the resolved discount.
+3. Three migrations, kept separate so a failure in the destructive one does not
+   roll back the harmless ones: `10_remove_invoices`,
+   `11_document_line_image`, `12_discount_mode`.
 4. Merge to `main` before the order-forms branch. That branch then rebases and
    drops its own invoice handling.
 
