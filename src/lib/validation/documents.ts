@@ -50,8 +50,6 @@ const qtySchema = z.coerce
   .min(1, "Qty must be at least 1")
   .max(999, "Qty must be at most 999");
 
-const NON_NEGATIVE_AMOUNT_REGEX = /^\d+(\.\d{1,2})?$/;
-
 /** A custom line may be negative: a trade-in is entered as a line with a minus,
  * which keeps one mechanism serving many purposes (see the P0 spec, Part C).
  * Option and product lines keep the non-negative rule — a negative option is a

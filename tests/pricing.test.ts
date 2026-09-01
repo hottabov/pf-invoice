@@ -349,7 +349,7 @@ describe("computeTotals", () => {
     expect(result.negativeSubtotal).toBe(false);
   });
 
-  it("reports a violation when the subtotal goes negative", () => {
+  it("sets negativeSubtotal when the subtotal goes below zero", () => {
     const result = computeTotals({
       items: [{ unitPrice: 1000, lines: [] }],
       extraLines: [{ qty: 1, unitPrice: -5000 }],
@@ -358,6 +358,20 @@ describe("computeTotals", () => {
     });
     expect(result.subtotal).toBe(-4000);
     expect(result.negativeSubtotal).toBe(true);
+  });
+
+  it("does not flag negativeSubtotal when a trade-in exactly zeroes the subtotal", () => {
+    // Boundary: subtotalCents === 0 must not trip the `< 0` check — giving
+    // an item away even-up on a trade-in is a valid (if unusual) quote, not
+    // an error to reject.
+    const result = computeTotals({
+      items: [{ unitPrice: 1000, lines: [] }],
+      extraLines: [{ qty: 1, unitPrice: -1000 }],
+      documentDiscountPct: null,
+      taxRate: 0,
+    });
+    expect(result.subtotal).toBe(0);
+    expect(result.negativeSubtotal).toBe(false);
   });
 
   it("does not flag negativeSubtotal for an ordinary positive quote", () => {

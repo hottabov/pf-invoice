@@ -298,6 +298,35 @@ describe("toSheetData — items and lines", () => {
     const sheet = toSheetData(doc, () => undefined);
     expect(sheet.items[0].image).toBeNull();
   });
+
+  it("only shows an extra line's image when showImage is true AND an imageUrl is present", () => {
+    const noFlag = toSheetData(
+      baseDoc({
+        extraLines: [
+          { id: "extra-1", code: null, name: "Trade-in", description: null, qty: 1, unitPrice: "-500", showImage: false, imageUrl: "/api/files/a.jpg" },
+        ],
+      })
+    );
+    expect(noFlag.extraLines[0].image).toBeNull();
+
+    const noUrl = toSheetData(
+      baseDoc({
+        extraLines: [
+          { id: "extra-1", code: null, name: "Trade-in", description: null, qty: 1, unitPrice: "-500", showImage: true, imageUrl: null },
+        ],
+      })
+    );
+    expect(noUrl.extraLines[0].image).toBeNull();
+
+    const both = toSheetData(
+      baseDoc({
+        extraLines: [
+          { id: "extra-1", code: null, name: "Trade-in", description: null, qty: 1, unitPrice: "-500", showImage: true, imageUrl: "/api/files/a.jpg" },
+        ],
+      })
+    );
+    expect(both.extraLines[0].image).toBe("/api/files/a.jpg");
+  });
 });
 
 describe("dedupeDescription", () => {
