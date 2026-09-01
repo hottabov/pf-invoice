@@ -26,6 +26,7 @@ export function ImageUpload({
   onSave,
   readOnly = false,
   previewHeightPx,
+  removeLabel = "Remove image",
 }: {
   currentUrl: string | null;
   alt: string;
@@ -36,6 +37,11 @@ export function ImageUpload({
    * the catalog product/option preview size (~112px via `h-28`) when
    * omitted. */
   previewHeightPx?: number;
+  /** Label for the button that calls `onSave(null)`. Defaults to "Remove
+   * image"; the series editor overrides this to "Reset to product image"
+   * since a series' `null` isn't "no image" -- it falls back to a product
+   * photo (see updateSeriesImage in src/lib/actions/catalog.ts). */
+  removeLabel?: string;
 }) {
   const [url, setUrl] = useState(currentUrl);
   const [uploading, setUploading] = useState(false);
@@ -148,7 +154,7 @@ export function ImageUpload({
           </Button>
           {url ? (
             <Button type="button" variant="outline" onClick={handleRemove} disabled={busy} className="h-11">
-              Remove image
+              {removeLabel}
             </Button>
           ) : null}
           {busy ? <span className="text-sm text-slate-500">Saving…</span> : null}

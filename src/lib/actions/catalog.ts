@@ -297,6 +297,27 @@ export async function updateOptionImage(optionId: string, url: string | null): P
   return {};
 }
 
+/** Sets (or clears, via `url: null`) a series' own catalog-card image
+ * override. `null` isn't "no image" here -- it means "fall back to a
+ * product image", see listSeriesWithCounts/getSeriesFallbackImageUrl in
+ * src/lib/queries/catalog.ts -- but the persisted value and validation are
+ * identical to updateProductImage/updateOptionImage above. */
+export async function updateSeriesImage(seriesId: string, url: string | null): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = parseImageUrl(url);
+  if (!parsed.ok) return { error: "Invalid image URL" };
+
+  const existing = await db.series.findUnique({ where: { id: seriesId } });
+  if (!existing) return { error: "Series not found" };
+
+  await db.series.update({ where: { id: seriesId }, data: { imageUrl: parsed.value } });
+
+  revalidatePath("/catalog");
+  revalidatePath(`/catalog/${encodeURIComponent(existing.code)}`);
+  return {};
+}
+
 // --- prices ----------------------------------------------------------------
 
 export type PriceTarget = { productId: string; optionId?: never } | { optionId: string; productId?: never };

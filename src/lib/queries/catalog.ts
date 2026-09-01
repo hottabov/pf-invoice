@@ -38,13 +38,31 @@ export type SeriesWithCounts = {
   maxDiscountPct: string | null;
   sortOrder: number;
   productCount: number;
+  /** Resolved display image for the /catalog series card: the series' own
+   * override if set, else the first active product (ordered by sortOrder,
+   * then code) that has an image, else `null`. */
+  imageUrl: string | null;
 };
 
-/** All series, ordered for display, with the number of products in each. */
+/**
+ * All series, ordered for display, with the number of products in each and
+ * the image to show on its /catalog card. A single `findMany` -- the
+ * fallback product image is pulled via a nested `products` relation
+ * (`take: 1`, filtered/ordered so Prisma resolves it as part of the same
+ * query) rather than a per-series follow-up query.
+ */
 export async function listSeriesWithCounts(): Promise<SeriesWithCounts[]> {
   const series = await db.series.findMany({
     orderBy: { sortOrder: "asc" },
-    include: { _count: { select: { products: true } } },
+    include: {
+      _count: { select: { products: true } },
+      products: {
+        where: { active: true, imageUrl: { not: null } },
+        orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+        take: 1,
+        select: { imageUrl: true },
+      },
+    },
   });
 
   return series.map((s) => ({
@@ -54,6 +72,7 @@ export async function listSeriesWithCounts(): Promise<SeriesWithCounts[]> {
     maxDiscountPct: s.maxDiscountPct?.toString() ?? null,
     sortOrder: s.sortOrder,
     productCount: s._count.products,
+    imageUrl: s.imageUrl ?? s.products[0]?.imageUrl ?? null,
   }));
 }
 
@@ -81,6 +100,11 @@ export type SeriesDetail = {
   code: string;
   name: string;
   maxDiscountPct: string | null;
+  /** The series' own image override (raw, unresolved) -- `null` means "no
+   * override, falls back to a product image" (see listSeriesWithCounts and
+   * getSeriesFallbackImageUrl). Distinct from ProductDetail/OptionDetail's
+   * imageUrl, which has no fallback of its own. */
+  imageUrl: string | null;
 };
 
 /**
@@ -114,6 +138,7 @@ export const listProductsBySeries = cache(async function listProductsBySeries(
       code: series.code,
       name: series.name,
       maxDiscountPct: series.maxDiscountPct?.toString() ?? null,
+      imageUrl: series.imageUrl,
     },
     products: products.map((p) => {
       const price = p.prices[0];
@@ -133,6 +158,21 @@ export const listProductsBySeries = cache(async function listProductsBySeries(
     }),
   };
 });
+
+/** The product photo a series falls back to on /catalog when it has no
+ * explicit `Series.imageUrl` override -- the first active product (ordered
+ * by sortOrder, then code) that has an image of its own, mirroring
+ * listSeriesWithCounts' resolution. Used by the admin "Series image" panel
+ * on the series products page to show what "Reset to product image" would
+ * revert to. */
+export async function getSeriesFallbackImageUrl(seriesId: string): Promise<string | null> {
+  const product = await db.product.findFirst({
+    where: { seriesId, active: true, imageUrl: { not: null } },
+    orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+    select: { imageUrl: true },
+  });
+  return product?.imageUrl ?? null;
+}
 
 export type OptionListItem = {
   id: string;
@@ -213,6 +253,7 @@ export async function getSeriesByCode(code: string): Promise<SeriesDetail | null
     code: series.code,
     name: series.name,
     maxDiscountPct: series.maxDiscountPct?.toString() ?? null,
+    imageUrl: series.imageUrl,
   };
 }
 
@@ -291,6 +332,7 @@ export async function getProductDetail(
       code: series.code,
       name: series.name,
       maxDiscountPct: series.maxDiscountPct?.toString() ?? null,
+      imageUrl: series.imageUrl,
     },
     prices: toRegionPriceRows(regions, product.prices),
   };

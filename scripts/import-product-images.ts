@@ -7,7 +7,13 @@
  *
  * Mapping lives in scripts/import-images-lib.ts (pure, unit tested):
  *  - SERIES_IMAGES: every product in a whole series gets that series'
- *    image (M, X, L, LNS, EF, FP -- one photo per product line).
+ *    image (M, X, L, LNS, EF, FP -- one photo per product line), AND the
+ *    Series row itself gets the same image as its own imageUrl (only-if-
+ *    null, same as everything else here) -- see Series.imageUrl in
+ *    schema.prisma and listSeriesWithCounts in src/lib/queries/catalog.ts,
+ *    which resolves a series' /catalog card image from this field (falling
+ *    back to a product's imageUrl, and finally to a placeholder, when it's
+ *    still null -- e.g. for P/EL, which have no SERIES_IMAGES entry).
  *  - PRODUCT_IMAGES: individual SW-series software modules that share
  *    PathWorks' screenshot, plus Production Analyst's own image, plus the
  *    hand-authored manual products (FP-TROLLEY, HDRF-180/220/320) with their
@@ -135,6 +141,52 @@ async function main() {
     if (alreadyExists) continue;
     await copyFile(sourcePath, destPath);
     console.log(`copied ${sourceFile} -> ${filename}`);
+  }
+
+  // 1b) Also set Series.imageUrl directly from SERIES_IMAGES -- distinct
+  // from step 3 below (which applies the same map to every *product* in the
+  // series). This is what makes the /catalog series cards (see
+  // listSeriesWithCounts in src/lib/queries/catalog.ts) show nice art on a
+  // fresh install even before any admin sets a per-series override --
+  // same only-if-null-unless---force convention as every other target here.
+  let seriesImageUpdated = 0;
+  let seriesImageSkippedHasImage = 0;
+  let seriesImageSkippedMissing = 0;
+  const seriesImageMismatches: string[] = [];
+
+  for (const [seriesCode, sourceFile] of Object.entries(SERIES_IMAGES)) {
+    const filename = filenameBySource.get(sourceFile);
+    if (!filename) continue; // unreachable: distinctImageFiles() always covers every mapping value
+
+    const imageUrl = `/api/files/${filename}`;
+    if (!IMAGE_URL_PATTERN.test(imageUrl)) {
+      // Defensive only -- md5UuidFilename always produces a matching shape.
+      throw new Error(`internal error: built imageUrl "${imageUrl}" doesn't match IMAGE_URL_PATTERN`);
+    }
+
+    const series = await db.series.findUnique({ where: { code: seriesCode } });
+    if (!series) {
+      seriesImageSkippedMissing++;
+      seriesImageMismatches.push(seriesCode);
+      console.warn(`warning: series code "${seriesCode}" (from SERIES_IMAGES) not found in catalog -- skipped`);
+      continue;
+    }
+
+    if (series.imageUrl !== null && !force) {
+      seriesImageSkippedHasImage++;
+      console.log(`skip (already has an image): series ${seriesCode}`);
+      continue;
+    }
+
+    if (dry) {
+      console.log(`[dry] would set series ${seriesCode}.imageUrl = ${imageUrl}`);
+      seriesImageUpdated++;
+      continue;
+    }
+
+    await db.series.update({ where: { id: series.id }, data: { imageUrl } });
+    seriesImageUpdated++;
+    console.log(`updated series ${seriesCode} -> ${imageUrl}`);
   }
 
   // 2) Resolve every mapped series/product code to its target imageUrl. A
@@ -368,6 +420,11 @@ async function main() {
 
   console.log(`\nImport summary${dry ? " (dry run -- nothing written)" : ""}`);
   console.log("================");
+  console.log("Series images (Series.imageUrl):");
+  console.log(`  updated:              ${seriesImageUpdated}`);
+  console.log(`  skipped (has image):  ${seriesImageSkippedHasImage}`);
+  console.log(`  skipped (no series):  ${seriesImageSkippedMissing}`);
+  if (seriesImageMismatches.length) console.log(`  mismatched codes:     ${seriesImageMismatches.join(", ")}`);
   console.log("Product/series images:");
   console.log(`  updated:              ${updated}`);
   console.log(`  skipped (has image):  ${skippedHasImage}`);

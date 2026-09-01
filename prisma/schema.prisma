@@ -107,6 +107,7 @@ model Series {
   name           String // M-Series, X-Calibre...
   maxDiscountPct Decimal?              @db.Decimal(5, 2) // unused: discount caps moved to Region.maxDiscountPct; column kept, not read anywhere
   sortOrder      Int                   @default(0)
+  imageUrl       String? // admin override for the /catalog series card image; null falls back to the first active product's imageUrl -- see listSeriesWithCounts in src/lib/queries/catalog.ts
   products       Product[]
   compat         OptionCompatibility[]
 }
