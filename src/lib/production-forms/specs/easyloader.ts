@@ -44,6 +44,12 @@ export const easyLoaderSpec: FormSpec = {
   // not the presence of this field.
   requires: ["usage"],
 
+  // The table length options have no box of their own: the three section
+  // rows and the "Total Table is N m" line at M54 are how this form states
+  // them. Declaring them here keeps them off the Additional items sheet,
+  // which exists for things the form genuinely cannot express.
+  coversOptions: [/Additional 1\.2M lengths$/i, /Static table 1\.2M lengths$/i],
+
   values: [
     { cell: "G11", from: (c) => c.distributorName },
     // O11, not N11: the "Name:" label sits in M11, which is 3.7 characters

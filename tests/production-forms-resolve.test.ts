@@ -266,3 +266,30 @@ describe("FabricPro form", () => {
     expect(missingRequirements(resolveForm("FP-220")!, {})).toEqual([]);
   });
 });
+
+describe("coversOptions", () => {
+  const elItem = {
+    id: "i", code: "EL-2420", name: "EasyLoader 2420", lineGroup: 1,
+    spec: { ui: "-Y", usage: "onload", sections: [] },
+    optionCodes: ["EL-2420 Additional 1.2M lengths", "EL-2420 Static table 1.2M lengths"],
+    optionQtys: [
+      { code: "EL-2420 Additional 1.2M lengths", qty: 6 },
+      { code: "EL-2420 Static table 1.2M lengths", qty: 2 },
+    ],
+    optionAttributes: {},
+  };
+
+  it("does not report the table length options as unmatched", () => {
+    // They have no tick of their own -- the section rows and the printed
+    // total are how the form states them -- so without coversOptions they
+    // would be printed again on the Additional items sheet.
+    const context = ctx({ item: elItem as never });
+    expect(unmatchedOptionCodes(resolveForm("EL-2420")!, context)).toEqual([]);
+  });
+
+  it("still reports an option the form genuinely has no place for", () => {
+    const item = { ...elItem, optionCodes: [...elItem.optionCodes, "EDS-500"] };
+    const context = ctx({ item: item as never });
+    expect(unmatchedOptionCodes(resolveForm("EL-2420")!, context)).toEqual(["EDS-500"]);
+  });
+});

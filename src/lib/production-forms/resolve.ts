@@ -53,17 +53,27 @@ export function buildPatches(spec: FormSpec, ctx: FormContext): CellPatch[] {
 }
 
 /**
- * Option codes on this item that the form has no box for.
+ * Option codes on this item that the form does not account for anywhere.
  *
  * These are not dropped: they go on the "Additional items" sheet. An option
  * the workshop never sees is the worst thing this feature could do, so the
  * absence of a box has to be detectable rather than invisible -- which is
  * what `covers` on each option tick exists for.
+ *
+ * A tick is not the only way a form can account for an option, though. The
+ * EasyLoader's table length options are represented by the three section
+ * rows and the printed total rather than by a box of their own, and listing
+ * them again on the Additional items sheet would tell the workshop the form
+ * had missed something it did not miss. `coversOptions` is how a spec
+ * declares that kind of coverage.
  */
 export function unmatchedOptionCodes(spec: FormSpec, ctx: FormContext): string[] {
-  const covered = spec.ticks
-    .map((tick) => tick.covers)
-    .filter((pattern): pattern is RegExp => pattern !== undefined);
+  const covered = [
+    ...spec.ticks
+      .map((tick) => tick.covers)
+      .filter((pattern): pattern is RegExp => pattern !== undefined),
+    ...(spec.coversOptions ?? []),
+  ];
 
   return ctx.item.optionCodes.filter((code) => !covered.some((pattern) => pattern.test(code)));
 }

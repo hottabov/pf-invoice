@@ -52,6 +52,14 @@ export type FormSpec = {
    * the product code or the production spec leave it undefined.
    */
   ticks: Array<{ cell: string; when: (ctx: FormContext) => boolean; covers?: RegExp }>;
+  /**
+   * Options this form accounts for without a tick of their own -- the
+   * EasyLoader's table lengths, which the section rows and the printed total
+   * already represent. Without this they would be reported unmatched and
+   * printed again on the Additional items sheet, telling the workshop the
+   * form had missed something it did not miss.
+   */
+  coversOptions?: RegExp[];
   /** productionSpec keys that block generation while unanswered. */
   requires: string[];
   specSchema: z.ZodTypeAny;
