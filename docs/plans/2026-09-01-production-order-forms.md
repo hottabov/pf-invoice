@@ -366,7 +366,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import type { z } from "zod";
 import { db } from "@/lib/db";
-import { requireSession } from "@/lib/authz";
+import { requireAdmin, requireSession } from "@/lib/authz";
 import { companyWhereForUser } from "@/lib/scope";
 import { idSchema, optionalIdSchema } from "@/lib/validation/documents";
 import { industryNameSchema, normalizeIndustryName } from "@/lib/validation/industries";
@@ -437,8 +437,11 @@ export async function createIndustry(name: string): Promise<ActionResult & { id?
  * Renames the shared row. The caller shows the affected-company count first
  * (see `countCompaniesUsingIndustry`); this only guards the data.
  */
+// Admin-only, unlike createIndustry: creating is additive and deduplicated,
+// but renaming changes a value every manager's companies display and every
+// production form prints. Same rule as the other global tables.
 export async function renameIndustry(industryId: string, name: string): Promise<ActionResult> {
-  await requireSession();
+  await requireAdmin();
 
   const parsedId = idSchema.safeParse(industryId);
   if (!parsedId.success) return { error: NOT_FOUND_ERROR };
@@ -542,9 +545,15 @@ type Props = {
   selectedId: string | null;
   /** Companies using the currently selected industry, for the rename confirm. */
   usageCount: number;
+  /**
+   * Whether to offer the rename pencil. Renaming is admin-only (see
+   * `renameIndustry`): the row is shared, so the edit lands on every
+   * manager's companies. Creating and selecting stay open to everyone.
+   */
+  canRename: boolean;
 };
 
-export function IndustryPicker({ companyId, industries, selectedId, usageCount }: Props) {
+export function IndustryPicker({ companyId, industries, selectedId, usageCount, canRename }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -609,7 +618,7 @@ export function IndustryPicker({ companyId, industries, selectedId, usageCount }
           className="w-full rounded border px-2 py-1"
           aria-label="Industry"
         />
-        {selected && !open && (
+        {selected && !open && canRename && (
           <button type="button" onClick={rename} disabled={pending} aria-label="Rename industry">
             ✎
           </button>

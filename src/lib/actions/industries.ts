@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import type { z } from "zod";
 import { db } from "@/lib/db";
-import { requireSession } from "@/lib/authz";
+import { requireAdmin, requireSession } from "@/lib/authz";
 import { idSchema, optionalIdSchema } from "@/lib/validation/documents";
 import { industryNameSchema, normalizeIndustryName } from "@/lib/validation/industries";
 import { companyWhereForUser } from "@/lib/scope";
@@ -80,9 +80,16 @@ export async function createIndustry(name: string): Promise<ActionResult & { id?
 /**
  * Renames the shared row. The caller shows the affected-company count first
  * (see `countCompaniesUsingIndustry`); this only guards the data.
+ *
+ * Admin-only, unlike `createIndustry`. Creating is additive and deduplicated,
+ * so the worst case is a redundant row. Renaming changes a value every
+ * manager's companies display and every production form prints, with no trace
+ * for the people who did not do it -- the same blast radius that makes every
+ * mutation on the other global tables (Region, Series, Product, Option)
+ * admin-only. See `requireAdmin` in src/lib/authz.ts.
  */
 export async function renameIndustry(industryId: string, name: string): Promise<ActionResult> {
-  await requireSession();
+  await requireAdmin();
 
   const parsedId = idSchema.safeParse(industryId);
   if (!parsedId.success) return { error: NOT_FOUND_ERROR };

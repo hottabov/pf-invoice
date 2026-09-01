@@ -318,7 +318,9 @@ Industry is set on the client card — never by navigating to another page — t
 
 - **Typeahead.** Typing filters the list by substring, case-insensitively, as you type. The list is expected to hold hundreds of imported rows, so the field is search-first rather than a long scrolling `<select>`.
 - **Create on miss.** When nothing matches, the last option is `Create "Marine upholstery"`. Choosing it creates the `Industry` row and selects it in one action.
-- **Rename in place.** A pencil next to the selected value renames the `Industry` row itself. Because that row is shared, the confirm states how many companies are affected — `Rename "Automotve" to "Automotive"? Used by 14 companies.` Renaming is a genuine fix for an imported typo, so it stays available, but it never happens silently.
+- **Rename in place — admins only.** A pencil next to the selected value renames the `Industry` row itself. Because that row is shared, the confirm states how many companies are affected — `Rename "Automotve" to "Automotive"? Used by 14 companies.` Renaming is a genuine fix for an imported typo, so it stays available, but it never happens silently.
+
+  Gated on `requireAdmin`, unlike creating. Every other global, unowned table in this app — `Region`, `Series`, `Product`, `Option` — is admin-only to mutate, and `authz.ts` states the rule outright. `Industry` is structurally the same: renaming changes a value every manager's companies display and every production form prints, with no trace for the people who did not do it. Creating stays open to everyone because it is additive and deduplicated; the worst case is a redundant row. Managers see no pencil.
 - **Clear.** The field is optional; clearing it sets `industryId` to null and the form prints the row blank.
 
 Creation is case-insensitively deduplicated on the server: typing `automotive` when `Automotive` exists selects the existing row instead of creating a near-duplicate.
