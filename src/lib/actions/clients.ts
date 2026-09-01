@@ -38,6 +38,18 @@ function readCompanyForm(formData: FormData) {
     taxId: formData.get("taxId"),
     notes: formData.get("notes"),
     regionCode: formData.get("regionCode"),
+    // `FormData.get` returns the FIRST value for a repeated name — see
+    // CompanyForm's doc comment for why the checkbox is listed before its
+    // hidden "false" fallback, so this returns "true" only when checked.
+    deliverySameAsMain: formData.get("deliverySameAsMain"),
+    deliveryStreet: formData.get("deliveryStreet"),
+    deliveryCity: formData.get("deliveryCity"),
+    deliveryState: formData.get("deliveryState"),
+    deliveryPostcode: formData.get("deliveryPostcode"),
+    deliveryCountry: formData.get("deliveryCountry"),
+    deliveryContactName: formData.get("deliveryContactName"),
+    deliveryPhone: formData.get("deliveryPhone"),
+    deliveryNotes: formData.get("deliveryNotes"),
   };
 }
 
@@ -83,6 +95,15 @@ export async function createCompany(formData: FormData): Promise<ActionResult> {
       notes: parsed.data.notes ?? null,
       regionId: region.id,
       ownerId: session.user.id,
+      deliverySameAsMain: parsed.data.deliverySameAsMain,
+      deliveryStreet: parsed.data.deliveryStreet ?? null,
+      deliveryCity: parsed.data.deliveryCity ?? null,
+      deliveryState: parsed.data.deliveryState ?? null,
+      deliveryPostcode: parsed.data.deliveryPostcode ?? null,
+      deliveryCountry: parsed.data.deliveryCountry ?? null,
+      deliveryContactName: parsed.data.deliveryContactName ?? null,
+      deliveryPhone: parsed.data.deliveryPhone ?? null,
+      deliveryNotes: parsed.data.deliveryNotes ?? null,
     },
   });
 
@@ -124,6 +145,15 @@ export async function updateCompany(companyId: string, formData: FormData): Prom
       taxId: parsed.data.taxId ?? null,
       notes: parsed.data.notes ?? null,
       regionId: region.id,
+      deliverySameAsMain: parsed.data.deliverySameAsMain,
+      deliveryStreet: parsed.data.deliveryStreet ?? null,
+      deliveryCity: parsed.data.deliveryCity ?? null,
+      deliveryState: parsed.data.deliveryState ?? null,
+      deliveryPostcode: parsed.data.deliveryPostcode ?? null,
+      deliveryCountry: parsed.data.deliveryCountry ?? null,
+      deliveryContactName: parsed.data.deliveryContactName ?? null,
+      deliveryPhone: parsed.data.deliveryPhone ?? null,
+      deliveryNotes: parsed.data.deliveryNotes ?? null,
     },
   });
 
@@ -289,6 +319,14 @@ export type CompanyInlineInput = {
   postcode?: string;
   country?: string;
   taxId?: string;
+  deliverySameAsMain?: boolean;
+  deliveryStreet?: string;
+  deliveryCity?: string;
+  deliveryState?: string;
+  deliveryPostcode?: string;
+  deliveryCountry?: string;
+  deliveryContactName?: string;
+  deliveryPhone?: string;
 };
 
 export type CreateCompanyInlineResult =
@@ -325,6 +363,15 @@ export async function createCompanyInline(input: CompanyInlineInput): Promise<Cr
       notes: null,
       regionId: region.id,
       ownerId: session.user.id,
+      deliverySameAsMain: parsed.data.deliverySameAsMain,
+      deliveryStreet: parsed.data.deliveryStreet ?? null,
+      deliveryCity: parsed.data.deliveryCity ?? null,
+      deliveryState: parsed.data.deliveryState ?? null,
+      deliveryPostcode: parsed.data.deliveryPostcode ?? null,
+      deliveryCountry: parsed.data.deliveryCountry ?? null,
+      deliveryContactName: parsed.data.deliveryContactName ?? null,
+      deliveryPhone: parsed.data.deliveryPhone ?? null,
+      deliveryNotes: parsed.data.deliveryNotes ?? null,
     },
   });
 

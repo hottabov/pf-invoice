@@ -41,6 +41,7 @@ function baseSheetData(overrides: Partial<DocSheetData> = {}): DocSheetData {
       footerText: null,
     },
     client: null,
+    delivery: null,
     items: [],
     extraLines: [],
     totals: {
@@ -146,6 +147,7 @@ function baseQuotationData(overrides: Partial<QuotationData> = {}): QuotationDat
       footerText: null,
     },
     client: null,
+    delivery: null,
     preparedBy: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" },
     notesHtml: null,
     machineSections: [],

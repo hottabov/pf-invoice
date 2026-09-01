@@ -5,7 +5,29 @@ import {
   toSheetData,
   type ToSheetDataDoc,
   type ToSheetItemInput,
+  type ToSheetCompanyInput,
 } from "../src/lib/sheet-data";
+
+function baseCompany(overrides: Partial<ToSheetCompanyInput> = {}): ToSheetCompanyInput {
+  return {
+    name: "Acme Pty Ltd",
+    street: null,
+    city: null,
+    state: null,
+    postcode: null,
+    country: null,
+    website: null,
+    hasDeliveryAddress: false,
+    deliveryStreet: null,
+    deliveryCity: null,
+    deliveryState: null,
+    deliveryPostcode: null,
+    deliveryCountry: null,
+    deliveryContactName: null,
+    deliveryPhone: null,
+    ...overrides,
+  };
+}
 
 // Pure mapper — this file imports nothing from src/lib/queries/documents.ts
 // or @/lib/db (see sheet-data.ts's header comment for why), so it never
@@ -162,15 +184,15 @@ describe("toSheetData — client block", () => {
 
   it("builds address lines from the company's separate street/city/state/postcode/country fields", () => {
     const doc = baseDoc({
-      company: {
+      company: baseCompany({
         name: "Acme Pty Ltd",
         street: "1 Example Rd",
         city: "Tullamarine",
         state: "VIC",
         postcode: "3043",
-        country: "Australia",
+        country: "AU",
         website: "acme.example",
-      },
+      }),
       contact: { firstName: "Jane", lastName: "Doe", email: "jane@example.com", phone: "0400 000 000" },
     });
     const sheet = toSheetData(doc);
@@ -184,11 +206,50 @@ describe("toSheetData — client block", () => {
     expect(sheet.client?.contactPhone).toBe("0400 000 000");
   });
 
+  it("renders a legacy free-text country verbatim when it can't be normalized", () => {
+    const doc = baseDoc({
+      company: baseCompany({ street: "1 Example Rd", country: "Narnia" }),
+    });
+    expect(toSheetData(doc).client?.addressLines).toEqual(["1 Example Rd", "Narnia"]);
+  });
+
   it("omits missing address fields instead of rendering empty lines", () => {
     const doc = baseDoc({
-      company: { name: "No Address Co", street: null, city: null, state: null, postcode: null, country: null, website: null },
+      company: baseCompany({ name: "No Address Co" }),
     });
     expect(toSheetData(doc).client?.addressLines).toEqual([]);
+  });
+});
+
+describe("toSheetData — delivery address block", () => {
+  it("is null when the document has no company yet", () => {
+    expect(toSheetData(baseDoc({ company: null })).delivery).toBeNull();
+  });
+
+  it("is null when the company has no distinct delivery address", () => {
+    const doc = baseDoc({ company: baseCompany({ hasDeliveryAddress: false }) });
+    expect(toSheetData(doc).delivery).toBeNull();
+  });
+
+  it("builds the delivery block from the company's delivery* fields, with country displayed by name", () => {
+    const doc = baseDoc({
+      company: baseCompany({
+        hasDeliveryAddress: true,
+        deliveryStreet: "2 Factory Rd",
+        deliveryCity: "Melbourne",
+        deliveryState: "VIC",
+        deliveryPostcode: "3000",
+        deliveryCountry: "AU",
+        deliveryContactName: "Sam Rivera",
+        deliveryPhone: "+61393383471",
+      }),
+    });
+    const sheet = toSheetData(doc);
+
+    expect(sheet.delivery).not.toBeNull();
+    expect(sheet.delivery?.addressLines).toEqual(["2 Factory Rd", "Melbourne, VIC, 3000", "Australia"]);
+    expect(sheet.delivery?.contactName).toBe("Sam Rivera");
+    expect(sheet.delivery?.phone).toBe("+61393383471");
   });
 });
 

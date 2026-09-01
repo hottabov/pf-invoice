@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { FieldRow, fieldInputClass } from "@/components/ui-kit";
+import { FieldRow, fieldInputClass, CountrySelect } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/clients";
 
@@ -17,6 +17,15 @@ export type CompanyFormValues = {
   taxId: string;
   notes: string;
   regionCode: string;
+  deliverySameAsMain: boolean;
+  deliveryStreet: string;
+  deliveryCity: string;
+  deliveryState: string;
+  deliveryPostcode: string;
+  deliveryCountry: string;
+  deliveryContactName: string;
+  deliveryPhone: string;
+  deliveryNotes: string;
 };
 
 export type RegionOption = { code: string; name: string };
@@ -30,7 +39,18 @@ const initialState: ActionResult = {};
  * state (mirrors src/components/catalog/option-form.tsx). Laid out as the
  * two-column desktop grid the design direction calls for: name pairs with
  * website, region with tax ID, then the full address block, then a
- * full-width notes field.
+ * full-width notes field, then the delivery address section.
+ *
+ * The "Same as main address" checkbox (owner: avoid double entry when the
+ * client office and manufacturing/delivery site are the same) is paired
+ * with a hidden fallback input of the same `name` — a plain unchecked
+ * `<input type="checkbox">` simply isn't submitted at all, and
+ * `deliverySameAsMainSchema` (src/lib/validation/clients.ts) needs an
+ * explicit `"false"` to tell "unchecked" apart from "field never sent".
+ * Listing the checkbox *before* the hidden input matters: `FormData.get`
+ * returns the first value for a repeated name, and only a checked box is
+ * ever included, so checked → the checkbox's `"true"` wins; unchecked →
+ * only the hidden `"false"` is present.
  */
 export function CompanyForm({
   action,
@@ -47,9 +67,10 @@ export function CompanyForm({
     (_prevState: ActionResult, formData: FormData) => action(formData),
     initialState
   );
+  const [sameAsMain, setSameAsMain] = useState(defaultValues.deliverySameAsMain);
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form action={formAction} className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <FieldRow label="Company name" htmlFor="company-name" required>
           <input
@@ -149,13 +170,7 @@ export function CompanyForm({
         </FieldRow>
 
         <FieldRow label="Country" htmlFor="company-country" className="lg:col-span-2">
-          <input
-            id="company-country"
-            name="country"
-            defaultValue={defaultValues.country}
-            maxLength={120}
-            className={fieldInputClass}
-          />
+          <CountrySelect id="company-country" name="country" defaultValue={defaultValues.country} />
         </FieldRow>
 
         <FieldRow label="Notes" htmlFor="company-notes" className="lg:col-span-2">
@@ -168,6 +183,121 @@ export function CompanyForm({
             className={cn(fieldInputClass, "h-auto min-h-24 py-2")}
           />
         </FieldRow>
+      </div>
+
+      <div className="flex flex-col gap-4 border-t border-slate-200 pt-6">
+        <div>
+          <h3 className="text-sm font-semibold text-brand-dark">Delivery address</h3>
+          <p className="text-sm text-slate-500">
+            Where equipment ships to, when different from the main address above.
+          </p>
+        </div>
+
+        <label className="flex min-h-11 w-fit items-center gap-2 text-sm font-medium text-brand-dark">
+          <input
+            type="checkbox"
+            name="deliverySameAsMain"
+            value="true"
+            checked={sameAsMain}
+            onChange={(e) => setSameAsMain(e.target.checked)}
+            className="size-4 rounded border-slate-300 accent-brand"
+          />
+          Same as main address
+          {/* Hidden fallback so an unchecked box still submits an explicit
+              "false" — see the doc comment above. */}
+          <input type="hidden" name="deliverySameAsMain" value="false" />
+        </label>
+
+        {!sameAsMain ? (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <FieldRow label="Delivery street" htmlFor="company-delivery-street" required>
+              <input
+                id="company-delivery-street"
+                name="deliveryStreet"
+                defaultValue={defaultValues.deliveryStreet}
+                maxLength={120}
+                className={fieldInputClass}
+              />
+            </FieldRow>
+
+            <FieldRow label="Delivery city" htmlFor="company-delivery-city" required>
+              <input
+                id="company-delivery-city"
+                name="deliveryCity"
+                defaultValue={defaultValues.deliveryCity}
+                maxLength={120}
+                className={fieldInputClass}
+              />
+            </FieldRow>
+
+            <FieldRow label="Delivery state" htmlFor="company-delivery-state">
+              <input
+                id="company-delivery-state"
+                name="deliveryState"
+                defaultValue={defaultValues.deliveryState}
+                maxLength={120}
+                className={fieldInputClass}
+              />
+            </FieldRow>
+
+            <FieldRow label="Delivery postcode" htmlFor="company-delivery-postcode" required>
+              <input
+                id="company-delivery-postcode"
+                name="deliveryPostcode"
+                defaultValue={defaultValues.deliveryPostcode}
+                maxLength={20}
+                className={fieldInputClass}
+              />
+            </FieldRow>
+
+            <FieldRow label="Delivery country" htmlFor="company-delivery-country" required className="lg:col-span-2">
+              <CountrySelect
+                id="company-delivery-country"
+                name="deliveryCountry"
+                defaultValue={defaultValues.deliveryCountry}
+              />
+            </FieldRow>
+
+            <FieldRow
+              label="Delivery contact name"
+              htmlFor="company-delivery-contact-name"
+              hint="Who receives the delivery on site — recommended."
+            >
+              <input
+                id="company-delivery-contact-name"
+                name="deliveryContactName"
+                defaultValue={defaultValues.deliveryContactName}
+                maxLength={160}
+                className={fieldInputClass}
+              />
+            </FieldRow>
+
+            <FieldRow
+              label="Delivery phone"
+              htmlFor="company-delivery-phone"
+              hint="Recommended, e.g. +61 3 9338 3471."
+            >
+              <input
+                id="company-delivery-phone"
+                name="deliveryPhone"
+                defaultValue={defaultValues.deliveryPhone}
+                maxLength={40}
+                className={fieldInputClass}
+              />
+            </FieldRow>
+
+            <FieldRow label="Delivery notes" htmlFor="company-delivery-notes" className="lg:col-span-2">
+              <textarea
+                id="company-delivery-notes"
+                name="deliveryNotes"
+                defaultValue={defaultValues.deliveryNotes}
+                maxLength={500}
+                rows={2}
+                className={cn(fieldInputClass, "h-auto min-h-16 py-2")}
+              />
+            </FieldRow>
+          </div>
+        ) : null}
       </div>
 
       {state.error ? (

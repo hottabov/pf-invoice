@@ -104,6 +104,31 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
           </div>
         ) : null}
 
+        {/* Delivery address — only rendered when the company actually has
+            one distinct from the main "Bill To" address above (owner:
+            "client office is not always the manufacturing site"). Reuses
+            the `.pq-client*` styling for visual consistency. */}
+        {data.delivery ? (
+          <div className="pq-client">
+            <div className="pq-client-label">Delivery Address</div>
+            {data.delivery.addressLines.map((line, i) => (
+              <div className="pq-client-line" key={i}>
+                {line}
+              </div>
+            ))}
+            {data.delivery.contactName || data.delivery.phone ? (
+              <div className="pq-client-line pq-client-contact">
+                {[
+                  data.delivery.contactName ? `Attn: ${data.delivery.contactName}` : null,
+                  data.delivery.phone,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {/* Compact "Prepared by" line (owner reference doc) — minimal on
             the plain invoice/summary sheet, unlike the quotation sheet's
             full two-column header (see quotation-sheet.tsx): just a name/

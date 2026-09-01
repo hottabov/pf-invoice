@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Plus, Search, Building2, ExternalLink } from "lucide-react";
 import { auth } from "@/auth";
 import { listCompanies, type CompanyListItem } from "@/lib/queries/clients";
+import { displayCountry } from "@/lib/countries";
 import { buttonVariants } from "@/components/ui/button";
 import {
   PageHeader,
@@ -120,7 +121,7 @@ export default async function ClientsPage({
 }
 
 function CompanyRow({ company: c }: { company: CompanyListItem }) {
-  const location = [c.city, c.country].filter(Boolean).join(", ") || "No address";
+  const location = [c.city, displayCountry(c.country)].filter(Boolean).join(", ") || "No address";
   const href = `/clients/${c.id}`;
 
   return (
@@ -165,7 +166,7 @@ function CompanyRow({ company: c }: { company: CompanyListItem }) {
 }
 
 function CompanyCard({ company: c }: { company: CompanyListItem }) {
-  const location = [c.city, c.country].filter(Boolean).join(", ") || "No address";
+  const location = [c.city, displayCountry(c.country)].filter(Boolean).join(", ") || "No address";
 
   return (
     <div className="relative flex min-h-12 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-colors active:bg-slate-100">

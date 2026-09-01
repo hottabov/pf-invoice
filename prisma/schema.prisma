@@ -169,16 +169,35 @@ model Price {
 }
 
 model Company {
-  id        String     @id @default(cuid())
-  name      String
-  street    String?
-  city      String?
-  state     String?
-  postcode  String?
-  country   String?
-  website   String?
-  taxId     String?
-  notes     String?
+  id       String  @id @default(cuid())
+  name     String
+  street   String?
+  city     String?
+  state    String?
+  postcode String?
+  country  String? // ISO 3166-1 alpha-2 code going forward (see src/lib/countries.ts); pre-migration rows may still hold free text -- rendered via displayCountry().
+  website  String?
+  taxId    String?
+  notes    String?
+
+  // Delivery address: manufacturing/warehouse site, distinct from the main
+  // (billing/office) address above -- owner: "client office is not always
+  // the manufacturing site; delivery address matters." `deliverySameAsMain`
+  // defaults true so the common case (one address) needs no extra input;
+  // the delivery* fields below are only meaningful when it's false, and are
+  // left populated-but-ignored if a company later flips back to true rather
+  // than being cleared, so re-enabling "different address" restores the
+  // previous entry instead of losing it.
+  deliverySameAsMain  Boolean @default(true)
+  deliveryStreet      String?
+  deliveryCity        String?
+  deliveryState       String?
+  deliveryPostcode    String?
+  deliveryCountry     String? // ISO 3166-1 alpha-2 code, same convention as `country`.
+  deliveryContactName String?
+  deliveryPhone       String? // Stored E.164 when parseable (see validatePhone in src/lib/phone.ts), raw otherwise.
+  deliveryNotes       String?
+
   regionId  String
   region    Region     @relation(fields: [regionId], references: [id])
   ownerId   String?

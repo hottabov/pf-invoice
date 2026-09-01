@@ -33,6 +33,15 @@ export default async function NewCompanyPage() {
             taxId: "",
             notes: "",
             regionCode: regions[0]?.code ?? "",
+            deliverySameAsMain: true,
+            deliveryStreet: "",
+            deliveryCity: "",
+            deliveryState: "",
+            deliveryPostcode: "",
+            deliveryCountry: "",
+            deliveryContactName: "",
+            deliveryPhone: "",
+            deliveryNotes: "",
           }}
           regions={regions.map((r) => ({ code: r.code, name: r.name }))}
           submitLabel="Create company"

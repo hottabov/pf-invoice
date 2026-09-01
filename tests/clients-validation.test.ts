@@ -8,7 +8,7 @@ describe("companySchema", () => {
     city: "Sydney",
     state: "NSW",
     postcode: "2000",
-    country: "Australia",
+    country: "AU",
     taxId: "64 072 458 667",
     notes: "Prefers email contact.",
     regionCode: "AU",
@@ -92,6 +92,137 @@ describe("companySchema", () => {
       }
     });
   });
+
+  describe("country", () => {
+    it("accepts a valid ISO alpha-2 code", () => {
+      const result = companySchema.safeParse({ ...base, country: "US" });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.country).toBe("US");
+    });
+
+    it("uppercases a lowercase country code", () => {
+      const result = companySchema.safeParse({ ...base, country: "au" });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.country).toBe("AU");
+    });
+
+    it("rejects a country that isn't a real ISO code", () => {
+      expect(companySchema.safeParse({ ...base, country: "Australia" }).success).toBe(false);
+      expect(companySchema.safeParse({ ...base, country: "ZZ" }).success).toBe(false);
+      expect(companySchema.safeParse({ ...base, country: "USA" }).success).toBe(false);
+    });
+
+    it("treats a missing/blank country as absent, not an error", () => {
+      for (const country of [null, undefined, ""]) {
+        const result = companySchema.safeParse({ ...base, country });
+        expect(result.success, JSON.stringify(country)).toBe(true);
+        if (result.success) expect(result.data.country).toBeUndefined();
+      }
+    });
+  });
+});
+
+describe("companySchema - delivery address", () => {
+  const base = {
+    name: "Acme Landscaping",
+    street: "1 Example St",
+    city: "Sydney",
+    state: "NSW",
+    postcode: "2000",
+    country: "AU",
+    regionCode: "AU",
+  };
+
+  it("defaults deliverySameAsMain to true when omitted, requiring no delivery fields", () => {
+    const result = companySchema.safeParse(base);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.deliverySameAsMain).toBe(true);
+  });
+
+  it("accepts deliverySameAsMain true with no delivery fields set", () => {
+    const result = companySchema.safeParse({ ...base, deliverySameAsMain: "true" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.deliverySameAsMain).toBe(true);
+  });
+
+  it("rejects deliverySameAsMain false with no delivery address fields", () => {
+    const result = companySchema.safeParse({ ...base, deliverySameAsMain: "false" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join("."));
+      expect(paths).toContain("deliveryStreet");
+      expect(paths).toContain("deliveryCity");
+      expect(paths).toContain("deliveryPostcode");
+      expect(paths).toContain("deliveryCountry");
+    }
+  });
+
+  it("accepts deliverySameAsMain false with street/city/postcode/country filled in", () => {
+    const result = companySchema.safeParse({
+      ...base,
+      deliverySameAsMain: "false",
+      deliveryStreet: "2 Factory Rd",
+      deliveryCity: "Melbourne",
+      deliveryPostcode: "3000",
+      deliveryCountry: "au",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.deliverySameAsMain).toBe(false);
+      expect(result.data.deliveryCountry).toBe("AU");
+    }
+  });
+
+  it("leaves deliveryContactName/deliveryPhone optional even when the address differs", () => {
+    const result = companySchema.safeParse({
+      ...base,
+      deliverySameAsMain: "false",
+      deliveryStreet: "2 Factory Rd",
+      deliveryCity: "Melbourne",
+      deliveryPostcode: "3000",
+      deliveryCountry: "AU",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.deliveryContactName).toBeUndefined();
+      expect(result.data.deliveryPhone).toBeUndefined();
+    }
+  });
+
+  it("validates deliveryPhone as a real phone number and normalizes to E.164", () => {
+    const result = companySchema.safeParse({
+      ...base,
+      deliverySameAsMain: "false",
+      deliveryStreet: "2 Factory Rd",
+      deliveryCity: "Melbourne",
+      deliveryPostcode: "3000",
+      deliveryCountry: "AU",
+      deliveryContactName: "Sam Rivera",
+      deliveryPhone: "+61 3 9338 3471",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.deliveryPhone).toBe("+61393383471");
+  });
+
+  it("rejects an invalid deliveryPhone", () => {
+    const result = companySchema.safeParse({
+      ...base,
+      deliverySameAsMain: "false",
+      deliveryStreet: "2 Factory Rd",
+      deliveryCity: "Melbourne",
+      deliveryPostcode: "3000",
+      deliveryCountry: "AU",
+      deliveryPhone: "12345",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("treats an unchecked checkbox ('false' string) the same as boolean false", () => {
+    const truthy = companySchema.safeParse({ ...base, deliverySameAsMain: true });
+    const falsy = companySchema.safeParse({ ...base, deliverySameAsMain: false });
+    expect(truthy.success).toBe(true);
+    expect(falsy.success).toBe(false); // no delivery fields supplied
+  });
 });
 
 describe("contactSchema", () => {
@@ -99,7 +230,7 @@ describe("contactSchema", () => {
     firstName: "Jamie",
     lastName: "Smith",
     email: "jamie@example.com",
-    phone: "0400 000 000",
+    phone: "+61 400 000 000",
     position: "Site Manager",
     isPrimary: "on",
   };
@@ -181,7 +312,7 @@ describe("companySchema - website validation", () => {
     city: "Sydney",
     state: "NSW",
     postcode: "2000",
-    country: "Australia",
+    country: "AU",
     taxId: "64 072 458 667",
     notes: "Prefers email contact.",
     regionCode: "AU",

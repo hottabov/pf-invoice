@@ -91,6 +91,21 @@ export type BuilderCompany = {
   postcode: string | null;
   country: string | null;
   website: string | null;
+  /** Resolved server-side as `!deliverySameAsMain` AND at least one
+   * delivery* field is actually set — see `toSheetData`'s
+   * `ToSheetCompanyInput.hasDeliveryAddress`, which this feeds directly
+   * (structurally — `BuilderCompany` satisfies that type without either
+   * file importing the other). Lets both the builder and the sheets skip
+   * rendering a "different delivery address" block for a company that has
+   * the flag off, or on but with nothing actually filled in. */
+  hasDeliveryAddress: boolean;
+  deliveryStreet: string | null;
+  deliveryCity: string | null;
+  deliveryState: string | null;
+  deliveryPostcode: string | null;
+  deliveryCountry: string | null;
+  deliveryContactName: string | null;
+  deliveryPhone: string | null;
   contacts: BuilderContact[];
 };
 
@@ -430,6 +445,25 @@ export async function getDocumentForBuilder(
           postcode: document.company.postcode,
           country: document.company.country,
           website: document.company.website,
+          // "Distinct delivery address" needs both the flag AND actual data
+          // — a company with `deliverySameAsMain` off but every delivery
+          // field still blank (e.g. right after unchecking the box, before
+          // saving) has nothing worth rendering as a separate block.
+          hasDeliveryAddress:
+            !document.company.deliverySameAsMain &&
+            Boolean(
+              document.company.deliveryStreet ||
+                document.company.deliveryCity ||
+                document.company.deliveryPostcode ||
+                document.company.deliveryCountry
+            ),
+          deliveryStreet: document.company.deliveryStreet,
+          deliveryCity: document.company.deliveryCity,
+          deliveryState: document.company.deliveryState,
+          deliveryPostcode: document.company.deliveryPostcode,
+          deliveryCountry: document.company.deliveryCountry,
+          deliveryContactName: document.company.deliveryContactName,
+          deliveryPhone: document.company.deliveryPhone,
           contacts: document.company.contacts.map(toBuilderContact),
         }
       : null,

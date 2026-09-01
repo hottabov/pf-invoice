@@ -21,6 +21,7 @@
 // change afterwards, for both DRAFT and FINAL.
 import { fromCents, toCents } from "./pricing";
 import { formatDateAU } from "./format";
+import { displayCountry } from "./countries";
 
 // --- input shape -------------------------------------------------------------
 
@@ -56,6 +57,19 @@ export type ToSheetCompanyInput = {
   postcode: string | null;
   country: string | null;
   website: string | null;
+  /** Whether this company actually has a delivery address distinct from
+   * the main one above — resolved server-side (see `BuilderCompany` in
+   * src/lib/queries/documents.ts) as `!deliverySameAsMain` plus "at least
+   * one delivery field is actually filled in", so a company that merely
+   * has the flag unset but no delivery data never renders an empty block. */
+  hasDeliveryAddress: boolean;
+  deliveryStreet: string | null;
+  deliveryCity: string | null;
+  deliveryState: string | null;
+  deliveryPostcode: string | null;
+  deliveryCountry: string | null;
+  deliveryContactName: string | null;
+  deliveryPhone: string | null;
 };
 
 export type ToSheetContactInput = {
@@ -181,6 +195,16 @@ export type DocSheetClient = {
   contactPhone: string | null;
 };
 
+/** The company's delivery address (owner: "client office is not always the
+ * manufacturing site") — only ever set when it's genuinely distinct from
+ * the main address above (see `ToSheetCompanyInput.hasDeliveryAddress`), so
+ * `DocSheetData.delivery` doubles as the sheet's render gate. */
+export type DocSheetDelivery = {
+  addressLines: string[];
+  contactName: string | null;
+  phone: string | null;
+};
+
 /** Resolved "Prepared by" block — same shape as `ToSheetAuthorInput`, kept
  * as a distinct output type (rather than reusing the input type directly)
  * so a future mapper-side transform (e.g. a display fallback) has somewhere
@@ -218,6 +242,9 @@ export type DocSheetData = {
   logo: string | null;
   entity: DocSheetEntity;
   client: DocSheetClient | null;
+  /** See `DocSheetDelivery` — `null` whenever there's no client (draft) or
+   * the client's delivery address is the same as its main address. */
+  delivery: DocSheetDelivery | null;
   items: DocSheetItem[];
   extraLines: DocSheetLine[];
   totals: DocSheetTotals;
@@ -322,12 +349,27 @@ export function formatBankDetails(rows: BankDetailRow[]): string {
   return rows.map((row) => `${row.label}: ${row.value}`).join("\n");
 }
 
-function toClientAddressLines(company: ToSheetCompanyInput): string[] {
+type AddressLike = {
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  postcode: string | null;
+  country: string | null;
+};
+
+/** Builds the 1-3 line postal address block shared by the main client
+ * address and the delivery address (see `toSheetData`) — `country` is
+ * rendered through `displayCountry` since it's stored as an ISO alpha-2
+ * code (e.g. "AU") going forward, not the English name a reader expects on
+ * a printed sheet; a pre-migration free-text value passes through
+ * unchanged (see `displayCountry`'s fallback). */
+function toAddressLines(address: AddressLike): string[] {
   const lines: string[] = [];
-  if (company.street) lines.push(company.street);
-  const cityStatePostcode = [company.city, company.state, company.postcode].filter(Boolean).join(", ");
+  if (address.street) lines.push(address.street);
+  const cityStatePostcode = [address.city, address.state, address.postcode].filter(Boolean).join(", ");
   if (cityStatePostcode) lines.push(cityStatePostcode);
-  if (company.country) lines.push(company.country);
+  const country = displayCountry(address.country);
+  if (country) lines.push(country);
   return lines;
 }
 
@@ -412,13 +454,28 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
   const client: DocSheetClient | null = doc.company
     ? {
         companyName: doc.company.name,
-        addressLines: toClientAddressLines(doc.company),
+        addressLines: toAddressLines(doc.company),
         website: doc.company.website,
         contactName: doc.contact ? contactFullName(doc.contact) : null,
         contactEmail: doc.contact?.email ?? null,
         contactPhone: doc.contact?.phone ?? null,
       }
     : null;
+
+  const delivery: DocSheetDelivery | null =
+    doc.company && doc.company.hasDeliveryAddress
+      ? {
+          addressLines: toAddressLines({
+            street: doc.company.deliveryStreet,
+            city: doc.company.deliveryCity,
+            state: doc.company.deliveryState,
+            postcode: doc.company.deliveryPostcode,
+            country: doc.company.deliveryCountry,
+          }),
+          contactName: doc.company.deliveryContactName,
+          phone: doc.company.deliveryPhone,
+        }
+      : null;
 
   const items: DocSheetItem[] = doc.items.map((item) => ({
     id: item.id,
@@ -446,6 +503,7 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     logo,
     entity,
     client,
+    delivery,
     items,
     extraLines: doc.extraLines.map(toDocSheetLine),
     preparedBy: { name: doc.author.name, email: doc.author.email, phone: doc.author.phone },

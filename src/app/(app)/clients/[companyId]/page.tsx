@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { getCompanyDetail } from "@/lib/queries/clients";
 import { listActiveRegions } from "@/lib/queries/catalog";
 import { updateCompany, deleteCompany, createContact, updateContact, deleteContact } from "@/lib/actions/clients";
+import { normalizeCountryInput } from "@/lib/countries";
 import { CompanyForm } from "@/components/clients/company-form";
 import { ContactsSection } from "@/components/clients/contacts-section";
 import { DeleteCompanyButton } from "@/components/clients/delete-company-button";
@@ -69,11 +70,25 @@ export default async function CompanyEditorPage({ params }: { params: Promise<Pa
             city: company.city ?? "",
             state: company.state ?? "",
             postcode: company.postcode ?? "",
-            country: company.country ?? "",
+            // A pre-migration company may still have free-text country data
+            // ("Australia" rather than "AU") — best-effort normalize it to
+            // an ISO code so <CountrySelect> shows a real selection instead
+            // of the "(unrecognized)" fallback, and so re-saving the form
+            // without touching the country field doesn't fail validation.
+            country: normalizeCountryInput(company.country) ?? company.country ?? "",
             website: company.website ?? "",
             taxId: company.taxId ?? "",
             notes: company.notes ?? "",
             regionCode: company.regionCode,
+            deliverySameAsMain: company.deliverySameAsMain,
+            deliveryStreet: company.deliveryStreet ?? "",
+            deliveryCity: company.deliveryCity ?? "",
+            deliveryState: company.deliveryState ?? "",
+            deliveryPostcode: company.deliveryPostcode ?? "",
+            deliveryCountry: normalizeCountryInput(company.deliveryCountry) ?? company.deliveryCountry ?? "",
+            deliveryContactName: company.deliveryContactName ?? "",
+            deliveryPhone: company.deliveryPhone ?? "",
+            deliveryNotes: company.deliveryNotes ?? "",
           }}
           regions={regions.map((r) => ({ code: r.code, name: r.name }))}
           submitLabel="Save changes"

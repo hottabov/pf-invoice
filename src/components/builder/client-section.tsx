@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { Building2, Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { FieldRow, SectionCard, fieldInputClass, useToast } from "@/components/ui-kit";
+import { FieldRow, SectionCard, fieldInputClass, CountrySelect, useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
 import type {
@@ -26,6 +26,14 @@ type CompanyFormState = {
   state: string;
   postcode: string;
   taxId: string;
+  deliverySameAsMain: boolean;
+  deliveryStreet: string;
+  deliveryCity: string;
+  deliveryState: string;
+  deliveryPostcode: string;
+  deliveryCountry: string;
+  deliveryContactName: string;
+  deliveryPhone: string;
 };
 
 type ContactFormState = {
@@ -122,6 +130,14 @@ export function ClientSection({
     state: "",
     postcode: "",
     taxId: "",
+    deliverySameAsMain: true,
+    deliveryStreet: "",
+    deliveryCity: "",
+    deliveryState: "",
+    deliveryPostcode: "",
+    deliveryCountry: "",
+    deliveryContactName: "",
+    deliveryPhone: "",
   }));
   const [companyFormPending, setCompanyFormPending] = useState(false);
   const [companyFormError, setCompanyFormError] = useState<string | null>(null);
@@ -180,6 +196,14 @@ export function ClientSection({
       state: "",
       postcode: "",
       taxId: "",
+      deliverySameAsMain: true,
+      deliveryStreet: "",
+      deliveryCity: "",
+      deliveryState: "",
+      deliveryPostcode: "",
+      deliveryCountry: "",
+      deliveryContactName: "",
+      deliveryPhone: "",
     });
     setShowMoreCompanyFields(false);
   }
@@ -209,6 +233,14 @@ export function ClientSection({
       state: companyForm.state,
       postcode: companyForm.postcode,
       taxId: companyForm.taxId,
+      deliverySameAsMain: companyForm.deliverySameAsMain,
+      deliveryStreet: companyForm.deliveryStreet,
+      deliveryCity: companyForm.deliveryCity,
+      deliveryState: companyForm.deliveryState,
+      deliveryPostcode: companyForm.deliveryPostcode,
+      deliveryCountry: companyForm.deliveryCountry,
+      deliveryContactName: companyForm.deliveryContactName,
+      deliveryPhone: companyForm.deliveryPhone,
     });
     setCompanyFormPending(false);
 
@@ -391,13 +423,11 @@ export function ClientSection({
                   />
                 </FieldRow>
                 <FieldRow label="Country" htmlFor="inline-company-country">
-                  <input
+                  <CountrySelect
                     id="inline-company-country"
                     value={companyForm.country}
-                    onChange={(e) => setCompanyForm((f) => ({ ...f, country: e.target.value }))}
-                    maxLength={120}
+                    onChange={(value) => setCompanyForm((f) => ({ ...f, country: value }))}
                     disabled={companyFormPending}
-                    className={fieldInputClass}
                   />
                 </FieldRow>
                 <FieldRow label="Website" htmlFor="inline-company-website" className="sm:col-span-2">
@@ -463,6 +493,95 @@ export function ClientSection({
                       className={fieldInputClass}
                     />
                   </FieldRow>
+
+                  <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-brand-dark sm:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={companyForm.deliverySameAsMain}
+                      onChange={(e) =>
+                        setCompanyForm((f) => ({ ...f, deliverySameAsMain: e.target.checked }))
+                      }
+                      disabled={companyFormPending}
+                      className="size-4 rounded border-slate-300 accent-brand"
+                    />
+                    Delivery address same as main address
+                  </label>
+
+                  {!companyForm.deliverySameAsMain ? (
+                    <>
+                      <FieldRow label="Delivery street" htmlFor="inline-company-delivery-street" required>
+                        <input
+                          id="inline-company-delivery-street"
+                          value={companyForm.deliveryStreet}
+                          onChange={(e) => setCompanyForm((f) => ({ ...f, deliveryStreet: e.target.value }))}
+                          maxLength={120}
+                          disabled={companyFormPending}
+                          className={fieldInputClass}
+                        />
+                      </FieldRow>
+                      <FieldRow label="Delivery city" htmlFor="inline-company-delivery-city" required>
+                        <input
+                          id="inline-company-delivery-city"
+                          value={companyForm.deliveryCity}
+                          onChange={(e) => setCompanyForm((f) => ({ ...f, deliveryCity: e.target.value }))}
+                          maxLength={120}
+                          disabled={companyFormPending}
+                          className={fieldInputClass}
+                        />
+                      </FieldRow>
+                      <FieldRow label="Delivery state" htmlFor="inline-company-delivery-state">
+                        <input
+                          id="inline-company-delivery-state"
+                          value={companyForm.deliveryState}
+                          onChange={(e) => setCompanyForm((f) => ({ ...f, deliveryState: e.target.value }))}
+                          maxLength={120}
+                          disabled={companyFormPending}
+                          className={fieldInputClass}
+                        />
+                      </FieldRow>
+                      <FieldRow label="Delivery postcode" htmlFor="inline-company-delivery-postcode" required>
+                        <input
+                          id="inline-company-delivery-postcode"
+                          value={companyForm.deliveryPostcode}
+                          onChange={(e) => setCompanyForm((f) => ({ ...f, deliveryPostcode: e.target.value }))}
+                          maxLength={20}
+                          disabled={companyFormPending}
+                          className={fieldInputClass}
+                        />
+                      </FieldRow>
+                      <FieldRow label="Delivery country" htmlFor="inline-company-delivery-country" required>
+                        <CountrySelect
+                          id="inline-company-delivery-country"
+                          value={companyForm.deliveryCountry}
+                          onChange={(value) => setCompanyForm((f) => ({ ...f, deliveryCountry: value }))}
+                          disabled={companyFormPending}
+                        />
+                      </FieldRow>
+                      <FieldRow label="Delivery contact" htmlFor="inline-company-delivery-contact">
+                        <input
+                          id="inline-company-delivery-contact"
+                          value={companyForm.deliveryContactName}
+                          onChange={(e) =>
+                            setCompanyForm((f) => ({ ...f, deliveryContactName: e.target.value }))
+                          }
+                          maxLength={160}
+                          disabled={companyFormPending}
+                          className={fieldInputClass}
+                        />
+                      </FieldRow>
+                      <FieldRow label="Delivery phone" htmlFor="inline-company-delivery-phone" className="sm:col-span-2">
+                        <input
+                          id="inline-company-delivery-phone"
+                          value={companyForm.deliveryPhone}
+                          onChange={(e) => setCompanyForm((f) => ({ ...f, deliveryPhone: e.target.value }))}
+                          placeholder="+61 3 9338 3471"
+                          maxLength={40}
+                          disabled={companyFormPending}
+                          className={fieldInputClass}
+                        />
+                      </FieldRow>
+                    </>
+                  ) : null}
                 </div>
               ) : null}
 

@@ -19,6 +19,7 @@ import {
   formatBankDetails,
   toSheetData,
   type DocSheetClient,
+  type DocSheetDelivery,
   type DocSheetData,
   type DocSheetEntity,
   type DocSheetItem,
@@ -417,6 +418,9 @@ export type QuotationData = {
   logo: string | null;
   entity: DocSheetEntity;
   client: DocSheetClient | null;
+  /** See `DocSheetDelivery` — carried straight through from `toSheetData`,
+   * same as `client`. */
+  delivery: DocSheetDelivery | null;
   /** The document's author, for the header's "Prepared by" column — see
    * `DocSheetPreparedBy`. Relabels the existing `client` block "Prepared
    * for" alongside it (see quotation-sheet.tsx). */
@@ -698,6 +702,7 @@ export function buildQuotationData(
     logo: sheet.logo,
     entity: sheet.entity,
     client: sheet.client,
+    delivery: sheet.delivery,
     preparedBy: sheet.preparedBy,
     notesHtml,
     machineSections,

@@ -124,6 +124,33 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
           </div>
         </div>
 
+        {/* Delivery address — its own full-width row under "Prepared
+            for"/"Prepared by" (owner: "client office is not always the
+            manufacturing site"), only when the company actually has one
+            distinct from its main address. */}
+        {data.delivery ? (
+          <div className="pq-delivery-row">
+            <div className="pq-client">
+              <div className="pq-client-label">Delivery Address</div>
+              {data.delivery.addressLines.map((line, i) => (
+                <div className="pq-client-line" key={i}>
+                  {line}
+                </div>
+              ))}
+              {data.delivery.contactName || data.delivery.phone ? (
+                <div className="pq-client-line pq-client-contact">
+                  {[
+                    data.delivery.contactName ? `Attn: ${data.delivery.contactName}` : null,
+                    data.delivery.phone,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
         {/* Total investment banner (owner: "client must see it immediately"
             — the grand total for everything, always shown up top regardless
             of the price-display toggles below, which only gate the
@@ -577,6 +604,12 @@ const SHEET_CSS = `
     display: flex;
     gap: 16px;
     margin-top: 18px;
+  }
+  /* Delivery address row (see the JSX comment above) — same box styling as
+     .pq-client, just full-width and stacked below the prepared-for/by row
+     instead of sharing its two-column flex. */
+  .pq-delivery-row {
+    margin-top: 12px;
   }
   .pq-client {
     flex: 1;

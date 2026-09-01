@@ -5,6 +5,9 @@ export type CompanyListItem = {
   id: string;
   name: string;
   city: string | null;
+  /** ISO alpha-2 code going forward, but may still be legacy free text for a
+   * pre-migration company — render through `displayCountry()`
+   * (src/lib/countries.ts), never directly. */
   country: string | null;
   website: string | null;
   regionCode: string;
@@ -67,11 +70,22 @@ export type CompanyDetail = {
   city: string | null;
   state: string | null;
   postcode: string | null;
+  /** See `CompanyListItem.country`'s doc comment — same legacy-free-text
+   * caveat applies here. */
   country: string | null;
   website: string | null;
   taxId: string | null;
   notes: string | null;
   regionCode: string;
+  deliverySameAsMain: boolean;
+  deliveryStreet: string | null;
+  deliveryCity: string | null;
+  deliveryState: string | null;
+  deliveryPostcode: string | null;
+  deliveryCountry: string | null;
+  deliveryContactName: string | null;
+  deliveryPhone: string | null;
+  deliveryNotes: string | null;
   contacts: ContactDetail[];
 };
 
@@ -109,6 +123,15 @@ export async function getCompanyDetail(
     taxId: company.taxId,
     notes: company.notes,
     regionCode: company.region.code,
+    deliverySameAsMain: company.deliverySameAsMain,
+    deliveryStreet: company.deliveryStreet,
+    deliveryCity: company.deliveryCity,
+    deliveryState: company.deliveryState,
+    deliveryPostcode: company.deliveryPostcode,
+    deliveryCountry: company.deliveryCountry,
+    deliveryContactName: company.deliveryContactName,
+    deliveryPhone: company.deliveryPhone,
+    deliveryNotes: company.deliveryNotes,
     contacts: company.contacts.map((c) => ({
       id: c.id,
       firstName: c.firstName,

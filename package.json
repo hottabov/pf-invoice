@@ -28,6 +28,8 @@
     "@tiptap/starter-kit": "^3.30.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "google-libphonenumber": "^3.2.46",
+    "i18n-iso-countries": "^7.14.0",
     "isomorphic-dompurify": "^3.23.0",
     "lucide-react": "^1.37.0",
     "next": "16.3.3",
@@ -43,6 +45,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/google-libphonenumber": "^7.4.31",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
