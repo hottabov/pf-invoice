@@ -51,7 +51,6 @@ function baseItem(overrides: Partial<ToSheetItemInput> = {}): ToSheetItemInput {
 
 function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
   return {
-    type: "INVOICE",
     status: "DRAFT",
     number: null,
     issueDate: new Date("2026-08-30T00:00:00.000Z"),
@@ -96,7 +95,7 @@ describe("toSheetData — FINAL vs DRAFT entity source", () => {
   it("prefers the frozen entitySnapshot over live region fields for a FINAL document", () => {
     const doc = baseDoc({
       status: "FINAL",
-      number: "INV-AU-2026-001",
+      number: "Q-AU-2026-001",
       // Deliberately different from the "live" entityName/entityAddress/etc.
       // above — if the mapper ever regressed to reading the live fields for
       // a FINAL doc, these assertions would catch it immediately.
@@ -124,7 +123,7 @@ describe("toSheetData — FINAL vs DRAFT entity source", () => {
     // Defensive case: `entitySnapshot` is an opaque Json column with no
     // compile-time shape guarantee — a hand-edited or corrupted row must
     // never crash the renderer.
-    const doc = baseDoc({ status: "FINAL", number: "INV-AU-2026-002", entitySnapshot: { garbage: true } });
+    const doc = baseDoc({ status: "FINAL", number: "Q-AU-2026-002", entitySnapshot: { garbage: true } });
     const sheet = toSheetData(doc);
 
     expect(sheet.entity.name).toBe("Live Region Entity");
@@ -142,19 +141,13 @@ describe("toSheetData — FINAL vs DRAFT entity source", () => {
 });
 
 describe("toSheetData — validity date", () => {
-  it("is null for an invoice regardless of validityDays", () => {
-    const doc = baseDoc({ type: "INVOICE", validityDays: 7 });
-    expect(toSheetData(doc).validityDate).toBeNull();
-  });
-
   it("is null for a quote with no validityDays (not yet finalized)", () => {
-    const doc = baseDoc({ type: "QUOTE", validityDays: null });
+    const doc = baseDoc({ validityDays: null });
     expect(toSheetData(doc).validityDate).toBeNull();
   });
 
   it("is issueDate + validityDays, formatted DD/MM/YYYY, for a finalized quote", () => {
     const doc = baseDoc({
-      type: "QUOTE",
       status: "FINAL",
       number: "Q-AU-2026-001",
       issueDate: new Date("2026-08-30T00:00:00.000Z"),
@@ -166,14 +159,14 @@ describe("toSheetData — validity date", () => {
     expect(sheet.validityDate).toBe("06/09/2026");
   });
 
-  it("sets the literal title QUOTATION for a quote and INVOICE for an invoice", () => {
-    expect(toSheetData(baseDoc({ type: "QUOTE" })).title).toBe("QUOTATION");
-    expect(toSheetData(baseDoc({ type: "INVOICE" })).title).toBe("INVOICE");
+  it("titles every document QUOTATION", () => {
+    const data = toSheetData(baseDoc());
+    expect(data.title).toBe("QUOTATION");
   });
 
-  it("only shows the signature area for quotes", () => {
-    expect(toSheetData(baseDoc({ type: "QUOTE" })).showSignature).toBe(true);
-    expect(toSheetData(baseDoc({ type: "INVOICE" })).showSignature).toBe(false);
+  it("always shows the signature block", () => {
+    const data = toSheetData(baseDoc());
+    expect(data.showSignature).toBe(true);
   });
 });
 

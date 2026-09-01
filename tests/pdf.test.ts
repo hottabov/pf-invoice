@@ -10,7 +10,7 @@ import type { QuotationData } from "../src/lib/quotation-data";
 
 describe("pdfFilename", () => {
   it("uses the document number when present", () => {
-    expect(pdfFilename("INV-AU-2026-001", "doc-1")).toBe("INV-AU-2026-001.pdf");
+    expect(pdfFilename("Q-AU-2026-001", "doc-1")).toBe("Q-AU-2026-001.pdf");
   });
 
   it("falls back to draft-<id> when there is no number yet", () => {
@@ -26,10 +26,9 @@ describe("pdfFilename", () => {
 
 function baseSheetData(overrides: Partial<DocSheetData> = {}): DocSheetData {
   return {
-    type: "INVOICE",
-    title: "INVOICE",
+    title: "QUOTATION",
     isDraft: false,
-    number: "INV-AU-2026-001",
+    number: "Q-AU-2026-001",
     issueDate: "30/08/2026",
     validityDate: null,
     logo: null,
@@ -69,7 +68,7 @@ describe("renderDocumentHtml", () => {
     expect(html).toContain('<meta charSet="utf-8">');
     expect(html).toContain("@page{size:A4;margin:15mm}");
     expect(html).toContain("Pathfinder Cutting Systems");
-    expect(html).toContain("INV-AU-2026-001");
+    expect(html).toContain("Q-AU-2026-001");
     expect(html).toContain("1,100");
   });
 

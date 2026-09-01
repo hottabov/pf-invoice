@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   customLineSchema,
   discountPctSchema,
-  documentTypeSchema,
   idSchema,
   isPermutation,
   notesSchema,
@@ -11,28 +10,6 @@ import {
   priceDisplaySchema,
   reorderSchema,
 } from "../src/lib/validation/documents";
-
-describe("documentTypeSchema", () => {
-  it("accepts QUOTE", () => {
-    expect(documentTypeSchema.safeParse("QUOTE").success).toBe(true);
-  });
-
-  it("accepts INVOICE", () => {
-    expect(documentTypeSchema.safeParse("INVOICE").success).toBe(true);
-  });
-
-  it("rejects an unknown type", () => {
-    expect(documentTypeSchema.safeParse("RECEIPT").success).toBe(false);
-  });
-
-  it("rejects a lowercase type", () => {
-    expect(documentTypeSchema.safeParse("quote").success).toBe(false);
-  });
-
-  it("rejects a missing value", () => {
-    expect(documentTypeSchema.safeParse(undefined).success).toBe(false);
-  });
-});
 
 describe("idSchema", () => {
   it("accepts a cuid-shaped id", () => {
