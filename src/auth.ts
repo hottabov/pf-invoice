@@ -1,7 +1,10 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Nodemailer from "next-auth/providers/nodemailer";
+import { createTransport } from "nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import { buildMagicLinkEmail } from "@/lib/email/magic-link";
+import { resolveReplyTo } from "@/lib/email/reply-to";
 import { verify } from "@node-rs/argon2";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -14,6 +17,11 @@ import { db } from "@/lib/db";
 // applied, User.phone missing, every login failed with P2022 silently
 // swallowed here). Loudly logging and re-throwing lets it surface as a 500
 // instead, and keeps it out of the timing-safe "no such user" branch below.
+// Magic links are single-use and arrive by email; 15 minutes is long enough to
+// switch to a mail client and back, short enough that a link sitting in an
+// unattended inbox stops being a credential.
+const MAGIC_LINK_MAX_AGE_SECONDS = 900;
+
 function isPrismaInfraError(e: unknown): e is Prisma.PrismaClientKnownRequestError {
   return (
     e instanceof Prisma.PrismaClientKnownRequestError && /^P[12]/.test(e.code)
@@ -95,7 +103,36 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         },
       },
       from: process.env.EMAIL_FROM,
-      maxAge: 900, // magic link valid for 15 minutes
+      maxAge: MAGIC_LINK_MAX_AGE_SECONDS,
+      // Overrides the Auth.js default template. Two reasons: it's branded
+      // "Auth.js", and it has no Reply-To — our From address lives on the
+      // Resend sending subdomain (noreply@q.pathfindercut.com) and accepts no
+      // mail, so a reply would bounce into the void. EMAIL_REPLY_TO points at
+      // a real, monitored Microsoft 365 mailbox.
+      async sendVerificationRequest({ identifier, url, provider }) {
+        const { subject, text, html, replyTo } = buildMagicLinkEmail({
+          url,
+          // A sign-in link has no document author, so this always resolves to
+          // the shared inbox. Quote emails to clients pass the document's
+          // author here instead — see src/lib/email/reply-to.ts.
+          replyTo: resolveReplyTo(null, process.env.EMAIL_REPLY_TO),
+          maxAgeMinutes: MAGIC_LINK_MAX_AGE_SECONDS / 60,
+        });
+
+        const result = await createTransport(provider.server).sendMail({
+          to: identifier,
+          from: provider.from,
+          replyTo,
+          subject,
+          text,
+          html,
+        });
+
+        const failed = [...(result.rejected ?? []), ...(result.pending ?? [])].filter(Boolean);
+        if (failed.length) {
+          throw new Error(`Email (${failed.join(", ")}) could not be sent`);
+        }
+      },
     }),
   ],
   callbacks: {

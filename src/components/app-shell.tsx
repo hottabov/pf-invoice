@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { logout } from "@/lib/actions/auth";
@@ -37,11 +38,17 @@ export function AppShell({ user, children }: AppShellProps) {
         <div className="flex h-16 shrink-0 items-center justify-center border-b border-white/10 px-2 lg:justify-start lg:px-5">
           <Link
             href="/"
-            className="focus-ring-dark rounded-sm text-lg font-semibold tracking-tight text-white"
+            className="focus-ring-dark flex items-center gap-2.5 rounded-sm text-lg font-semibold tracking-tight text-white"
           >
-            <span className="lg:hidden" aria-hidden="true">
-              PQ
-            </span>
+            <Image
+              src="/pathquote-logo.png"
+              alt=""
+              aria-hidden="true"
+              width={512}
+              height={512}
+              priority
+              className="size-9 shrink-0 rounded-lg object-cover"
+            />
             <span className="hidden lg:inline">
               Path<span className="text-brand-accent">Quote</span>
             </span>
@@ -85,7 +92,18 @@ export function AppShell({ user, children }: AppShellProps) {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
-          <Link href="/" className="focus-ring rounded-sm text-lg font-semibold text-brand">
+          <Link
+            href="/"
+            className="focus-ring flex items-center gap-2 rounded-sm text-lg font-semibold text-brand"
+          >
+            <Image
+              src="/pathquote-logo.png"
+              alt=""
+              aria-hidden="true"
+              width={512}
+              height={512}
+              className="size-8 shrink-0 rounded-lg object-cover"
+            />
             PathQuote
           </Link>
           <div className="flex items-center gap-2">
