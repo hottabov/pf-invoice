@@ -223,10 +223,8 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
                 <DocumentTotals
                   taxName={document.taxName}
                   taxRate={document.taxRate}
-                  subtotal={document.subtotal}
-                  discountMode={document.discountMode}
-                  discountValue={document.discountValue}
-                  discountAmount={document.discountAmount}
+                  subtotal={document.summarySubtotal}
+                  discountAmount={document.summaryDiscountAmount}
                   taxAmount={document.taxAmount}
                   total={document.total}
                   currency={document.currency}
@@ -261,10 +259,8 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
         status={document.status}
         taxName={document.taxName}
         taxRate={document.taxRate}
-        subtotal={document.subtotal}
-        discountMode={document.discountMode}
-        discountValue={document.discountValue}
-        discountAmount={document.discountAmount}
+        subtotal={document.summarySubtotal}
+        discountAmount={document.summaryDiscountAmount}
         taxAmount={document.taxAmount}
         total={document.total}
         currency={document.currency}

@@ -134,7 +134,9 @@ jobs:
             # Build the new images without starting anything yet — the old
             # app container (old schema-compatible code) keeps serving
             # traffic while this happens.
-            docker compose build
+            # `tools` is behind a Compose profile, so a bare `build` skips it.
+            # Build it explicitly or migrations run from a stale image.
+            docker compose build app tools
 
             # Bring up postgres (if not already) and apply migrations
             # BEFORE the new app code starts. Migrating after `up -d --build`

@@ -81,8 +81,10 @@ describe("computeTotals", () => {
     expect(result).toEqual({
       itemTotals: [100],
       itemDiscounts: [0],
+      grossSubtotal: 100,
       subtotal: 100,
       discountAmount: 0,
+      totalDiscountAmount: 0,
       taxableBase: 100,
       taxAmount: 0,
       total: 100,
@@ -113,7 +115,9 @@ describe("computeTotals", () => {
     });
     expect(result.itemTotals).toEqual([90]);
     expect(result.itemDiscounts).toEqual([10]);
+    expect(result.grossSubtotal).toBe(100);
     expect(result.subtotal).toBe(90);
+    expect(result.totalDiscountAmount).toBe(10);
     expect(result.total).toBe(90);
     expect(result.violations).toEqual([]);
   });
@@ -194,8 +198,10 @@ describe("computeTotals", () => {
     });
     // item: 100 * 0.9 = 90 (subtotal); document: 90 * 0.9 = 81.
     expect(result.itemTotals).toEqual([90]);
+    expect(result.grossSubtotal).toBe(100);
     expect(result.subtotal).toBe(90);
     expect(result.discountAmount).toBe(9);
+    expect(result.totalDiscountAmount).toBe(19);
     expect(result.taxableBase).toBe(81);
     expect(result.total).toBe(81);
   });
@@ -316,8 +322,10 @@ describe("computeTotals", () => {
     expect(result).toEqual({
       itemTotals: [],
       itemDiscounts: [],
+      grossSubtotal: 0,
       subtotal: 0,
       discountAmount: 0,
+      totalDiscountAmount: 0,
       taxableBase: 0,
       taxAmount: 0,
       total: 0,

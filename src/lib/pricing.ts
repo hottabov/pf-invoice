@@ -71,8 +71,12 @@ export type PricingTotals = {
    * re-deriving `discountCents` itself, the same reasoning `discountAmount`
    * below already gets at document level. */
   itemDiscounts: number[];
+  /** Full price before either item-level or document-level discounts. */
+  grossSubtotal: number;
   subtotal: number;
   discountAmount: number;
+  /** Item-level discounts plus the document-level discount. */
+  totalDiscountAmount: number;
   taxableBase: number;
   taxAmount: number;
   total: number;
@@ -274,6 +278,8 @@ export function capPct(mode: DiscountMode, value: string | null, baseCents: numb
  *   violation is reported — the cap is NOT auto-applied, the math still uses
  *   the requested discount. Callers decide whether to reject the save when
  *   violations are present.
+ * - grossSubtotal = Σ item bases + Σ(extraLine.qty * extraLine.unitPrice),
+ *   before any discounts.
  * - subtotal = Σ itemTotals + Σ(extraLine.qty * extraLine.unitPrice).
  * - The document-level discount (same mode + value shape, default "no
  *   discount") is resolved and subtracted from subtotal → taxableBase.
@@ -308,10 +314,13 @@ export function computeTotals(input: EngineInput): PricingTotals {
   const extraLinesCents = input.extraLines.reduce((sum, line) => sum + line.qty * toCents(line.unitPrice), 0);
 
   const subtotalCents = itemTotalsCents.reduce((sum, cents) => sum + cents, 0) + extraLinesCents;
+  const itemDiscountTotalCents = itemDiscountsCents.reduce((sum, cents) => sum + cents, 0);
+  const grossSubtotalCents = subtotalCents + itemDiscountTotalCents;
 
   const documentMode = input.documentDiscountMode ?? "PERCENT";
   const documentValue = input.documentDiscountValue ?? null;
   const discountAmountCents = discountCents(subtotalCents, documentMode, documentValue);
+  const totalDiscountAmountCents = itemDiscountTotalCents + discountAmountCents;
   const taxableBaseCents = subtotalCents - discountAmountCents;
 
   const taxAmountCents = percentOf(taxableBaseCents, input.taxRate);
@@ -320,8 +329,10 @@ export function computeTotals(input: EngineInput): PricingTotals {
   return {
     itemTotals: itemTotalsCents.map(fromCents),
     itemDiscounts: itemDiscountsCents.map(fromCents),
+    grossSubtotal: fromCents(grossSubtotalCents),
     subtotal: fromCents(subtotalCents),
     discountAmount: fromCents(discountAmountCents),
+    totalDiscountAmount: fromCents(totalDiscountAmountCents),
     taxableBase: fromCents(taxableBaseCents),
     taxAmount: fromCents(taxAmountCents),
     total: fromCents(totalCents),

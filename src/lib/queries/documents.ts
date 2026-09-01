@@ -237,9 +237,13 @@ export type DocumentForBuilder = {
   discountValue: string | null;
   subtotal: string;
   /** subtotal - taxableBase, i.e. the amount the document-level discount
-   * removes — 0 when `discountValue` is null. Surfaced so the sticky footer
-   * can show "Discount: -$X" only when a document discount is actually set. */
+   * removes — 0 when `discountValue` is null. */
   discountAmount: string;
+  /** Full price before item-level and document-level discounts, for the
+   * builder Summary breakdown. */
+  summarySubtotal: string;
+  /** Combined item-level and document-level discount, for Summary. */
+  summaryDiscountAmount: string;
   taxAmount: string;
   total: string;
   regionId: string;
@@ -454,6 +458,8 @@ export async function getDocumentForBuilder(
     discountValue: document.discountValue?.toString() ?? null,
     subtotal: document.subtotal.toString(),
     discountAmount: totals.discountAmount.toString(),
+    summarySubtotal: totals.grossSubtotal.toString(),
+    summaryDiscountAmount: totals.totalDiscountAmount.toString(),
     taxAmount: document.taxAmount.toString(),
     total: document.total.toString(),
     regionId: document.regionId,

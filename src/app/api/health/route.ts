@@ -24,7 +24,20 @@ export async function GET() {
   let error: string | undefined;
   try {
     await db.user.findFirst({ select: { id: true, phone: true } });
-    await db.document.findFirst({ select: { id: true, showItemPrices: true } });
+    await db.document.findFirst({
+      select: {
+        id: true,
+        showItemPrices: true,
+        validityDays: true,
+        discountMode: true,
+        discountValue: true,
+      },
+    });
+    await db.documentItem.findFirst({
+      select: { id: true, productionSpec: true, lineGroup: true, discountMode: true, discountValue: true },
+    });
+    await db.documentLine.findFirst({ select: { id: true, imageUrl: true } });
+    await db.company.findFirst({ select: { id: true, industryId: true } });
     await db.region.findFirst({ select: { id: true, maxDiscountPct: true } });
   } catch (e) {
     schemaOk = false;

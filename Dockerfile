@@ -30,5 +30,8 @@ COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/prisma ./prisma
+# Production forms are read from disk at request time; Next's standalone
+# trace cannot include dynamically selected template filenames automatically.
+COPY --from=build /app/src/lib/production-forms/templates ./src/lib/production-forms/templates
 EXPOSE 3000
 CMD ["node", "server.js"]
