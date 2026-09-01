@@ -56,8 +56,12 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
 
   // Recompute totals first (a discount cap may have been lowered since this
   // was last saved) and check the violations it reports before allowing the
-  // document to become FINAL.
-  const violations = await recalcDocument(document.id);
+  // document to become FINAL. `negativeSubtotal` isn't consulted here — the
+  // mutating actions in documents.ts already refuse to save a change that
+  // would produce one (see NegativeSubtotalError there), so a DRAFT reaching
+  // this point should never carry one; rejecting finalize on it is a later
+  // task's concern (see the P0 plan's validity-fields task), not this one's.
+  const { violations } = await recalcDocument(document.id);
 
   const validationError = validateFinalizable(
     { companyId: document.companyId, items: document.items, lines: document.lines },

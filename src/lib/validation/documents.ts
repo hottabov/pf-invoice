@@ -52,6 +52,12 @@ const qtySchema = z.coerce
 
 const NON_NEGATIVE_AMOUNT_REGEX = /^\d+(\.\d{1,2})?$/;
 
+/** A custom line may be negative: a trade-in is entered as a line with a minus,
+ * which keeps one mechanism serving many purposes (see the P0 spec, Part C).
+ * Option and product lines keep the non-negative rule — a negative option is a
+ * data error, not a discount. */
+const SIGNED_AMOUNT_REGEX = /^-?\d+(\.\d{1,2})?$/;
+
 /** Optional `/api/files/<name>` URL for a custom line's own photo (see
  * `DocumentLine.imageUrl` — a trade-in or bought-in item can carry a photo
  * the same way a product line does). Missing/blank collapses to `undefined`,
@@ -78,7 +84,7 @@ export const customLineSchema = z.object({
   unitPrice: z
     .string()
     .trim()
-    .regex(NON_NEGATIVE_AMOUNT_REGEX, "Unit price must be a non-negative number with at most 2 decimal places"),
+    .regex(SIGNED_AMOUNT_REGEX, "Unit price must be a number with at most 2 decimal places"),
   description: customLineDescriptionSchema,
   imageUrl: customLineImageUrlSchema,
 });

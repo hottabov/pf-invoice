@@ -61,6 +61,13 @@ export type PricingTotals = {
   taxAmount: number;
   total: number;
   violations: EngineViolation[];
+  /** True when `subtotal` (items + extra lines, before the document-level
+   * discount) computes below zero — a negative custom line (a trade-in,
+   * see customLineSchema) can exceed the value of everything else on the
+   * quote. The engine only reports this; it does not throw or clamp — the
+   * caller (see `recalcDocument` in src/lib/actions/documents.ts) decides
+   * whether to reject the save. */
+  negativeSubtotal: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -241,5 +248,6 @@ export function computeTotals(input: EngineInput): PricingTotals {
     taxAmount: fromCents(taxAmountCents),
     total: fromCents(totalCents),
     violations,
+    negativeSubtotal: subtotalCents < 0,
   };
 }

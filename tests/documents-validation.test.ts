@@ -176,8 +176,28 @@ describe("customLineSchema", () => {
     expect(customLineSchema.safeParse({ ...valid, qty: "1.5" }).success).toBe(false);
   });
 
-  it("rejects a negative unit price", () => {
-    expect(customLineSchema.safeParse({ ...valid, unitPrice: "-1" }).success).toBe(false);
+  it("accepts a negative unit price (a trade-in)", () => {
+    expect(customLineSchema.safeParse({ ...valid, unitPrice: "-1" }).success).toBe(true);
+  });
+
+  it("accepts a negative custom line for a trade-in", () => {
+    const parsed = customLineSchema.safeParse({
+      name: "Trade-in K5 390",
+      qty: "1",
+      unitPrice: "-15000.00",
+      description: "Serial 12345. Customer responsible for removal.",
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects a negative amount with more than two decimals", () => {
+    const parsed = customLineSchema.safeParse({
+      name: "Trade-in",
+      qty: "1",
+      unitPrice: "-1.005",
+      description: undefined,
+    });
+    expect(parsed.success).toBe(false);
   });
 
   it("rejects a unit price with three decimal places", () => {

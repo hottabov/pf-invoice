@@ -1,4 +1,4 @@
-import { formatMoney } from "@/lib/format";
+import { formatMoney, isNegativeAmount } from "@/lib/format";
 import { renderStoredRichText } from "@/lib/rich-text";
 import type { DocSheetData, DocSheetLine } from "@/lib/sheet-data";
 
@@ -190,26 +190,31 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
 
           {data.extraLines.length > 0 ? (
             <tbody className="pq-item-group">
-              {data.extraLines.map((line) => (
-                <tr className="pq-item-row" key={line.id}>
-                  <td className="pq-col-item">
-                    <div className="pq-item-head">
-                      {line.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={line.image} alt={line.name} className="pq-thumb" />
-                      ) : null}
-                      <div>
-                        <div className="pq-item-name">{line.name}</div>
-                        {line.description ? <div className="pq-item-desc">{line.description}</div> : null}
+              {data.extraLines.map((line) => {
+                const isNegative = isNegativeAmount(line.unitPrice);
+                return (
+                  <tr className="pq-item-row" key={line.id}>
+                    <td className="pq-col-item">
+                      <div className="pq-item-head">
+                        {line.image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={line.image} alt={line.name} className="pq-thumb" />
+                        ) : null}
+                        <div>
+                          <div className="pq-item-name">{line.name}</div>
+                          {line.description ? <div className="pq-item-desc">{line.description}</div> : null}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="pq-col-qty">
-                    {line.qty} × {formatMoney(line.unitPrice, totals.currency)}
-                  </td>
-                  <td className="pq-col-amount pq-amount">{formatMoney(line.lineTotal, totals.currency)}</td>
-                </tr>
-              ))}
+                    </td>
+                    <td className={isNegative ? "pq-col-qty pq-negative" : "pq-col-qty"}>
+                      {line.qty} × {formatMoney(line.unitPrice, totals.currency)}
+                    </td>
+                    <td className={isNegative ? "pq-col-amount pq-amount pq-negative" : "pq-col-amount pq-amount"}>
+                      {formatMoney(line.lineTotal, totals.currency)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           ) : null}
         </table>
@@ -563,6 +568,12 @@ const SHEET_CSS = `
   .pq-amount {
     text-align: right;
     white-space: nowrap;
+  }
+  /* A negative extra line (trade-in) — muted and italic so its amount
+     reads distinctly from an ordinary charge, never mistaken for one. */
+  .pq-negative {
+    color: #64748b;
+    font-style: italic;
   }
   .pq-totals {
     width: 60%;

@@ -34,6 +34,16 @@ export type ActionResult = { error?: string; warning?: string };
 
 const NOT_FOUND_ERROR = "Not found";
 const FALLBACK_REGION_CODE = "AU";
+const NEGATIVE_SUBTOTAL_ERROR = "Discounts and trade-ins cannot exceed the value of the quote.";
+
+/** Thrown inside a `db.$transaction(async (tx) => ...)` callback to abort
+ * and roll it back when `recalcDocument` reports `negativeSubtotal` — see
+ * the mutating actions below, each of which runs its entity write and the
+ * recalc in the same transaction so a rejected save never leaves a
+ * negative-subtotal line (or a stale total) committed. Never surfaced to a
+ * caller directly; every site that can throw it catches it immediately and
+ * maps it to `{ error: NEGATIVE_SUBTOTAL_ERROR }`. */
+class NegativeSubtotalError extends Error {}
 
 /** Join every zod issue message (form-level + field-level) into one string
  * for a plain `{ error }` result — same helper as actions/catalog.ts, kept
@@ -49,6 +59,17 @@ function flattenZodError(error: z.ZodError): string {
 
 // --- recalculation --------------------------------------------------------
 
+/** The subset of a Prisma client `recalcDocument` needs (just the `document`
+ * delegate) — structurally satisfied by both the plain `db` singleton and
+ * the `tx` handed to a `db.$transaction(async (tx) => ...)` callback, so
+ * callers that need the recalc to roll back along with their own write (see
+ * `NegativeSubtotalError` above) pass `tx`; callers that don't (e.g.
+ * `finalizeDocument`, which only reads the returned violations) can omit it
+ * and get the default `db`. */
+type RecalcClient = { document: Prisma.TransactionClient["document"] };
+
+export type RecalcResult = { violations: EngineViolation[]; negativeSubtotal: boolean };
+
 // NOTE: callers currently ignore the returned violations. Phase 5 finalize MUST
 // check them (a region's maxDiscountPct can be lowered after an item discount was
 // saved) and refuse to finalize a document with violations.
@@ -56,20 +77,23 @@ function flattenZodError(error: z.ZodError): string {
  * Recomputes and persists a document's subtotal/taxAmount/total from its
  * current items, item lines and document-level lines, via the pure pricing
  * engine (src/lib/pricing.ts) — the single source of truth for every money
- * total. Every mutating action in this file ends by calling this. Returns
- * the engine's discount-cap violations (if any) so a caller that just
- * changed a discount can decide whether to reject the save; callers that
- * can't produce a violation (adding/removing an item or line) can ignore
- * the return value. A missing document is treated as a no-op — the caller
- * has already scope-checked it before mutating.
+ * total. Every mutating action in this file ends by calling this, inside the
+ * same `$transaction` as its own entity write when the mutation could ever
+ * produce a negative subtotal (see `NegativeSubtotalError`'s doc comment and
+ * every call site below). Returns the engine's discount-cap violations
+ * (unchanged behavior — see the NOTE above) alongside `negativeSubtotal`;
+ * this function itself never throws or refuses to persist — it's the
+ * caller's job to inspect the result and decide whether to reject the save.
+ * A missing document is treated as a no-op — the caller has already
+ * scope-checked it before mutating.
  *
  * The discount cap fed to the engine is the document's region cap
  * (`Region.maxDiscountPct`) — the same value applied to every item, not a
  * per-item/series value (discount caps moved from Series to Region — see
  * `setItemDiscount` below).
  */
-export async function recalcDocument(documentId: string): Promise<EngineViolation[]> {
-  const document = await db.document.findUnique({
+export async function recalcDocument(documentId: string, client: RecalcClient = db): Promise<RecalcResult> {
+  const document = await client.document.findUnique({
     where: { id: documentId },
     include: {
       items: { include: { lines: true } },
@@ -77,7 +101,7 @@ export async function recalcDocument(documentId: string): Promise<EngineViolatio
       region: true,
     },
   });
-  if (!document) return [];
+  if (!document) return { violations: [], negativeSubtotal: false };
 
   const regionMaxDiscountPct = document.region.maxDiscountPct ? Number(document.region.maxDiscountPct) : null;
   const engineInput: EngineInput = {
@@ -94,7 +118,7 @@ export async function recalcDocument(documentId: string): Promise<EngineViolatio
 
   const totals = computeTotals(engineInput);
 
-  await db.document.update({
+  await client.document.update({
     where: { id: documentId },
     data: {
       subtotal: totals.subtotal,
@@ -103,7 +127,7 @@ export async function recalcDocument(documentId: string): Promise<EngineViolatio
     },
   });
 
-  return totals.violations;
+  return { violations: totals.violations, negativeSubtotal: totals.negativeSubtotal };
 }
 
 // --- draft lifecycle -----------------------------------------------------
@@ -296,39 +320,48 @@ export async function addItem(documentId: string, productCode: string): Promise<
     return { error: `Price required for ${product.code} in ${document.region.code}` };
   }
 
-  // Atomically read max sortOrder and create item in a single transaction to
-  // prevent concurrent adds from duplicating sortOrder, which would corrupt
-  // display/reorder order. Interactive transaction ensures the aggregate(max)
-  // and create are not interleaved with other writes.
-  await db.$transaction(async (tx) => {
-    const maxSortOrder = await tx.documentItem.aggregate({
-      where: { documentId: document.id },
-      _max: { sortOrder: true },
-    });
+  // Atomically read max sortOrder, create the item, and recompute totals in
+  // a single transaction: an item's price is always positive so this can
+  // never actually push the subtotal negative, but every mutation here goes
+  // through the same guarded pattern (see `NegativeSubtotalError`) rather
+  // than special-casing "safe" ones. Interactive transaction also still
+  // ensures the aggregate(max) and create are not interleaved with other
+  // writes.
+  try {
+    await db.$transaction(async (tx) => {
+      const maxSortOrder = await tx.documentItem.aggregate({
+        where: { documentId: document.id },
+        _max: { sortOrder: true },
+      });
 
-    await tx.documentItem.create({
-      data: {
-        documentId: document.id,
-        productId: product.id,
-        sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
-        code: product.code,
-        name: product.name,
-        description: product.description,
-        unitPrice: price.amount,
-        imageUrl: product.imageUrl,
-        // Quotation-first default (behavior change): a newly added item with a
-        // product image starts with its image already switched on for display
-        // — the owner's quotes almost always show it (full-width, right under
-        // the product title — see quotation-sheet.tsx), so requiring an extra
-        // manual toggle on every single item added defeats the point. Still
-        // author-togglable afterwards via `setItemShowImage`, and a product
-        // with no image simply has nothing to default on (`false` either way).
-        showImage: Boolean(product.imageUrl),
-      },
-    });
-  });
+      await tx.documentItem.create({
+        data: {
+          documentId: document.id,
+          productId: product.id,
+          sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
+          code: product.code,
+          name: product.name,
+          description: product.description,
+          unitPrice: price.amount,
+          imageUrl: product.imageUrl,
+          // Quotation-first default (behavior change): a newly added item with a
+          // product image starts with its image already switched on for display
+          // — the owner's quotes almost always show it (full-width, right under
+          // the product title — see quotation-sheet.tsx), so requiring an extra
+          // manual toggle on every single item added defeats the point. Still
+          // author-togglable afterwards via `setItemShowImage`, and a product
+          // with no image simply has nothing to default on (`false` either way).
+          showImage: Boolean(product.imageUrl),
+        },
+      });
 
-  await recalcDocument(document.id);
+      const { negativeSubtotal } = await recalcDocument(document.id, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${document.id}`);
   return {};
@@ -352,9 +385,19 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
   });
   if (!item) return { error: NOT_FOUND_ERROR };
 
-  await db.documentItem.delete({ where: { id: item.id } });
-
-  await recalcDocument(item.documentId);
+  // Removing an item can reveal a negative subtotal (a trade-in extra line
+  // that was previously offset by this item's price) — same guarded
+  // transaction pattern as every other mutation here.
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentItem.delete({ where: { id: item.id } });
+      const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${item.documentId}`);
   return {};
@@ -456,8 +499,16 @@ export async function setItemOptions(
   if (!item.product) return { error: "This item has no product to attach options to" };
 
   if (codes.length === 0) {
-    await db.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } });
-    await recalcDocument(item.documentId);
+    try {
+      await db.$transaction(async (tx) => {
+        await tx.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } });
+        const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
+        if (negativeSubtotal) throw new NegativeSubtotalError();
+      });
+    } catch (error) {
+      if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+      throw error;
+    }
     revalidatePath(`/documents/${item.documentId}`);
     return {};
   }
@@ -506,30 +557,41 @@ export async function setItemOptions(
     return { error: `Price required for: ${unpricedCodes.join(", ")}` };
   }
 
-  await db.$transaction([
-    db.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } }),
-    ...parsedSelections.data.map((selection, index) => {
-      const option = optionByCode.get(selection.optionCode)!;
-      const price = option.prices[0]!;
-      return db.documentLine.create({
-        data: {
-          documentId: item.documentId,
-          itemId: item.id,
-          kind: "OPTION",
-          refId: option.id,
-          code: option.code,
-          name: option.name,
-          description: option.shortDescription,
-          qty: selection.qty,
-          unitPrice: price.amount,
-          attributes: selection.attributes as Prisma.InputJsonValue | undefined,
-          sortOrder: index,
-        },
-      });
-    }),
-  ]);
-
-  await recalcDocument(item.documentId);
+  // Delete+create+recalc all in one interactive transaction (previously
+  // delete+create alone, as a batch `$transaction([...])`; folding the
+  // recalc in means a failed create *or* a resulting negative subtotal both
+  // roll back the whole thing, never leaving an item with no options where
+  // it had some a moment ago, or a set of options committed that the
+  // negative-subtotal guard should have rejected).
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } });
+      for (const [index, selection] of parsedSelections.data.entries()) {
+        const option = optionByCode.get(selection.optionCode)!;
+        const price = option.prices[0]!;
+        await tx.documentLine.create({
+          data: {
+            documentId: item.documentId,
+            itemId: item.id,
+            kind: "OPTION",
+            refId: option.id,
+            code: option.code,
+            name: option.name,
+            description: option.shortDescription,
+            qty: selection.qty,
+            unitPrice: price.amount,
+            attributes: selection.attributes as Prisma.InputJsonValue | undefined,
+            sortOrder: index,
+          },
+        });
+      }
+      const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${item.documentId}`);
   return {};
@@ -567,25 +629,36 @@ export async function addCustomLine(documentId: string, formData: FormData): Pro
     _max: { sortOrder: true },
   });
 
-  await db.documentLine.create({
-    data: {
-      documentId: document.id,
-      itemId: null,
-      kind: "CUSTOM",
-      name: parsed.data.name,
-      description: parsed.data.description ?? null,
-      qty: parsed.data.qty,
-      unitPrice: new Prisma.Decimal(parsed.data.unitPrice),
-      imageUrl: parsed.data.imageUrl ?? null,
-      // Same "image present -> show it" default as `addItem` gives a
-      // product image: a custom line has no separate show/hide toggle of
-      // its own, so attaching a photo is what turns this on.
-      showImage: Boolean(parsed.data.imageUrl),
-      sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
-    },
-  });
+  // A negative unitPrice (a trade-in — see customLineSchema) can push the
+  // document's subtotal below zero; create + recalc run in one transaction
+  // so a rejected save never leaves the line committed with a stale total.
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentLine.create({
+        data: {
+          documentId: document.id,
+          itemId: null,
+          kind: "CUSTOM",
+          name: parsed.data.name,
+          description: parsed.data.description ?? null,
+          qty: parsed.data.qty,
+          unitPrice: new Prisma.Decimal(parsed.data.unitPrice),
+          imageUrl: parsed.data.imageUrl ?? null,
+          // Same "image present -> show it" default as `addItem` gives a
+          // product image: a custom line has no separate show/hide toggle
+          // of its own, so attaching a photo is what turns this on.
+          showImage: Boolean(parsed.data.imageUrl),
+          sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
+        },
+      });
 
-  await recalcDocument(document.id);
+      const { negativeSubtotal } = await recalcDocument(document.id, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${document.id}`);
   return {};
@@ -615,9 +688,19 @@ export async function removeLine(lineId: string): Promise<ActionResult> {
   });
   if (!line) return { error: NOT_FOUND_ERROR };
 
-  await db.documentLine.delete({ where: { id: line.id } });
-
-  await recalcDocument(line.documentId);
+  // Removing a positive extra line can reveal a negative subtotal (e.g. a
+  // trade-in line elsewhere that this one was offsetting) — same guarded
+  // transaction pattern as every other mutation here.
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentLine.delete({ where: { id: line.id } });
+      const { negativeSubtotal } = await recalcDocument(line.documentId, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${line.documentId}`);
   return {};
@@ -669,12 +752,22 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
     warning = `Exceeds region cap of ${cap}%`;
   }
 
-  await db.documentItem.update({
-    where: { id: item.id },
-    data: { discountPct: parsedPct.data === null ? null : new Prisma.Decimal(parsedPct.data) },
-  });
-
-  await recalcDocument(item.documentId);
+  // A larger item discount can reveal a negative subtotal (e.g. against a
+  // trade-in extra line elsewhere on the document) — same guarded
+  // transaction pattern as every other mutation here.
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentItem.update({
+        where: { id: item.id },
+        data: { discountPct: parsedPct.data === null ? null : new Prisma.Decimal(parsedPct.data) },
+      });
+      const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${item.documentId}`);
   return warning ? { warning } : {};
@@ -744,12 +837,24 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
     warning = `Exceeds region cap of ${cap}%`;
   }
 
-  await db.document.update({
-    where: { id: document.id },
-    data: { discountPct: parsedPct.data === null ? null : new Prisma.Decimal(parsedPct.data) },
-  });
-
-  await recalcDocument(document.id);
+  // The document-level discount is applied *after* `negativeSubtotal` is
+  // computed (see computeTotals — the flag reflects the pre-discount
+  // subtotal), so this can never actually trigger the guard on its own; the
+  // same transaction pattern is still used for consistency with every other
+  // mutation here, and as a defensive backstop should that ever change.
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.document.update({
+        where: { id: document.id },
+        data: { discountPct: parsedPct.data === null ? null : new Prisma.Decimal(parsedPct.data) },
+      });
+      const { negativeSubtotal } = await recalcDocument(document.id, tx);
+      if (negativeSubtotal) throw new NegativeSubtotalError();
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    throw error;
+  }
 
   revalidatePath(`/documents/${document.id}`);
   return warning ? { warning } : {};

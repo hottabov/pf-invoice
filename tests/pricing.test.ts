@@ -86,6 +86,7 @@ describe("computeTotals", () => {
       taxAmount: 0,
       total: 100,
       violations: [],
+      negativeSubtotal: false,
     });
   });
 
@@ -316,6 +317,7 @@ describe("computeTotals", () => {
       taxAmount: 0,
       total: 0,
       violations: [],
+      negativeSubtotal: false,
     });
   });
 
@@ -333,5 +335,38 @@ describe("computeTotals", () => {
       taxRate: 0,
     });
     expect(withUndefined).toEqual(withNull);
+  });
+
+  it("lets a negative extra line reduce the subtotal", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 100000, lines: [] }],
+      extraLines: [{ qty: 1, unitPrice: -15000 }],
+      documentDiscountPct: null,
+      taxRate: 0,
+    });
+    expect(result.subtotal).toBe(85000);
+    expect(result.total).toBe(85000);
+    expect(result.negativeSubtotal).toBe(false);
+  });
+
+  it("reports a violation when the subtotal goes negative", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 1000, lines: [] }],
+      extraLines: [{ qty: 1, unitPrice: -5000 }],
+      documentDiscountPct: null,
+      taxRate: 0,
+    });
+    expect(result.subtotal).toBe(-4000);
+    expect(result.negativeSubtotal).toBe(true);
+  });
+
+  it("does not flag negativeSubtotal for an ordinary positive quote", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 100, lines: [] }],
+      extraLines: [{ qty: 1, unitPrice: 10 }],
+      documentDiscountPct: null,
+      taxRate: 0,
+    });
+    expect(result.negativeSubtotal).toBe(false);
   });
 });
