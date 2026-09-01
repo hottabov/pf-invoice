@@ -128,11 +128,6 @@ export async function createDraft(): Promise<void> {
 
   const created = await db.document.create({
     data: {
-      // `Document.type` still exists until the schema migration in the next
-      // task removes it (see allocateNumber, src/lib/numbering.ts, for the
-      // same vestigial pin on `docType`) — every document created from here
-      // on is a quote, so this is satisfying a column, not making a choice.
-      type: "QUOTE",
       status: "DRAFT",
       authorId: session.user.id,
       regionId: resolvedRegion.id,

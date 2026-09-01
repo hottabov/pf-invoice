@@ -28,16 +28,14 @@ type NumberSequenceTx = {
 };
 
 /**
- * Atomically allocates and returns the next counter for
- * (regionCode, "QUOTE", year) via `NumberSequence`
- * (`@@unique([regionCode, docType, year])` in schema.prisma — the `docType`
- * column still exists until the schema migration in the next task, so it
- * stays pinned to `"QUOTE"` here). MUST be called inside a Prisma
- * interactive transaction — the upsert compiles to a single
- * `INSERT ... ON CONFLICT (regionCode, docType, year) DO UPDATE SET counter
- * = counter + 1` statement, so Postgres itself serializes concurrent
- * finalize calls for the same sequence (no JS-side read-modify-write race,
- * even under concurrent transactions targeting the same row).
+ * Atomically allocates and returns the next counter for (regionCode, year)
+ * via `NumberSequence` (`@@unique([regionCode, year])` in schema.prisma).
+ * MUST be called inside a Prisma interactive transaction — the upsert
+ * compiles to a single `INSERT ... ON CONFLICT (regionCode, year) DO UPDATE
+ * SET counter = counter + 1` statement, so Postgres itself serializes
+ * concurrent finalize calls for the same sequence (no JS-side
+ * read-modify-write race, even under concurrent transactions targeting the
+ * same row).
  */
 export async function allocateNumber(
   tx: NumberSequenceTx,
@@ -45,8 +43,8 @@ export async function allocateNumber(
   year: number
 ): Promise<number> {
   const row = await tx.numberSequence.upsert({
-    where: { regionCode_docType_year: { regionCode, docType: "QUOTE", year } },
-    create: { regionCode, docType: "QUOTE", year, counter: 1 },
+    where: { regionCode_year: { regionCode, year } },
+    create: { regionCode, year, counter: 1 },
     update: { counter: { increment: 1 } },
     select: { counter: true },
   });
