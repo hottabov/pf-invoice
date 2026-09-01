@@ -553,6 +553,7 @@ export async function addCustomLine(documentId: string, formData: FormData): Pro
     qty: formData.get("qty"),
     unitPrice: formData.get("unitPrice"),
     description: formData.get("description"),
+    imageUrl: formData.get("imageUrl"),
   });
   if (!parsed.success) return { error: flattenZodError(parsed.error) };
 
@@ -575,6 +576,11 @@ export async function addCustomLine(documentId: string, formData: FormData): Pro
       description: parsed.data.description ?? null,
       qty: parsed.data.qty,
       unitPrice: new Prisma.Decimal(parsed.data.unitPrice),
+      imageUrl: parsed.data.imageUrl ?? null,
+      // Same "image present -> show it" default as `addItem` gives a
+      // product image: a custom line has no separate show/hide toggle of
+      // its own, so attaching a photo is what turns this on.
+      showImage: Boolean(parsed.data.imageUrl),
       sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
     },
   });

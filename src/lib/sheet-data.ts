@@ -32,6 +32,16 @@ export type ToSheetLineInput = {
   description: string | null;
   qty: number;
   unitPrice: string;
+  /** `BuilderLine.imageUrl`/`showImage` — see that type's doc comment.
+   * Optional (unlike `ToSheetItemInput`'s always-present pair) so existing
+   * fixtures/tests that construct a line without them still type-check;
+   * `toDocSheetLine` treats a missing `showImage` the same as `false`. Only
+   * a CUSTOM (extra) line's own photo ever renders through this — an
+   * OPTION's catalog image is resolved into the same field but
+   * `showImage` is never set true for one, so it never actually displays
+   * here (see `DocSheetLine.image`). */
+  imageUrl?: string | null;
+  showImage?: boolean;
 };
 
 export type ToSheetItemInput = {
@@ -157,6 +167,13 @@ export type DocSheetLine = {
   qty: number;
   unitPrice: string;
   lineTotal: string;
+  /** Resolved thumbnail source, or `null` when either `showImage` is false,
+   * no image was ever attached, or the resolver declined to produce one —
+   * same gating as `DocSheetItem.image`. In practice only ever set for a
+   * document-level extra line with its own attached photo (a trade-in, a
+   * bought-in item); an item's own OPTION sub-lines never have `showImage`
+   * set. */
+  image: string | null;
 };
 
 export type DocSheetItem = {
@@ -397,7 +414,7 @@ export function dedupeDescription(name: string, description: string | null): str
   return description;
 }
 
-function toDocSheetLine(line: ToSheetLineInput): DocSheetLine {
+function toDocSheetLine(line: ToSheetLineInput, resolveImage: ImageResolver): DocSheetLine {
   return {
     id: line.id,
     code: line.code,
@@ -406,6 +423,7 @@ function toDocSheetLine(line: ToSheetLineInput): DocSheetLine {
     qty: line.qty,
     unitPrice: line.unitPrice,
     lineTotal: lineTotal(line.qty, line.unitPrice),
+    image: line.showImage && line.imageUrl ? (resolveImage(line.imageUrl) ?? null) : null,
   };
 }
 
@@ -483,7 +501,7 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     discountPct: item.discountPct,
     total: item.total,
     image: item.showImage && item.imageUrl ? (resolveImage(item.imageUrl) ?? null) : null,
-    lines: item.lines.map(toDocSheetLine),
+    lines: item.lines.map((line) => toDocSheetLine(line, resolveImage)),
   }));
 
   const validityDate =
@@ -500,7 +518,7 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     client,
     delivery,
     items,
-    extraLines: doc.extraLines.map(toDocSheetLine),
+    extraLines: doc.extraLines.map((line) => toDocSheetLine(line, resolveImage)),
     preparedBy: { name: doc.author.name, email: doc.author.email, phone: doc.author.phone },
     notes: doc.notes,
     totals: {

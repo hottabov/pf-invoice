@@ -295,6 +295,10 @@ model DocumentLine {
   unitPrice   Decimal       @db.Decimal(12, 2)
   attributes  Json? // { metres: 4, tables: 2 }
   showImage   Boolean       @default(false)
+  // A custom extra line has no catalogue entry to inherit an image from, so
+  // it carries its own (option lines keep using the catalogue image via
+  // `refId`). Set together with `showImage` by `addCustomLine`.
+  imageUrl    String?
   sortOrder   Int           @default(0)
 
   @@index([documentId])

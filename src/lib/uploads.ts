@@ -16,12 +16,33 @@ export const ALLOWED: Record<string, string> = {
 /** Maximum accepted upload size, in bytes. */
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB
 
+/** Extensions a catalogue image may use. SVG is here because catalogue art is
+ * vector source; it is deliberately absent from DOCUMENT_LINE_TYPES. */
+export const CATALOG_TYPES = ["jpg", "png", "webp", "svg"] as const;
+
+/** Extensions a salesperson may attach to a line on their own document. SVG is
+ * XML and can carry script, so a non-admin uploader is restricted to raster. */
+export const DOCUMENT_LINE_TYPES = ["jpg", "png", "webp"] as const;
+
+export type UploadPurpose = "catalog" | "document-line";
+
 /** A validation failure `saveUpload` can throw — wrong type or too large.
  * Callers (the /api/uploads route) turn this into a 400 with `.message`. */
 export class UploadValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "UploadValidationError";
+  }
+}
+
+/** Throws when `ext` isn't in `allowed` — the purpose-scoped counterpart to
+ * `ALLOWED`'s declared-MIME check. `saveUpload` calls this with the
+ * *sniffed* extension (see `sniffImageType`), not the declared MIME type, so
+ * the restriction is enforced where the real bytes are known and can't be
+ * bypassed by a crafted `Content-Type`. */
+export function assertAllowedType(ext: string, allowed: readonly string[]): void {
+  if (!allowed.includes(ext)) {
+    throw new UploadValidationError(`File type .${ext} is not allowed here`);
   }
 }
 
@@ -95,9 +116,13 @@ export function uploadsDir(): string {
 /**
  * Validates and persists an uploaded file to `uploadsDir()` under a fresh
  * random name, returning just the filename (not a full URL — callers build
- * the `/api/files/<name>` URL themselves).
+ * the `/api/files/<name>` URL themselves). `allowed` is the caller's
+ * purpose-scoped extension set (`CATALOG_TYPES` or `DOCUMENT_LINE_TYPES`) —
+ * checked against the *sniffed* extension after the declared-type/sniff
+ * match below, so a crafted `Content-Type` can never widen what's actually
+ * accepted.
  */
-export async function saveUpload(file: File): Promise<string> {
+export async function saveUpload(file: File, allowed: readonly string[]): Promise<string> {
   const ext = ALLOWED[file.type];
   if (!ext) {
     throw new UploadValidationError(
@@ -120,6 +145,11 @@ export async function saveUpload(file: File): Promise<string> {
       "File content doesn't match its declared type. Upload a genuine JPEG, PNG, WebP, or SVG image."
     );
   }
+
+  // Purpose-scoped restriction (e.g. a document-line upload rejecting SVG)
+  // — enforced on `sniffed`, the verified real extension, never on the
+  // caller-declared MIME type.
+  assertAllowedType(sniffed, allowed);
 
   const dir = uploadsDir();
   await mkdir(dir, { recursive: true });

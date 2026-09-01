@@ -259,7 +259,7 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
         baseDocSheetItem({
           unitPrice: "175000.00",
           total: "215425.00",
-          lines: [{ id: "line-1", code: "MTS", name: "Machine Transfer System", description: null, qty: 1, unitPrice: "40425.00", lineTotal: "40425.00" }],
+          lines: [{ id: "line-1", code: "MTS", name: "Machine Transfer System", description: null, qty: 1, unitPrice: "40425.00", lineTotal: "40425.00", image: null }],
         }),
       ],
     });
@@ -275,7 +275,7 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
             code: "X-5180",
             unitPrice: "175000.00",
             total: "215425.00",
-            lines: [{ id: "line-1", code: "MTS", name: "MTS", description: null, qty: 1, unitPrice: "40425.00", lineTotal: "40425.00" }],
+            lines: [{ id: "line-1", code: "MTS", name: "MTS", description: null, qty: 1, unitPrice: "40425.00", lineTotal: "40425.00", image: null }],
           }),
         ],
       })
@@ -302,7 +302,7 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
         items: [
           baseDocSheetItem({
             code: "X-5180",
-            lines: [{ id: "line-1", code: "MTS", name: "MTS", description: null, qty: 1, unitPrice: "40425.00", lineTotal: "40425.00" }],
+            lines: [{ id: "line-1", code: "MTS", name: "MTS", description: null, qty: 1, unitPrice: "40425.00", lineTotal: "40425.00", image: null }],
           }),
         ],
       })

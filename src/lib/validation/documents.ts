@@ -1,8 +1,11 @@
 // Pure zod validation for the document builder (Phase 4 Task C). No imports
 // from `@/lib/db` or any Prisma types — this module must be safely
 // importable from a plain unit test and from the server actions that call
-// it. Mirrors the style of src/lib/validation/clients.ts.
+// it. Mirrors the style of src/lib/validation/clients.ts. `@/lib/uploads` is
+// safe to import here too (see `customLineSchema.imageUrl` below): it's a
+// pure fs/path/crypto module with the same no-db/no-next discipline.
 import { z } from "zod";
+import { IMAGE_URL_PATTERN } from "@/lib/uploads";
 
 /** Every id in this app is a Prisma `cuid()` — 25 lowercase base36
  * characters starting with "c". We don't couple to that exact alphabet
@@ -49,6 +52,21 @@ const qtySchema = z.coerce
 
 const NON_NEGATIVE_AMOUNT_REGEX = /^\d+(\.\d{1,2})?$/;
 
+/** Optional `/api/files/<name>` URL for a custom line's own photo (see
+ * `DocumentLine.imageUrl` — a trade-in or bought-in item can carry a photo
+ * the same way a product line does). Missing/blank collapses to `undefined`,
+ * same preprocessing pattern as `customLineDescriptionSchema`. Validated
+ * against the shared `IMAGE_URL_PATTERN` so a client can never smuggle an
+ * arbitrary URL onto a document line — only a URL this app's own upload
+ * route could have produced. */
+const customLineImageUrlSchema = z.preprocess(
+  (value) =>
+    value === null || value === undefined || (typeof value === "string" && value.trim() === "")
+      ? undefined
+      : value,
+  z.string().regex(IMAGE_URL_PATTERN, "Invalid image URL").optional()
+);
+
 /** A freeform document-level line (e.g. "Delivery", "Install") added via the
  * builder's "Extra lines" section. `unitPrice` is kept as a validated string
  * (not coerced to a number) so it can be handed straight to
@@ -62,6 +80,7 @@ export const customLineSchema = z.object({
     .trim()
     .regex(NON_NEGATIVE_AMOUNT_REGEX, "Unit price must be a non-negative number with at most 2 decimal places"),
   description: customLineDescriptionSchema,
+  imageUrl: customLineImageUrlSchema,
 });
 export type CustomLineInput = z.infer<typeof customLineSchema>;
 

@@ -41,14 +41,24 @@ export function ExtraLinesSection({
               key={line.id}
               className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"
             >
-              <div className="flex min-w-0 flex-col">
-                <span className="truncate text-sm font-medium text-brand-dark">{line.name}</span>
-                {line.description ? (
-                  <span className="truncate text-xs text-slate-500">{line.description}</span>
+              <div className="flex min-w-0 items-center gap-2">
+                {line.showImage && line.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={line.imageUrl}
+                    alt={line.name}
+                    className="size-12 shrink-0 rounded-lg border border-slate-200 object-contain"
+                  />
                 ) : null}
-                <span className="text-xs text-slate-500">
-                  {line.qty} × {formatMoney(line.unitPrice, currency)}
-                </span>
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-medium text-brand-dark">{line.name}</span>
+                  {line.description ? (
+                    <span className="truncate text-xs text-slate-500">{line.description}</span>
+                  ) : null}
+                  <span className="text-xs text-slate-500">
+                    {line.qty} × {formatMoney(line.unitPrice, currency)}
+                  </span>
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <span className="text-sm font-medium tabular-nums text-brand-dark">

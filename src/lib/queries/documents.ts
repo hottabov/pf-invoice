@@ -116,15 +116,28 @@ export type BuilderLine = {
    * editor into storage and back. */
   attributes: Record<string, string | number> | null;
   sortOrder: number;
-  /** `Option.imageUrl` for an OPTION line, resolved by `refId` against the
+  /** For an OPTION line: `Option.imageUrl`, resolved by `refId` against the
    * catalog (see `getDocumentForBuilder`'s `optionImageMap`) — not a
-   * snapshot column on `DocumentLine` itself (there isn't one), so this
-   * always reflects the option's *current* catalog image, same live-lookup
-   * treatment `listCompatibleOptions` gives the options editor's own icons.
-   * `null` for a PRODUCT/CUSTOM line, an OPTION with no `refId`, or an
-   * OPTION whose catalog image isn't set. Feeds `QuotationLineInput.imageUrl`
-   * (src/lib/quotation-data.ts) for the quotation's unified options table. */
+   * snapshot column on `DocumentLine` itself, so this always reflects the
+   * option's *current* catalog image, same live-lookup treatment
+   * `listCompatibleOptions` gives the options editor's own icons. `null` for
+   * an OPTION with no `refId` or no catalog image set. Feeds
+   * `QuotationLineInput.imageUrl` (src/lib/quotation-data.ts) for the
+   * quotation's unified options table.
+   *
+   * For a CUSTOM (document-level extra) line: `DocumentLine.imageUrl`
+   * itself — a trade-in or bought-in item's own photo, since it has no
+   * catalog entry to inherit one from. `null` when none was attached.
+   *
+   * Always `null` for a PRODUCT line (the item's own image lives on
+   * `BuilderItem.imageUrl` instead). */
   imageUrl: string | null;
+  /** Whether the line's `imageUrl` should actually render on a sheet/PDF —
+   * same gating role as `BuilderItem.showImage`, but only ever set true for
+   * a CUSTOM line (by `addCustomLine`, when a photo was attached — there's
+   * no separate toggle for it, unlike an item's image). Always `false` for
+   * an OPTION line today (never set by `setItemOptions`). */
+  showImage: boolean;
 };
 
 export type BuilderItem = {
@@ -252,8 +265,11 @@ export type DocumentForBuilder = {
 /**
  * `optionImageMap` (optionId -> Option.imageUrl, built once per
  * `getDocumentForBuilder` call from every OPTION line's `refId` — see
- * below) resolves `imageUrl` for an OPTION line; a PRODUCT/CUSTOM line, or
- * an OPTION with no `refId`/no matching catalog image, always gets `null`.
+ * below) resolves `imageUrl` for an OPTION line (an OPTION with no `refId`
+ * or no matching catalog image gets `null`); a CUSTOM line uses its own
+ * `imageUrl`/`showImage` columns instead (there's no catalog entry to
+ * resolve); a PRODUCT line always gets `null` (its image lives on
+ * `BuilderItem.imageUrl`).
  */
 function toBuilderLine(
   line: {
@@ -267,6 +283,8 @@ function toBuilderLine(
     attributes: unknown;
     sortOrder: number;
     refId: string | null;
+    imageUrl: string | null;
+    showImage: boolean;
   },
   optionImageMap: Map<string, string>
 ): BuilderLine {
@@ -283,7 +301,13 @@ function toBuilderLine(
         ? (line.attributes as Record<string, string | number>)
         : null,
     sortOrder: line.sortOrder,
-    imageUrl: line.kind === "OPTION" && line.refId ? (optionImageMap.get(line.refId) ?? null) : null,
+    imageUrl:
+      line.kind === "OPTION"
+        ? line.refId
+          ? (optionImageMap.get(line.refId) ?? null)
+          : null
+        : line.imageUrl,
+    showImage: line.kind === "OPTION" ? false : line.showImage,
   };
 }
 

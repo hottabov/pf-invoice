@@ -355,8 +355,16 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                 {data.extraLines.map((line) => (
                   <tr className="pq-item-row" key={line.id}>
                     <td className="pq-col-item">
-                      <div className="pq-item-name">{line.name}</div>
-                      {line.description ? <div className="pq-item-desc">{line.description}</div> : null}
+                      <div className="pq-item-head">
+                        {line.image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={line.image} alt={line.name} className="pq-thumb" />
+                        ) : null}
+                        <div>
+                          <div className="pq-item-name">{line.name}</div>
+                          {line.description ? <div className="pq-item-desc">{line.description}</div> : null}
+                        </div>
+                      </div>
                     </td>
                     <td className="pq-col-qty">
                       {itemPriceVisible ? (
@@ -950,6 +958,19 @@ const SHEET_CSS = `
   .pq-item-group {
     page-break-inside: avoid;
     break-inside: avoid;
+  }
+  .pq-item-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .pq-thumb {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    border: 1px solid #e4e4e4;
+    border-radius: 4px;
+    flex-shrink: 0;
   }
   .pq-item-name {
     font-weight: 700;

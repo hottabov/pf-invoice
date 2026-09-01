@@ -141,6 +141,7 @@ describe("customLineSchema", () => {
         qty: 1,
         unitPrice: "150.00",
         description: undefined,
+        imageUrl: undefined,
       });
     }
   });
@@ -189,6 +190,29 @@ describe("customLineSchema", () => {
 
   it("rejects a description over 500 characters", () => {
     expect(customLineSchema.safeParse({ ...valid, description: "a".repeat(501) }).success).toBe(false);
+  });
+
+  it("accepts a well-formed imageUrl", () => {
+    const result = customLineSchema.safeParse({
+      ...valid,
+      imageUrl: "/api/files/a1b2c3d4-e5f6-4789-a0b1-c2d3e4f56789.jpg",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.imageUrl).toBe("/api/files/a1b2c3d4-e5f6-4789-a0b1-c2d3e4f56789.jpg");
+    }
+  });
+
+  it("collapses a blank imageUrl to undefined", () => {
+    const result = customLineSchema.safeParse({ ...valid, imageUrl: "" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.imageUrl).toBeUndefined();
+  });
+
+  it("rejects an imageUrl that isn't a well-formed /api/files/ URL", () => {
+    expect(customLineSchema.safeParse({ ...valid, imageUrl: "https://evil.example/x.jpg" }).success).toBe(
+      false
+    );
   });
 });
 

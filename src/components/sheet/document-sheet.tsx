@@ -193,8 +193,16 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
               {data.extraLines.map((line) => (
                 <tr className="pq-item-row" key={line.id}>
                   <td className="pq-col-item">
-                    <div className="pq-item-name">{line.name}</div>
-                    {line.description ? <div className="pq-item-desc">{line.description}</div> : null}
+                    <div className="pq-item-head">
+                      {line.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={line.image} alt={line.name} className="pq-thumb" />
+                      ) : null}
+                      <div>
+                        <div className="pq-item-name">{line.name}</div>
+                        {line.description ? <div className="pq-item-desc">{line.description}</div> : null}
+                      </div>
+                    </div>
                   </td>
                   <td className="pq-col-qty">
                     {line.qty} × {formatMoney(line.unitPrice, totals.currency)}
