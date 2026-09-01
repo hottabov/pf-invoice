@@ -148,3 +148,78 @@ describe("missingRequirements", () => {
     expect(missingRequirements(resolveForm("M5220")!, spec)).toEqual(["drills"]);
   });
 });
+
+describe("EasyLoader form", () => {
+  const elItem = {
+    id: "i", code: "EL-2420", name: "EasyLoader 2420", lineGroup: 1,
+    spec: { ui: "-Y", usage: "onload", sections: [{ lengthM: 2.4, surface: "static" }] },
+    optionCodes: [], optionAttributes: {},
+  };
+
+  it("matches EasyLoader codes only", () => {
+    expect(resolveForm("EL-2420")?.id).toBe("easyloader");
+    expect(resolveForm("EF-2420")?.id).not.toBe("easyloader");
+  });
+
+  it("ticks the printed width box for a standard model", () => {
+    const cells = buildPatches(resolveForm("EL-2420")!, ctx({ item: elItem as never })).map((p) => p.cell);
+    expect(cells).toContain("I33");
+    expect(cells).not.toContain("I35");
+  });
+
+  it("ticks Custom and rewrites the label for a non-standard width", () => {
+    const item = { ...elItem, code: "EL-3220", spec: { ...elItem.spec, customWidthMm: 3220 } };
+    const patches = buildPatches(resolveForm("EL-3220")!, ctx({ item: item as never }));
+    expect(patches.find((p) => p.cell === "I35")?.value).toBe("X");
+    expect(patches.find((p) => p.cell === "J35")?.value).toContain("3220mm");
+  });
+
+  it("writes each table section length and surface", () => {
+    const item = {
+      ...elItem,
+      spec: {
+        ...elItem.spec,
+        sections: [
+          { lengthM: 2.4, surface: "static" },
+          { lengthM: 1.2, surface: "conveyor" },
+        ],
+      },
+    };
+    const patches = buildPatches(resolveForm("EL-2420")!, ctx({ item: item as never }));
+    expect(patches.find((p) => p.cell === "I43")?.value).toBe("2.4");
+    expect(patches.find((p) => p.cell === "I45")?.value).toBe("X");
+    expect(patches.find((p) => p.cell === "I47")?.value).toBe("1.2");
+    expect(patches.find((p) => p.cell === "K49")?.value).toBe("X");
+  });
+
+  it("requires screen side, usage and sections", () => {
+    expect(missingRequirements(resolveForm("EL-2420")!, {})).toEqual(["ui", "usage", "sections"]);
+  });
+});
+
+describe("FabricPro form", () => {
+  const fpItem = {
+    id: "i", code: "FP-220", name: "FabricPro 220", lineGroup: 1,
+    spec: { ui: "+Y", travelPlatform: true, railLengthM: 6 },
+    optionCodes: [], optionAttributes: {},
+  };
+
+  it("matches FP models but not the trolley", () => {
+    expect(resolveForm("FP-220")?.id).toBe("fabricpro");
+    expect(resolveForm("FP-TROLLEY")).toBeNull();
+  });
+
+  it("ticks the model, screen side and travel platform", () => {
+    const cells = buildPatches(resolveForm("FP-220")!, ctx({ item: fpItem as never })).map((p) => p.cell);
+    expect(cells).toEqual(expect.arrayContaining(["J27", "O41", "J44", "J46"]));
+  });
+
+  it("writes the travel rail length", () => {
+    const patches = buildPatches(resolveForm("FP-220")!, ctx({ item: fpItem as never }));
+    expect(patches.find((p) => p.cell === "N46")?.value).toBe("6");
+  });
+
+  it("requires only the screen side", () => {
+    expect(missingRequirements(resolveForm("FP-220")!, {})).toEqual(["ui"]);
+  });
+});
