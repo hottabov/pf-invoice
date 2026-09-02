@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileText, MapPin, Users } from "lucide-react";
+import { EyeOff, FileText, MapPin, Users } from "lucide-react";
 import { auth } from "@/auth";
 import { getRegionById } from "@/lib/queries/catalog";
 import { getQuoteValidityDays, getShowOptionIcons } from "@/lib/queries/settings";
@@ -125,6 +125,21 @@ export default async function SettingsPage() {
           >
             <MapPin className="size-4" data-icon="inline-start" aria-hidden="true" />
             Manage regions
+          </Link>
+        </SectionCard>
+      ) : null}
+
+      {isAdmin ? (
+        <SectionCard
+          title="Catalog visibility"
+          description="Hide a series or product from a specific region's salespeople."
+        >
+          <Link
+            href="/settings/catalog-visibility"
+            className={cn(buttonVariants({ variant: "outline" }), "h-11 w-full sm:w-auto")}
+          >
+            <EyeOff className="size-4" data-icon="inline-start" aria-hidden="true" />
+            Manage catalog visibility
           </Link>
         </SectionCard>
       ) : null}
