@@ -349,6 +349,7 @@ describe("renderQuotationHtml — structural section price", () => {
           specSentence: "L-Series Cutting Machine with 320cm cutting width",
           sectionPrice: "$180,000",
           hasInlinePrice: false,
+          baseRow: { code: "M5180", name: "M Series 5180", qty: 1, price: null },
           optionRows: [],
           lineSummary: baseDocSheetItem({ total: "180000.00" }),
         },
@@ -368,6 +369,7 @@ describe("renderQuotationHtml — structural section price", () => {
           specSentence: null,
           sectionPrice: "$175,000",
           hasInlinePrice: true,
+          baseRow: { code: "M5180", name: "M Series 5180", qty: 1, price: null },
           optionRows: [],
           lineSummary: baseDocSheetItem(),
         },
@@ -533,6 +535,7 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
           specSentence: null,
           sectionPrice: null,
           hasInlinePrice: false,
+          baseRow: { code: "M5180", name: "M Series 5180", qty: 1, price: null },
           optionRows: [],
           lineSummary: baseDocSheetItem(),
         },
@@ -543,6 +546,54 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
     const equipmentIdx = html.indexOf("Equipment Detail");
     expect(bannerIdx).toBeGreaterThan(-1);
     expect(bannerIdx).toBeLessThan(equipmentIdx);
+  });
+});
+
+describe("renderQuotationHtml — the machine heads its own options table", () => {
+  const withBaseRow = (price: string | null, showOptionPrices: boolean) =>
+    baseQuotationData({
+      showOptionPrices,
+      machineSections: [
+        {
+          itemId: "item-1",
+          sectionTitle: "Item",
+          titleBlockHtml: null,
+          specSentence: null,
+          sectionPrice: null,
+          hasInlinePrice: false,
+          baseRow: { code: "X-10180", name: "Pathfinder X-10180 Cutting System", qty: 1, price },
+          optionRows: [
+            {
+              id: "line-1",
+              icon: null,
+              code: "AFP",
+              name: "Automatic Foot Pressure",
+              descriptionHtml: null,
+              attributesLine: null,
+              qty: 1,
+              price: showOptionPrices ? "$1,560.00" : null,
+            },
+          ],
+          lineSummary: baseDocSheetItem(),
+        },
+      ],
+    });
+
+  it("prints the machine as the first row, above its options", async () => {
+    const html = await renderQuotationHtml(withBaseRow("$212,500.00", true));
+    const machineIdx = html.indexOf("Pathfinder X-10180 Cutting System");
+    const optionIdx = html.indexOf("Automatic Foot Pressure");
+    expect(machineIdx).toBeGreaterThan(-1);
+    expect(optionIdx).toBeGreaterThan(machineIdx);
+    expect(html).toContain("$212,500.00");
+  });
+
+  it("hides the machine's price with the option prices, not separately", async () => {
+    const html = await renderQuotationHtml(withBaseRow(null, false));
+    // The row itself still renders — the customer sees what they are buying,
+    // just not what each piece costs.
+    expect(html).toContain("Pathfinder X-10180 Cutting System");
+    expect(html).not.toContain("$212,500.00");
   });
 });
 
@@ -558,6 +609,7 @@ describe("renderQuotationHtml — Notes section placement", () => {
           specSentence: null,
           sectionPrice: null,
           hasInlinePrice: false,
+          baseRow: { code: "M5180", name: "M Series 5180", qty: 1, price: null },
           optionRows: [],
           lineSummary: baseDocSheetItem(),
         },

@@ -231,8 +231,11 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                     />
                   ) : null}
                 </div>
-                {section.optionRows.length > 0 ? (
-                  <table className="pq-options-table">
+                {/* Rendered for every machine, not just one carrying
+                    options: the first row is the machine itself, so the
+                    table is never empty and the customer reads the product
+                    and its base price before what was added to it. */}
+                <table className="pq-options-table">
                     <colgroup>
                       <col className="pq-opt-col-icon" />
                       <col className="pq-opt-col-option" />
@@ -248,6 +251,21 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                       </tr>
                     </thead>
                     <tbody>
+                      <tr className="pq-option-row pq-base-row">
+                        <td className="pq-opt-col-icon" />
+                        <td className="pq-opt-col-option">
+                          <div className="pq-option-name">
+                            {section.baseRow.code ? (
+                              <span className="pq-option-code">{section.baseRow.code} — </span>
+                            ) : null}
+                            {section.baseRow.name}
+                          </div>
+                        </td>
+                        <td className="pq-opt-col-qty">× {section.baseRow.qty}</td>
+                        {optionPriceVisible ? (
+                          <td className="pq-opt-col-price">{section.baseRow.price}</td>
+                        ) : null}
+                      </tr>
                       {section.optionRows.map((option) => (
                         <tr className="pq-option-row" key={option.id}>
                           <td className="pq-opt-col-icon">
@@ -279,7 +297,6 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                       ))}
                     </tbody>
                   </table>
-                ) : null}
               </div>
             ))}
           </section>
@@ -767,6 +784,15 @@ const SHEET_CSS = `
     font-family: "Courier New", Courier, monospace;
     font-weight: 400;
     color: #888888;
+  }
+  /* The machine's own row heads its options table. A heavier rule underneath
+     separates the product from what was added to it, so the list reads as
+     "this, plus these" rather than as one flat run of options. */
+  .pq-base-row td {
+    border-bottom: 1px solid #d5d8e4 !important;
+  }
+  .pq-base-row .pq-opt-col-price {
+    font-weight: 700;
   }
   .pq-option-desc {
     margin-top: 2px;

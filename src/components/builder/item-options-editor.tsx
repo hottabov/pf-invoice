@@ -101,7 +101,11 @@ export function ItemOptionsEditor({
   showOptionIcons?: boolean;
   readOnly?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  // A machine is almost never sold bare, so an item that has no options yet
+  // is one the salesperson is about to configure — the panel opens itself
+  // rather than costing a click. An item that already has options stays
+  // closed, so reopening a built-up quote isn't a wall of open editors.
+  const [open, setOpen] = useState(currentLines.length === 0 && !readOnly);
   const [selected, setSelected] = useState<Map<string, SelectionState>>(() =>
     selectionsFromLines(currentLines)
   );

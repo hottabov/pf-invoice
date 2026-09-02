@@ -392,10 +392,29 @@ export type QuotationMachineSection = {
    * fallbackOptions two-tier split; every OPTION line lands here whether or
    * not its code resolved to an `option.*` content block. */
   optionRows: QuotationOptionRow[];
+  /** The machine itself, as the first row of its own options table (owner:
+   * the customer should read the product and its base price at the top of
+   * that list, then what was added to it — finding the base price only in
+   * the Investment Summary reads as if the options were the whole quote).
+   * Priced by the same `showOptionPrices` toggle the option rows use, so
+   * the whole table hides or shows its money together. */
+  baseRow: QuotationBaseRow;
   /** This item's own row from `DocSheetData.items` (name/price/lines/total)
    * — reused as-is for the investment-summary table rather than
    * recomputed. */
   lineSummary: DocSheetItem;
+};
+
+export type QuotationBaseRow = {
+  /** `null` when the code is already the leading word of `name`, so the
+   * sheet doesn't print "X-10180 — X-10180 Cutting System" — same
+   * `dedupeOptionCode` rule the option rows follow. */
+  code: string | null;
+  name: string;
+  qty: number;
+  /** Currency-formatted base price, or `null` when option prices are
+   * hidden. */
+  price: string | null;
 };
 
 export type QuotationBlockSection = {
@@ -653,6 +672,15 @@ export function buildQuotationData(
       });
     }
 
+    const baseRow: QuotationBaseRow = {
+      code: dedupeOptionCode(lineSummary.code, lineSummary.name),
+      name: lineSummary.name,
+      qty: lineSummary.breakdown.qty,
+      price: doc.showOptionPrices
+        ? formatMoney(lineSummary.breakdown.basePrice, sheet.totals.currency)
+        : null,
+    };
+
     return {
       itemId: item.id,
       sectionTitle,
@@ -661,6 +689,7 @@ export function buildQuotationData(
       sectionPrice,
       hasInlinePrice,
       optionRows,
+      baseRow,
       lineSummary,
     };
   });
