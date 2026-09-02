@@ -492,6 +492,25 @@ Putting the deploy key in `VPS_SSH_KEY` produces
 `ssh: handshake failed: ... [none publickey]`. `/var/log/auth.log` on the VPS
 is the fastest way to tell a rejected key from a wrong port or a banned IP.
 
+### After `npm ci`: "Cannot find module '.prisma/client/default'"
+
+Prisma 7 dropped the automatic `prisma generate` on install, so a fresh
+`npm ci` leaves `node_modules/.prisma` absent and every import of
+`@prisma/client` fails at module evaluation — which, because `src/proxy.ts`
+pulls in `src/auth.ts`, takes down the middleware and turns *every* route into
+a 404. The Dockerfile always called `npx prisma generate` explicitly; local
+installs had nothing equivalent.
+
+Fixed by a `postinstall: prisma generate` script. If you hit it on an older
+checkout, run `npx prisma generate` by hand.
+
+Related: `node_modules` holds platform-specific native binaries
+(`@node-rs/argon2-*`, `@next/swc-*`, `lightningcss-*`). Running `npm install`
+against the same working tree from a different OS — a Linux container sharing
+the folder, say — makes npm re-resolve optional dependencies for *that*
+platform and drop the host's. Symptom: `Cannot find native binding`. Recovery
+is `rm -rf node_modules .next && npm ci` on the host.
+
 ### CI type-checking needs generated route types
 
 Next.js 16 generates `LayoutProps`/`PageProps` into `.next/types` during

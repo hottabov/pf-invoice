@@ -36,10 +36,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             priority
             className="size-14 rounded-xl object-cover shadow-sm"
           />
-          <div>
-            <h1 className="text-2xl font-semibold text-brand-dark">PathQuote</h1>
-            <p className="mt-1 text-sm text-slate-500">Sign in to continue</p>
-          </div>
+          <h1 className="text-2xl font-semibold text-brand-dark">PathQuote</h1>
         </div>
         <LoginForm callbackUrl={callbackUrl} />
       </div>

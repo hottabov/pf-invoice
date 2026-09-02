@@ -277,6 +277,42 @@ deactivated-author fallback, RFC 5322 quoting, header injection).
 Link lifetime lives in one constant, `MAGIC_LINK_MAX_AGE_SECONDS` in `src/auth.ts`, feeding both
 the provider's `maxAge` and the "valid for N minutes" copy, so the two can't drift.
 
+## Troubleshooting: "it says sent but nothing arrives"
+
+This was a real trap. `sendMagicLink` swallowed every `AuthError` and returned generic
+success — and Auth.js wraps a throwing `sendVerificationRequest` in `EmailSignInError`, which
+*is* an `AuthError`. So an SMTP failure looked identical to a successful send, with nothing
+logged. Fixed: send failures are now logged (`[auth] magic link send failed`) and surfaced to
+the user.
+
+Fastest way to see the real error:
+
+```bash
+docker compose run --rm tools npx tsx scripts/send-test-email.ts you@example.com
+```
+
+It prints the resolved config, runs `transport.verify()` (separating "can't connect or
+authenticate" from "server rejected this message"), sends, and dumps the SMTP response.
+
+| Symptom | Cause |
+|---|---|
+| `535` / auth failed | wrong or revoked API key in `SMTP_PASS` |
+| `403` domain not verified | `q.pathfindercut.com` not verified in Resend yet |
+| `450`/`550` on the From address | `EMAIL_FROM` isn't at a domain verified in Resend |
+| `ETIMEDOUT` / `ECONNREFUSED` | outbound 587 blocked by the host firewall |
+| script succeeds, login page doesn't | container running old env — recreate, see below |
+| nothing sent, no error, "check your email" | address isn't in the `User` table |
+
+That last row is the one to check first, and it is invisible by design: `callbacks.signIn` in
+`src/auth.ts` rejects unknown or inactive addresses *before* @auth/core issues a token or calls
+`sendVerificationRequest` (see `@auth/core/lib/actions/signin/send-token.js` — the callback is
+awaited at line 23, the send happens at line 48). The login page shows the same "check your
+email" confirmation either way, so email enumeration isn't possible — but no SMTP call is made
+and no Resend quota is spent on an unregistered address.
+
+So when testing delivery, make sure the address you use actually exists in the `User` table, or
+you'll be debugging a send that was never attempted.
+
 ## Deploying an env change
 
 `docker-compose.yml` passes `.env` via `env_file:`, so the values are **not** baked into the

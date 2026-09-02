@@ -3,9 +3,14 @@
 import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/auth";
 
-type ActionResult = { error?: string; success?: string };
+type ActionResult = {
+  error?: string;
+  success?: string;
+  /** Address a magic link was actually sent to, for the confirmation screen. */
+  sentTo?: string;
+};
 
-const GENERIC_ERROR = "Invalid credentials";
+const GENERIC_ERROR = "Email or password is incorrect";
 
 // --- In-memory rate limiting ------------------------------------------------
 //
@@ -101,46 +106,75 @@ export async function loginWithPassword(formData: FormData): Promise<ActionResul
 // --- Magic link --------------------------------------------------------------
 
 const MAGIC_LINK_SENT = "Check your email for a sign-in link.";
+const MAGIC_LINK_NO_EMAIL = "Enter your email address";
+const MAGIC_LINK_SEND_FAILED = "Couldn't send the sign-in link. Try again, or sign in with your password.";
 const MAGIC_LINK_WINDOW_MS = 15 * 60 * 1000;
 const MAGIC_LINK_MAX = 3;
 const magicLinkSends = new Map<string, AttemptWindow>();
 
+/**
+ * Request a magic sign-in link.
+ *
+ * NOTE ON EMAIL ENUMERATION — an unregistered address gets exactly the same
+ * "check your email" confirmation as a registered one, so this endpoint can't
+ * be used to discover which company addresses have accounts. That is why the
+ * confirmation is worded as an instruction ("we sent a link to X") rather than
+ * a claim about the account.
+ *
+ * Saying the same thing either way does NOT mean sending either way: the
+ * `signIn` callback in src/auth.ts runs before @auth/core issues a token or
+ * calls sendVerificationRequest (see @auth/core/lib/actions/signin/send-token,
+ * where callbacks.signIn is awaited well ahead of the send), so an unknown or
+ * inactive address costs nothing — no SMTP call, no Resend quota.
+ */
 export async function sendMagicLink(formData: FormData): Promise<ActionResult> {
   const email = String(formData.get("email") ?? "")
     .trim()
     .toLowerCase();
 
-  if (!email) {
-    // Same message as "sent" — an empty submission isn't a signal either way.
-    return { success: MAGIC_LINK_SENT };
-  }
+  if (!email) return { error: MAGIC_LINK_NO_EMAIL };
 
   if (isRateLimited(magicLinkSends, email, MAGIC_LINK_MAX, MAGIC_LINK_WINDOW_MS)) {
-    // Still report generic success — rate-limiting must not leak whether
-    // the email exists or how many times a link has already been requested.
-    return { success: MAGIC_LINK_SENT };
+    // Report success rather than "slow down": the address is registered (we
+    // got here), a link was already sent within the window, and telling the
+    // user to check their email is both true and the action we want.
+    return { success: MAGIC_LINK_SENT, sentTo: email };
   }
   recordAttempt(magicLinkSends, email, MAGIC_LINK_WINDOW_MS);
 
   try {
     await signIn("nodemailer", { email, redirect: false });
   } catch (error) {
+    if (!(error instanceof AuthError)) throw error;
+
     // The `signIn` callback in src/auth.ts rejects unknown/inactive emails
-    // with AccessDenied *before* a verification token is created or an
-    // email is sent (see @auth/core's sendToken). Auth.js throws that
-    // AccessDenied (an AuthError subclass) all the way out here even with
+    // with AccessDenied *before* a verification token is created or an email
+    // is sent. Auth.js throws it all the way out here even with
     // `redirect: false`, because Next Server Actions run through the "raw"
-    // codepath. If we surfaced that as a distinct error, an attacker could
-    // tell registered emails apart from unregistered ones by which message
-    // came back. So: swallow every AuthError and report the same generic
-    // success either way. Only truly unexpected (non-Auth) errors — a bug,
-    // not a rejected sign-in — are rethrown.
-    if (!(error instanceof AuthError)) {
-      throw error;
+    // codepath. Report the same confirmation as a real send — including
+    // `sentTo`, so the rendered screen is byte-identical either way.
+    if (error.type === "AccessDenied") {
+      return { success: MAGIC_LINK_SENT, sentTo: email };
     }
+
+    // Anything else is a genuine send failure — most often SMTP auth or an
+    // unverified sending domain. Auth.js wraps a throwing
+    // sendVerificationRequest in EmailSignInError, which is also an AuthError,
+    // so this used to be swallowed and reported as success: the login page
+    // said "check your email" while nothing had been sent and nothing was
+    // logged. Log the cause and tell the user the truth.
+    //
+    // This branch is only reachable for a registered address (an unregistered
+    // one was rejected above), so during an SMTP outage the distinct message
+    // does confirm the account exists. Accepted: it requires mail to be broken
+    // at that moment, and the alternative — a silent lie while nobody can sign
+    // in — is worse. To close it, return the success shape here as well and
+    // rely on the server log.
+    console.error("[auth] magic link send failed", error);
+    return { error: MAGIC_LINK_SEND_FAILED };
   }
 
-  return { success: MAGIC_LINK_SENT };
+  return { success: MAGIC_LINK_SENT, sentTo: email };
 }
 
 export async function logout(): Promise<void> {
