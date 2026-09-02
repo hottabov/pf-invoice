@@ -178,6 +178,7 @@ function baseDoc(overrides: Partial<QuotationDataDoc> = {}): QuotationDataDoc {
     number: null,
     issueDate: new Date("2026-08-30T00:00:00.000Z"),
     validityDays: 30,
+    defaultValidityDays: 7,
     currency: "AUD",
     taxName: "GST",
     taxRate: "10",
@@ -201,7 +202,7 @@ function baseDoc(overrides: Partial<QuotationDataDoc> = {}): QuotationDataDoc {
     items: [baseItem()],
     showItemPrices: false,
     showOptionPrices: false,
-    author: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" },
+    author: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000", avatar: null },
     notes: null,
     ...overrides,
   };
@@ -1029,9 +1030,14 @@ describe("buildQuotationData — sectionPrice / hasInlinePrice", () => {
 
 describe("buildQuotationData — preparedBy / notesHtml", () => {
   it("passes the document author through as preparedBy", () => {
-    const doc = baseDoc({ author: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" } });
+    const doc = baseDoc({ author: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000", avatar: null } });
     const data = buildQuotationData(doc, []);
-    expect(data.preparedBy).toEqual({ name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" });
+    expect(data.preparedBy).toEqual({
+      name: "Jane Author",
+      email: "jane@example.com",
+      phone: "0400 000 000",
+      avatar: null,
+    });
   });
 
   it("renders notes to HTML via renderMarkdown when present", () => {

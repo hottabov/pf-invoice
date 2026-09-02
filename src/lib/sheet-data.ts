@@ -105,6 +105,13 @@ export type ToSheetAuthorInput = {
   name: string | null;
   email: string;
   phone: string | null;
+  /** `User.image` — NextAuth's own profile-picture column, reused as the
+   * author's avatar (see src/lib/queries/documents.ts's `author` field for
+   * the fuller reuse note). A stored `/api/files/<name>` URL, or `null`
+   * when the author has none — `toSheetData` resolves it through
+   * `resolveImage` exactly like `logoUrl`/item images below, never passes
+   * it through unresolved. */
+  avatar: string | null;
 };
 
 /** The minimal shape `toSheetData` needs. `entitySnapshot`/`bankDetails` are
@@ -117,6 +124,13 @@ export type ToSheetDataDoc = {
   number: string | null;
   issueDate: Date;
   validityDays: number | null;
+  /** The org-wide default validity, in days, already resolved (see
+   * `getDocumentForBuilder`'s `defaultValidityDays` for how) — `toSheetData`
+   * falls back to this whenever `validityDays` above is `null`, so a draft
+   * that has never had its own validity set still shows a "Valid until"
+   * date (the one the manager would get if they finalized right now)
+   * instead of none at all. Never written back onto `validityDays` itself. */
+  defaultValidityDays: number;
   currency: string;
   taxName: string;
   taxRate: string;
@@ -301,6 +315,13 @@ export type DocSheetPreparedBy = {
   name: string | null;
   email: string;
   phone: string | null;
+  /** Resolved thumbnail source (already run through `resolveImage` — see
+   * `ImageResolver`), or `null` when the author has no avatar. `null` here
+   * means "print no image" — an initials circle is a UI affordance for
+   * screens with no photo, not something that belongs on a customer-facing
+   * quote (see `quotation-sheet.tsx`/`document-sheet.tsx`, neither of which
+   * ever falls back to initials for this field). */
+  avatar: string | null;
 };
 
 export type DocSheetTotals = {
@@ -327,12 +348,17 @@ export type DocSheetData = {
   isDraft: boolean;
   number: string | null;
   issueDate: string;
-  /** `DD/MM/YYYY`, computed from `issueDate + validityDays` whenever
-   * `validityDays` is known — `null` when it isn't. `validityDays` can be
-   * non-null before finalize too now (a per-quote override set from the
-   * builder — see `setValidityDays`, src/lib/actions/documents.ts), so a
-   * DRAFT can already show a validity date in preview, computed against its
-   * (pre-finalize) `issueDate`; finalize freezes both fields together. */
+  /** `DD/MM/YYYY`, computed from `issueDate + (validityDays ??
+   * defaultValidityDays)` — always present now, even for a DRAFT that has
+   * never had its own validity set (it falls back to the org-wide default —
+   * see `ToSheetDataDoc.defaultValidityDays`). `validityDays` can be
+   * non-null before finalize too (a per-quote override set from the builder
+   * — see `setValidityDays`, src/lib/actions/documents.ts), so a DRAFT can
+   * already show its own validity date in preview, computed against its
+   * (pre-finalize) `issueDate`; finalize freezes both fields together.
+   * Typed nullable for backward compatibility with existing consumers'
+   * `data.validityDate ? … : null` checks, but `toSheetData` never actually
+   * produces `null` here any more. */
   validityDate: string | null;
   logo: string | null;
   entity: DocSheetEntity;
@@ -629,8 +655,11 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     breakdown: buildItemBreakdown(item, doc.showOptionPrices),
   }));
 
-  const validityDate =
-    doc.validityDays !== null ? formatDateAU(addDays(doc.issueDate, doc.validityDays)) : null;
+  // Always resolvable now: the manager's own override when set, otherwise
+  // the org-wide default (see `ToSheetDataDoc.defaultValidityDays`) — a
+  // draft that has never had `validityDays` set still shows the date it
+  // would get if finalized right now, rather than none at all.
+  const validityDate = formatDateAU(addDays(doc.issueDate, doc.validityDays ?? doc.defaultValidityDays));
 
   return {
     title: "QUOTATION",
@@ -644,7 +673,12 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     delivery,
     items,
     extraLines: doc.extraLines.map((line) => toDocSheetLine(line, resolveImage)),
-    preparedBy: { name: doc.author.name, email: doc.author.email, phone: doc.author.phone },
+    preparedBy: {
+      name: doc.author.name,
+      email: doc.author.email,
+      phone: doc.author.phone,
+      avatar: doc.author.avatar ? (resolveImage(doc.author.avatar) ?? null) : null,
+    },
     notes: doc.notes,
     showItemPrices: doc.showItemPrices,
     showOptionPrices: doc.showOptionPrices,

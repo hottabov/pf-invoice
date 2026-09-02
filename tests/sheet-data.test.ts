@@ -57,6 +57,7 @@ function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
     number: null,
     issueDate: new Date("2026-08-30T00:00:00.000Z"),
     validityDays: null,
+    defaultValidityDays: 7,
     currency: "AUD",
     taxName: "GST",
     taxRate: "10",
@@ -77,7 +78,7 @@ function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
     contact: null,
     items: [],
     extraLines: [],
-    author: { name: "Jane Author", email: "jane@example.com", phone: null },
+    author: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: null },
     notes: null,
     showItemPrices: true,
     showOptionPrices: true,
@@ -146,9 +147,13 @@ describe("toSheetData — FINAL vs DRAFT entity source", () => {
 });
 
 describe("toSheetData — validity date", () => {
-  it("is null for a quote with no validityDays (not yet finalized)", () => {
-    const doc = baseDoc({ validityDays: null });
-    expect(toSheetData(doc).validityDate).toBeNull();
+  it("falls back to the org default validityDays for a quote with none of its own set (not yet finalized)", () => {
+    const doc = baseDoc({
+      validityDays: null,
+      defaultValidityDays: 7,
+      issueDate: new Date("2026-08-30T00:00:00.000Z"),
+    });
+    expect(toSheetData(doc).validityDate).toBe("06/09/2026");
   });
 
   it("is issueDate + validityDays, formatted DD/MM/YYYY, for a finalized quote", () => {
@@ -424,20 +429,73 @@ describe("toSheetData — totals passthrough", () => {
 
 describe("toSheetData — preparedBy / notes", () => {
   it("maps the document author straight through to preparedBy", () => {
-    const doc = baseDoc({ author: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" } });
+    const doc = baseDoc({
+      author: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000", avatar: null },
+    });
     const sheet = toSheetData(doc);
-    expect(sheet.preparedBy).toEqual({ name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" });
+    expect(sheet.preparedBy).toEqual({
+      name: "Jane Author",
+      email: "jane@example.com",
+      phone: "0400 000 000",
+      avatar: null,
+    });
   });
 
   it("carries a null author name/phone through untouched", () => {
-    const doc = baseDoc({ author: { name: null, email: "noname@example.com", phone: null } });
+    const doc = baseDoc({ author: { name: null, email: "noname@example.com", phone: null, avatar: null } });
     const sheet = toSheetData(doc);
-    expect(sheet.preparedBy).toEqual({ name: null, email: "noname@example.com", phone: null });
+    expect(sheet.preparedBy).toEqual({ name: null, email: "noname@example.com", phone: null, avatar: null });
+  });
+
+  it("resolves the author's avatar through resolveImage, like the logo", () => {
+    const doc = baseDoc({
+      author: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: "/api/files/a.jpg" },
+    });
+    const sheet = toSheetData(doc, (url) => `data:image/jpeg;base64,RESOLVED(${url})`);
+    expect(sheet.preparedBy.avatar).toBe("data:image/jpeg;base64,RESOLVED(/api/files/a.jpg)");
+  });
+
+  it("renders no avatar when the author has none", () => {
+    const doc = baseDoc({ author: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: null } });
+    const sheet = toSheetData(doc);
+    expect(sheet.preparedBy.avatar).toBeNull();
   });
 
   it("passes notes through untouched, null when unset", () => {
     expect(toSheetData(baseDoc({ notes: "Freeform remarks" })).notes).toBe("Freeform remarks");
     expect(toSheetData(baseDoc({ notes: null })).notes).toBeNull();
+  });
+});
+
+describe("toSheetData — validityDate default fallback", () => {
+  it("uses the org default when validityDays is null", () => {
+    const doc = baseDoc({
+      status: "DRAFT",
+      validityDays: null,
+      defaultValidityDays: 7,
+      issueDate: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    expect(toSheetData(doc).validityDate).toBe("08/01/2026");
+  });
+
+  it("uses the document's own validityDays when set, ignoring the default", () => {
+    const doc = baseDoc({
+      status: "DRAFT",
+      validityDays: 30,
+      defaultValidityDays: 7,
+      issueDate: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    expect(toSheetData(doc).validityDate).toBe("31/01/2026");
+  });
+
+  it("the two produce different dates for the same issueDate", () => {
+    const withDefault = toSheetData(
+      baseDoc({ validityDays: null, defaultValidityDays: 7, issueDate: new Date("2026-01-01T00:00:00.000Z") })
+    ).validityDate;
+    const withOwnValue = toSheetData(
+      baseDoc({ validityDays: 30, defaultValidityDays: 7, issueDate: new Date("2026-01-01T00:00:00.000Z") })
+    ).validityDate;
+    expect(withDefault).not.toBe(withOwnValue);
   });
 });
 

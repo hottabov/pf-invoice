@@ -76,7 +76,7 @@ function baseSheetData(overrides: Partial<DocSheetData> = {}): DocSheetData {
       total: "1100.00",
     },
     showSignature: false,
-    preparedBy: { name: "Jane Author", email: "jane@example.com", phone: null },
+    preparedBy: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: null },
     notes: null,
     showItemPrices: true,
     showOptionPrices: true,
@@ -120,7 +120,7 @@ describe("renderDocumentHtml", () => {
   it("renders a compact 'Prepared by' line and, when present, notes before bank details", async () => {
     const html = await renderDocumentHtml(
       baseSheetData({
-        preparedBy: { name: "Jane Author", email: "jane@example.com", phone: null },
+        preparedBy: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: null },
         notes: "Please deliver to the loading dock.",
         entity: {
           name: "Pathfinder Cutting Systems",
@@ -141,7 +141,7 @@ describe("renderDocumentHtml", () => {
 
   it("falls back to the author's email when no name is set, and omits notes entirely when unset", async () => {
     const html = await renderDocumentHtml(
-      baseSheetData({ preparedBy: { name: null, email: "noname@example.com", phone: null }, notes: null })
+      baseSheetData({ preparedBy: { name: null, email: "noname@example.com", phone: null, avatar: null }, notes: null })
     );
     expect(html).toContain("Prepared by: noname@example.com");
     // No trailing " · email" when there's no name to pair it with.
@@ -150,6 +150,27 @@ describe("renderDocumentHtml", () => {
     // always defines the .pq-notes-title selector regardless, so this
     // checks for the element's opening tag, not the bare class name).
     expect(html).not.toContain('class="pq-notes-title"');
+  });
+
+  it("renders the author's avatar under Prepared by when present", async () => {
+    const html = await renderDocumentHtml(
+      baseSheetData({
+        preparedBy: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: "data:image/jpeg;base64,AAAA" },
+      })
+    );
+    expect(html).toContain('<img src="data:image/jpeg;base64,AAAA"');
+    expect(html).toContain('class="pq-prepared-by-avatar"');
+  });
+
+  it("renders no <img> for Prepared by when the author has no avatar", async () => {
+    const html = await renderDocumentHtml(
+      baseSheetData({ preparedBy: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: null } })
+    );
+    // The embedded <style> block always defines the .pq-prepared-by-avatar
+    // selector regardless (same pattern as the .pq-notes-title check
+    // above) — check for the element's opening tag, not the bare class name.
+    expect(html).not.toContain('<img class="pq-prepared-by-avatar"');
+    expect(html).not.toContain("<img");
   });
 });
 
@@ -251,7 +272,7 @@ function baseQuotationData(overrides: Partial<QuotationData> = {}): QuotationDat
     },
     client: null,
     delivery: null,
-    preparedBy: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" },
+    preparedBy: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000", avatar: null },
     notesHtml: null,
     machineSections: [],
     items: [],
@@ -326,7 +347,7 @@ describe("renderQuotationHtml — header prepared for/by", () => {
         contactEmail: null,
         contactPhone: null,
       },
-      preparedBy: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000" },
+      preparedBy: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000", avatar: null },
     });
     const html = await renderQuotationHtml(data);
     expect(html).toContain("Prepared for");
@@ -335,6 +356,31 @@ describe("renderQuotationHtml — header prepared for/by", () => {
     expect(html).toContain("Jane Author");
     expect(html).toContain("0400 000 000");
     expect(html).not.toContain("Bill To");
+  });
+
+  it("renders the author's avatar under Prepared by when present", async () => {
+    const data = baseQuotationData({
+      preparedBy: {
+        name: "Jane Author",
+        email: "jane@example.com",
+        phone: "0400 000 000",
+        avatar: "data:image/jpeg;base64,AAAA",
+      },
+    });
+    const html = await renderQuotationHtml(data);
+    expect(html).toContain('<img src="data:image/jpeg;base64,AAAA"');
+    expect(html).toContain('class="pq-prepared-by-avatar"');
+  });
+
+  it("renders no <img> for Prepared by when the author has no avatar", async () => {
+    const data = baseQuotationData({
+      preparedBy: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000", avatar: null },
+    });
+    const html = await renderQuotationHtml(data);
+    // See the equivalent renderDocumentHtml test above — the embedded
+    // <style> block always defines the class selector regardless.
+    expect(html).not.toContain('<img class="pq-prepared-by-avatar"');
+    expect(html).not.toContain("<img");
   });
 });
 

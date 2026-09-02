@@ -4,6 +4,7 @@ import { companyWhereForUser, documentWhereForUser, type ScopeUser } from "@/lib
 import { listProductsBySeries, listSeriesWithCounts } from "@/lib/queries/catalog";
 import { computeTotals, type EngineInput } from "@/lib/pricing";
 import { compatibilityOrFilter } from "@/lib/catalog-compat";
+import { getQuoteValidityDays } from "@/lib/queries/settings";
 
 // --- list -------------------------------------------------------------
 
@@ -230,6 +231,18 @@ export type DocumentForBuilder = {
    * (an author's own override, not yet finalized) as well as on a FINAL
    * document (the value frozen when it was finalized). */
   validityDays: number | null;
+  /** The org-wide default (`Setting` key "quote.validityDays", via
+   * `getQuoteValidityDays`) resolved *at read time* — always a number,
+   * never the raw override. Exists so `toSheetData` can show a "Valid
+   * until" date on a DRAFT that has never had `validityDays` set (the
+   * builder's own field stays `null` in that case — see that field's doc
+   * comment above — so it can still tell "nothing typed" from "typed 30"
+   * apart; this is the *fallback* the sheet computes from, not a value
+   * ever written back onto the document). `finalizeDocument` resolves the
+   * same default independently (via `getQuoteValidityDays` directly) when
+   * it freezes `validityDays` onto the document — this field is read-only
+   * display plumbing and never fed back into that write. */
+  defaultValidityDays: number;
   currency: string;
   taxName: string;
   taxRate: string;
@@ -278,8 +291,15 @@ export type DocumentForBuilder = {
   notes: string | null;
   /** The document's author — feeds the "Prepared by" block (see
    * `ToSheetAuthorInput`/`DocSheetPreparedBy` in src/lib/sheet-data.ts).
-   * Always present: `Document.authorId` is a required field. */
-  author: { name: string | null; email: string; phone: string | null };
+   * Always present: `Document.authorId` is a required field. `avatar` is
+   * `User.image` — NextAuth's own profile-picture column, reused here as
+   * the "Prepared by" photo (see src/lib/actions/users.ts's `setUserAvatar`
+   * for the write side) since this app's credentials/magic-link auth never
+   * populates it on its own — a stored `/api/files/<name>` URL that
+   * `toSheetData` must resolve through its `ImageResolver` the same way it
+   * already does `logoUrl`/item images, or the PDF pipeline would embed a
+   * URL Gotenberg's headless Chromium can't fetch. */
+  author: { name: string | null; email: string; phone: string | null; avatar: string | null };
   /** Quotation-first pricing display toggles (see `setPriceDisplay` in
    * src/lib/actions/documents.ts) — the builder only ever surfaces its
    * toggle card for a QUOTE, but both flags are read straight through into
@@ -376,7 +396,9 @@ export async function getDocumentForBuilder(
     where: { id, ...documentWhereForUser(user) },
     include: {
       region: true,
-      author: { select: { name: true, email: true, phone: true } },
+      // `image` here is `User.image` reused as the avatar — see the
+      // `author` field's doc comment above.
+      author: { select: { name: true, email: true, phone: true, image: true } },
       company: {
         include: {
           contacts: { orderBy: [{ isPrimary: "desc" }, { firstName: "asc" }] },
@@ -397,6 +419,10 @@ export async function getDocumentForBuilder(
     },
   });
   if (!document) return null;
+
+  // Resolved once here (not written back onto `document.validityDays`) —
+  // see `defaultValidityDays`'s doc comment above.
+  const defaultValidityDays = await getQuoteValidityDays();
 
   // Every OPTION line's icon in the quotation's unified options table (see
   // src/lib/quotation-data.ts's QuotationOptionRow) comes from the option's
@@ -451,6 +477,7 @@ export async function getDocumentForBuilder(
     number: document.number,
     issueDate: document.issueDate,
     validityDays: document.validityDays,
+    defaultValidityDays,
     currency: document.currency,
     taxName: document.taxName,
     taxRate: document.taxRate.toString(),
@@ -531,7 +558,12 @@ export async function getDocumentForBuilder(
     })),
     extraLines: document.lines.map((line) => toBuilderLine(line, optionImageMap)),
     notes: document.notes,
-    author: { name: document.author.name, email: document.author.email, phone: document.author.phone },
+    author: {
+      name: document.author.name,
+      email: document.author.email,
+      phone: document.author.phone,
+      avatar: document.author.image,
+    },
     showItemPrices: document.showItemPrices,
     showOptionPrices: document.showOptionPrices,
     updatedAt: document.updatedAt,

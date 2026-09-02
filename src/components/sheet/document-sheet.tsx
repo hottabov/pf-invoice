@@ -142,8 +142,18 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
             two-column header (see quotation-sheet.tsx): just a name/
             email under BILL TO, no phone, no separate box. */}
         <div className="pq-prepared-by">
-          Prepared by: {data.preparedBy.name ?? data.preparedBy.email}
-          {data.preparedBy.name ? ` · ${data.preparedBy.email}` : ""}
+          {data.preparedBy.avatar ? (
+            // Plain <img>, not next/image — same reasoning as the logo
+            // above. No initials fallback (unlike the in-app `Avatar`
+            // component) — a customer-facing quote either shows the real
+            // photo or none at all, never a placeholder.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={data.preparedBy.avatar} alt="" className="pq-prepared-by-avatar" />
+          ) : null}
+          <span>
+            Prepared by: {data.preparedBy.name ?? data.preparedBy.email}
+            {data.preparedBy.name ? ` · ${data.preparedBy.email}` : ""}
+          </span>
         </div>
 
         <table className="pq-items">
@@ -444,9 +454,19 @@ const SHEET_CSS = `
   /* Compact "Prepared by" line (owner reference doc) — minimal, unlike the
      quotation sheet's own full two-column header. */
   .pq-prepared-by {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     margin-top: 6px;
     color: #777777;
     font-size: 10px;
+  }
+  .pq-prepared-by-avatar {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
   }
   .pq-notes {
     margin-top: 24px;

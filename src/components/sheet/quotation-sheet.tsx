@@ -116,11 +116,22 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
               {data.client.contactPhone ? <div className="pq-client-line">{data.client.contactPhone}</div> : null}
             </div>
           ) : null}
-          <div className="pq-client">
-            <div className="pq-client-label">Prepared by</div>
-            <div className="pq-client-name">{data.preparedBy.name ?? data.preparedBy.email}</div>
-            {data.preparedBy.phone ? <div className="pq-client-line">{data.preparedBy.phone}</div> : null}
-            {data.preparedBy.name ? <div className="pq-client-line">{data.preparedBy.email}</div> : null}
+          <div className="pq-client pq-prepared-by-client">
+            {data.preparedBy.avatar ? (
+              // Plain <img>, not next/image — same reasoning as the logo
+              // above: this markup is also posted to Gotenberg as a raw
+              // HTML string. No initials fallback here (unlike the in-app
+              // `Avatar` component) — a customer-facing quote either shows
+              // the real photo or none at all.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={data.preparedBy.avatar} alt="" className="pq-prepared-by-avatar" />
+            ) : null}
+            <div>
+              <div className="pq-client-label">Prepared by</div>
+              <div className="pq-client-name">{data.preparedBy.name ?? data.preparedBy.email}</div>
+              {data.preparedBy.phone ? <div className="pq-client-line">{data.preparedBy.phone}</div> : null}
+              {data.preparedBy.name ? <div className="pq-client-line">{data.preparedBy.email}</div> : null}
+            </div>
           </div>
         </div>
 
@@ -637,6 +648,21 @@ const SHEET_CSS = `
   }
   .pq-client-contact {
     margin-top: 4px;
+  }
+  /* "Prepared by" avatar (see the JSX above) — a small circular photo to the
+     left of the name/phone/email block, only rendered when the author has
+     one. */
+  .pq-prepared-by-client {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .pq-prepared-by-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
   }
   .pq-total-banner {
     margin-top: 18px;
