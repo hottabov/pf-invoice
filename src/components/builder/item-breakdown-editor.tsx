@@ -286,11 +286,13 @@ function EditablePrice({
       const formData = new FormData();
       formData.set("unitPrice", draft);
       const result = await setAction(id, formData);
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      if (result.warning) toast.info(result.warning);
+      if (result.error) toast.error(result.error);
+      // A `warning` here means the save pushed the *document's* whole
+      // concession over the region cap (ADMIN-only — a MANAGER's would
+      // come back as `error` instead, handled above) — no longer toasted
+      // per field. That state now lives in the Summary panel's persistent
+      // badge plus a one-time transition toast; see
+      // `ConcessionCapBadge`/`ConcessionCapToast` in `[documentId]/page.tsx`.
     });
   }
 
@@ -303,11 +305,9 @@ function EditablePrice({
   function reset() {
     startReset(async () => {
       const result = await resetAction(id);
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      if (result.warning) toast.info(result.warning);
+      if (result.error) toast.error(result.error);
+      // See `save`'s own comment above -- a `warning` here is the same
+      // document-level concession state, surfaced elsewhere.
     });
   }
 

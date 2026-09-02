@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AutosaveIndicator } from "@/components/builder/autosave-indicator";
-import { fieldInputClass, useToast } from "@/components/ui-kit";
+import { fieldInputClass } from "@/components/ui-kit";
 import { useAutosave } from "@/lib/use-autosave";
 import { currencySymbol, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -29,8 +29,13 @@ import type { DiscountMode } from "@/lib/pricing";
  * outright with an error naming both the entered discount and the
  * percentage it works out to, surfaced by the autosave indicator turning
  * into that message; for an ADMIN it still saves, and the action instead
- * comes back with `warning` set, surfaced here as a non-blocking toast
- * rather than blocking the save.
+ * comes back with `warning` set — no longer surfaced here as a toast on
+ * every such save (that was the "shouting on every save" the owner flagged;
+ * this field just drops it now). The *document-level* concession the save
+ * pushed things toward is instead the Summary panel's persistent badge plus
+ * a one-time transition toast — see `ConcessionCapBadge`/`ConcessionCapToast`
+ * in `[documentId]/page.tsx` — which is state that belongs on screen, not a
+ * per-field message that disappears.
  */
 export function ItemDiscountField({
   itemId,
@@ -49,7 +54,6 @@ export function ItemDiscountField({
   setDiscountAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
   readOnly?: boolean;
 }) {
-  const toast = useToast();
   const [mode, setMode] = useState<DiscountMode>(discountMode);
   const [value, setValue] = useState(discountValue ?? "");
 
@@ -68,7 +72,6 @@ export function ItemDiscountField({
       formData.set("mode", nextMode);
       formData.set("value", nextValue);
       const result = await setDiscountAction(itemId, formData);
-      if (result.warning) toast.info(result.warning);
       return result.error ? { error: result.error } : {};
     },
   });

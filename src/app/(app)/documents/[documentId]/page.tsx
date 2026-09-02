@@ -14,6 +14,7 @@ import {
 } from "@/lib/queries/documents";
 import { listActiveRegions } from "@/lib/queries/catalog";
 import { getQuoteValidityDays, getShowOptionIcons } from "@/lib/queries/settings";
+import { concessionCapMessage } from "@/lib/pricing";
 import {
   addCustomLine,
   addItem,
@@ -48,6 +49,8 @@ import { DocumentTotals, StickyFooter } from "@/components/builder/sticky-footer
 import { FinalizeButton } from "@/components/builder/finalize-button";
 import { UnfinalizeButton } from "@/components/builder/unfinalize-button";
 import { DeleteDraftButton } from "@/components/builder/delete-draft-button";
+import { ConcessionCapBadge } from "@/components/builder/concession-cap-badge";
+import { ConcessionCapToast } from "@/components/builder/concession-cap-toast";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +84,16 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
 
   const isDraft = document.status === "DRAFT";
   const isAdmin = session.user.role === "ADMIN";
+
+  // Same message every mutating server action already builds (see
+  // recalcDocument's own concessionMessage) — reused here for both the
+  // persistent Summary-panel badge and the one-time transition toast (see
+  // ConcessionCapBadge/ConcessionCapToast) rather than a shorter paraphrase
+  // that could drift from it. `null` whenever the document isn't over the
+  // cap, which is also what makes both of those components render nothing.
+  const concessionCapMessageText = document.documentConcession.exceedsCap
+    ? concessionCapMessage(document.documentConcession, document.regionName, document.currency)
+    : null;
 
   const [companies, catalog, showOptionIcons, regions, orgDefaultValidityDays, formsDocument] = await Promise.all([
     listClientPickerCompanies(session.user),
@@ -227,6 +240,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
           <SectionCard title="Summary">
             <div className="flex flex-col gap-4">
               <DocumentSummaryHeader document={document} />
+              {concessionCapMessageText ? <ConcessionCapBadge message={concessionCapMessageText} /> : null}
               <div className="border-t border-slate-100 pt-4">
                 <DocumentTotals
                   taxName={document.taxName}
@@ -258,10 +272,22 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
         <SectionCard title="Status & actions">
           <div className="flex flex-col gap-4">
             <DocumentSummaryHeader document={document} />
+            {concessionCapMessageText ? <ConcessionCapBadge message={concessionCapMessageText} /> : null}
             <DocumentActions document={document} isDraft={isDraft} isAdmin={isAdmin} />
           </div>
         </SectionCard>
       </div>
+
+      {/* Mounted once, renders nothing visible — see its own doc comment.
+          ADMIN-only: a MANAGER's save that would cross the cap is rejected
+          outright, so a MANAGER's own actions can never produce the
+          within-cap -> over-cap transition this toasts. */}
+      {isAdmin ? (
+        <ConcessionCapToast
+          exceedsCap={document.documentConcession.exceedsCap}
+          message={concessionCapMessageText}
+        />
+      ) : null}
 
       <StickyFooter
         status={document.status}

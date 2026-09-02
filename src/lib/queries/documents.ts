@@ -280,6 +280,12 @@ export type DocumentForBuilder = {
   total: string;
   regionId: string;
   regionCode: string;
+  /** `Region.name` (e.g. "Australia") — surfaced alongside `documentConcession`
+   * so the builder can build the same "... above the X% limit for
+   * <region>" message `concessionCapMessage` produces server-side elsewhere
+   * (`recalcDocument`'s `concessionMessage`) without a second query; see
+   * `ConcessionCapBadge`/`ConcessionCapToast`. */
+  regionName: string;
   /** `Document.entitySnapshot` exactly as stored (an opaque `Json?` column,
    * frozen by `finalizeDocument` — see its doc comment for the shape it
    * writes) — `null` for a document that has never been finalized.
@@ -519,6 +525,7 @@ export async function getDocumentForBuilder(
     total: document.total.toString(),
     regionId: document.regionId,
     regionCode: document.region.code,
+    regionName: document.region.name,
     entitySnapshot: document.entitySnapshot,
     entityName: document.region.entityName,
     entityLegalId: document.region.entityLegalId,

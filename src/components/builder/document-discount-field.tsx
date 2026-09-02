@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AutosaveIndicator } from "@/components/builder/autosave-indicator";
-import { fieldInputClass, useToast } from "@/components/ui-kit";
+import { fieldInputClass } from "@/components/ui-kit";
 import { useAutosave } from "@/lib/use-autosave";
 import { currencySymbol, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -33,12 +33,15 @@ export function DocumentDiscountField({
   setDiscountAction: (documentId: string, formData: FormData) => Promise<ActionResult>;
   readOnly?: boolean;
 }) {
-  const toast = useToast();
   const [mode, setMode] = useState<DiscountMode>(discountMode);
   const [value, setValue] = useState(discountValue ?? "");
 
   // See ItemDiscountField's doc comment for why mode+value share one
-  // composite autosave value.
+  // composite autosave value, and for where the ADMIN-only concession-cap
+  // `warning` this save can come back with is surfaced these days (the
+  // Summary panel's persistent badge plus a one-time transition toast —
+  // see ConcessionCapBadge/ConcessionCapToast — rather than a toast fired
+  // from every field that happens to touch money).
   const { status, error } = useAutosave({
     value: `${mode}|${value}`,
     enabled: !readOnly,
@@ -48,7 +51,6 @@ export function DocumentDiscountField({
       formData.set("mode", nextMode);
       formData.set("value", nextValue);
       const result = await setDiscountAction(documentId, formData);
-      if (result.warning) toast.info(result.warning);
       return result.error ? { error: result.error } : {};
     },
   });
