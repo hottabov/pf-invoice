@@ -26,6 +26,10 @@ export function ItemsSection({
   addItemAction,
   setItemOptionsAction,
   setItemDiscountAction,
+  setItemUnitPriceAction,
+  resetItemUnitPriceAction,
+  setLineUnitPriceAction,
+  resetLineUnitPriceAction,
   setItemShowImageAction,
   reorderItemsAction,
   showOptionIcons = true,
@@ -40,6 +44,10 @@ export function ItemsSection({
   addItemAction: (documentId: string, productCode: string) => Promise<ActionResult>;
   setItemOptionsAction: (itemId: string, selections: OptionSelectionInput[]) => Promise<ActionResult>;
   setItemDiscountAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
+  setItemUnitPriceAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
+  resetItemUnitPriceAction: (itemId: string) => Promise<ActionResult>;
+  setLineUnitPriceAction: (lineId: string, formData: FormData) => Promise<ActionResult>;
+  resetLineUnitPriceAction: (lineId: string) => Promise<ActionResult>;
   setItemShowImageAction: (itemId: string, show: boolean) => Promise<ActionResult>;
   reorderItemsAction: (documentId: string, orderedItemIds: string[]) => Promise<ActionResult>;
   /** "ui.showOptionIcons" app setting, read server-side by the builder page
@@ -60,6 +68,10 @@ export function ItemsSection({
           removeItemAction={removeItemAction}
           setItemOptionsAction={setItemOptionsAction}
           setItemDiscountAction={setItemDiscountAction}
+          setItemUnitPriceAction={setItemUnitPriceAction}
+          resetItemUnitPriceAction={resetItemUnitPriceAction}
+          setLineUnitPriceAction={setLineUnitPriceAction}
+          resetLineUnitPriceAction={resetLineUnitPriceAction}
           setItemShowImageAction={setItemShowImageAction}
           reorderItemsAction={reorderItemsAction}
           showOptionIcons={showOptionIcons}

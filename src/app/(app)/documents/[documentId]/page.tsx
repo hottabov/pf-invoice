@@ -21,12 +21,16 @@ import {
   removeItem,
   removeLine,
   reorderItems,
+  resetItemUnitPrice,
+  resetLineUnitPrice,
   setDocumentClient,
   setDocumentDiscount,
   setDocumentNotes,
   setItemDiscount,
   setItemOptions,
   setItemShowImage,
+  setItemUnitPrice,
+  setLineUnitPrice,
   setPriceDisplay,
   setValidityDays,
 } from "@/lib/actions/documents";
@@ -146,6 +150,10 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
             addItemAction={addItem}
             setItemOptionsAction={setItemOptions}
             setItemDiscountAction={setItemDiscount}
+            setItemUnitPriceAction={setItemUnitPrice}
+            resetItemUnitPriceAction={resetItemUnitPrice}
+            setLineUnitPriceAction={setLineUnitPrice}
+            resetLineUnitPriceAction={resetLineUnitPrice}
             setItemShowImageAction={setItemShowImage}
             reorderItemsAction={reorderItems}
             showOptionIcons={showOptionIcons}

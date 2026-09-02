@@ -8,6 +8,7 @@ import { buildItemBreakdown } from "@/lib/sheet-data";
 import { RemoveItemButton } from "@/components/builder/remove-item-button";
 import { ItemOptionsEditor } from "@/components/builder/item-options-editor";
 import { ItemDiscountField } from "@/components/builder/item-discount-field";
+import { UnitPriceField } from "@/components/builder/unit-price-field";
 import { ItemShowImageToggle } from "@/components/builder/item-show-image-toggle";
 import { ItemBreakdownRows } from "@/components/sheet/item-breakdown";
 import { ProductionSpecEditor } from "@/components/builder/production-spec-editor";
@@ -67,6 +68,10 @@ export function ItemsList({
   removeItemAction,
   setItemOptionsAction,
   setItemDiscountAction,
+  setItemUnitPriceAction,
+  resetItemUnitPriceAction,
+  setLineUnitPriceAction,
+  resetLineUnitPriceAction,
   setItemShowImageAction,
   reorderItemsAction,
   showOptionIcons = true,
@@ -79,6 +84,10 @@ export function ItemsList({
   removeItemAction: (itemId: string) => Promise<ActionResult>;
   setItemOptionsAction: (itemId: string, selections: OptionSelectionInput[]) => Promise<ActionResult>;
   setItemDiscountAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
+  setItemUnitPriceAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
+  resetItemUnitPriceAction: (itemId: string) => Promise<ActionResult>;
+  setLineUnitPriceAction: (lineId: string, formData: FormData) => Promise<ActionResult>;
+  resetLineUnitPriceAction: (lineId: string) => Promise<ActionResult>;
   setItemShowImageAction: (itemId: string, show: boolean) => Promise<ActionResult>;
   reorderItemsAction: (documentId: string, orderedItemIds: string[]) => Promise<ActionResult>;
   showOptionIcons?: boolean;
@@ -337,6 +346,49 @@ export function ItemsList({
                     variant="compact"
                   />
                 </div>
+
+                {/* Manual unit price — the priced-row-by-priced-row control
+                    the P0 spec asks for: the item itself, then each of its
+                    OPTION lines, each independently hand-editable (0
+                    included) with the catalogue price struck through and a
+                    one-click reset whenever it's been changed. Read-only
+                    (FINAL document) still shows the struck-through list
+                    price so a past concession stays visible internally, even
+                    though it never prints on a customer-facing sheet — see
+                    UnitPriceField's own doc comment. */}
+                <div className="mb-3 flex flex-col gap-1.5 rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-slate-500">{item.name}</span>
+                    <UnitPriceField
+                      id={item.id}
+                      unitPrice={item.unitPrice}
+                      listPrice={item.listPrice}
+                      currency={currency}
+                      setUnitPriceAction={setItemUnitPriceAction}
+                      resetUnitPriceAction={resetItemUnitPriceAction}
+                      readOnly={readOnly}
+                    />
+                  </div>
+                  {item.lines
+                    .filter((line) => line.kind === "OPTION")
+                    .map((line) => (
+                      <div key={line.id} className="flex flex-wrap items-center justify-between gap-2 pl-3">
+                        <span className="truncate text-xs text-slate-400">
+                          {line.code ? `${line.code} — ${line.name}` : line.name}
+                        </span>
+                        <UnitPriceField
+                          id={line.id}
+                          unitPrice={line.unitPrice}
+                          listPrice={line.listPrice}
+                          currency={currency}
+                          setUnitPriceAction={setLineUnitPriceAction}
+                          resetUnitPriceAction={resetLineUnitPriceAction}
+                          readOnly={readOnly}
+                        />
+                      </div>
+                    ))}
+                </div>
+
                 <ItemOptionsEditor
                   itemId={item.id}
                   currentLines={item.lines

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildItemBreakdown,
   dedupeDescription,
   formatBankDetails,
   toSheetData,
@@ -7,6 +8,7 @@ import {
   type ToSheetItemInput,
   type ToSheetCompanyInput,
 } from "../src/lib/sheet-data";
+import { formatMoney } from "../src/lib/format";
 
 function baseCompany(overrides: Partial<ToSheetCompanyInput> = {}): ToSheetCompanyInput {
   return {
@@ -345,6 +347,61 @@ describe("toSheetData — items and lines", () => {
       })
     );
     expect(both.extraLines[0].image).toBe("/api/files/a.jpg");
+  });
+});
+
+describe("toSheetData — a $0 manual price prints, it is not swallowed as absent", () => {
+  // John: "if I give it away for zero dollars... I give them back zero
+  // dollars" — the customer has to be able to see they did not pay for it,
+  // which means a $0 line must render "$0", never nothing.
+  it("carries a $0 item price through to unitPrice/total exactly, not null or omitted", () => {
+    const sheet = toSheetData(baseDoc({ items: [baseItem({ unitPrice: "0.00", total: "0.00" })] }));
+    const item = sheet.items[0];
+    expect(item.unitPrice).toBe("0.00");
+    expect(item.total).toBe("0.00");
+    expect(item.breakdown.basePrice).toBe("0.00");
+    expect(item.breakdown.subtotal).toBe("0.00");
+  });
+
+  it("formats a $0 item total as the literal string \"$0\" (formatMoney is never gated by truthiness of the amount)", () => {
+    const sheet = toSheetData(baseDoc({ items: [baseItem({ unitPrice: "0.00", total: "0.00" })] }));
+    const item = sheet.items[0];
+    // Every renderer (document-sheet.tsx, quotation-sheet.tsx,
+    // items-list.tsx) gates a price on an explicit boolean/null check
+    // (showPrices, itemPriceVisible, lineTotal !== null) — never on the
+    // amount's own truthiness — so this must print "$0", not an empty cell.
+    expect(formatMoney(item.total, sheet.totals.currency)).toBe("$0");
+    expect(formatMoney(item.breakdown.basePrice, sheet.totals.currency)).toBe("$0");
+  });
+
+  it("formats a $0 option line the same way", () => {
+    const sheet = toSheetData(
+      baseDoc({
+        items: [
+          baseItem({
+            lines: [{ id: "line-1", code: "OPT-1", name: "Free upgrade", description: null, qty: 1, unitPrice: "0.00" }],
+          }),
+        ],
+      })
+    );
+    const line = sheet.items[0].lines[0];
+    expect(line.lineTotal).toBe("0.00");
+    expect(formatMoney(line.lineTotal, sheet.totals.currency)).toBe("$0");
+  });
+
+  it("buildItemBreakdown never treats a $0 basePrice/option lineTotal as absent (null)", () => {
+    const breakdown = buildItemBreakdown(
+      baseItem({
+        unitPrice: "0.00",
+        total: "0.00",
+        lines: [{ id: "line-1", code: "OPT-1", name: "Free upgrade", description: null, qty: 1, unitPrice: "0.00" }],
+      }),
+      true // showOptionPrices
+    );
+    expect(breakdown.basePrice).toBe("0.00");
+    expect(breakdown.basePrice).not.toBeNull();
+    expect(breakdown.options[0].lineTotal).toBe("0.00");
+    expect(breakdown.options[0].lineTotal).not.toBeNull();
   });
 });
 
