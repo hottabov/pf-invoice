@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toCents, fromCents, computeTotals, discountCents, capPct } from "../src/lib/pricing";
+import { toCents, fromCents, computeTotals, discountCents, capPct, concessionCapMessage } from "../src/lib/pricing";
 
 describe("toCents", () => {
   it("converts a whole-dollar amount", () => {
@@ -90,6 +90,13 @@ describe("computeTotals", () => {
       total: 100,
       violations: [],
       negativeSubtotal: false,
+      documentConcession: {
+        concession: "0.00",
+        listValue: "100.00",
+        effectivePct: 0,
+        allowedPct: 100,
+        exceedsCap: false,
+      },
     });
   });
 
@@ -331,6 +338,13 @@ describe("computeTotals", () => {
       total: 0,
       violations: [],
       negativeSubtotal: false,
+      documentConcession: {
+        concession: "0.00",
+        listValue: "0.00",
+        effectivePct: 0,
+        allowedPct: 100,
+        exceedsCap: false,
+      },
     });
   });
 
@@ -395,6 +409,248 @@ describe("computeTotals", () => {
       taxRate: 0,
     });
     expect(result.negativeSubtotal).toBe(false);
+  });
+});
+
+describe("documentConcession", () => {
+  it("treats a null listPrice as no concession", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 100, listPrice: null, lines: [] }],
+      extraLines: [],
+      documentDiscountValue: null,
+      taxRate: 0,
+    });
+    expect(result.documentConcession).toEqual({
+      concession: "0.00",
+      listValue: "100.00",
+      effectivePct: 0,
+      allowedPct: 100,
+      exceedsCap: false,
+    });
+  });
+
+  it("a price cut below list is a positive concession, reducing the subtotal by exactly the cut", () => {
+    // A $1,000 machine sold for $0 — John's demo-room giveaway.
+    const result = computeTotals({
+      items: [{ unitPrice: 0, listPrice: 1000, lines: [] }],
+      extraLines: [],
+      documentDiscountValue: null,
+      taxRate: 0,
+    });
+    expect(result.itemTotals).toEqual([0]);
+    expect(result.subtotal).toBe(0);
+    // Subtotal is reduced by exactly the item's list price (1000 - 0).
+    expect(result.documentConcession).toEqual({
+      concession: "1000.00",
+      listValue: "1000.00",
+      effectivePct: 100,
+      allowedPct: 100,
+      exceedsCap: false,
+    });
+  });
+
+  it("a price raised above list is a negative concession", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 12000, listPrice: 10000, lines: [] }],
+      extraLines: [],
+      documentDiscountValue: null,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.concession).toBe("-2000.00");
+    expect(result.documentConcession.effectivePct).toBe(-20);
+    expect(result.documentConcession.exceedsCap).toBe(false);
+  });
+
+  it("raising one item's price and lowering another's by the same amount nets to a zero concession with no cap violation", () => {
+    // John: "you can increase the price of the machine by $10,000 and then
+    // give away $10,000 worth of options — we do that all the time."
+    const result = computeTotals({
+      items: [
+        { unitPrice: 60000, listPrice: 50000, lines: [] }, // +$10,000 raise
+        { unitPrice: 0, listPrice: 10000, lines: [] }, // $10,000 given away
+      ],
+      extraLines: [],
+      documentDiscountValue: null,
+      regionMaxDiscountPct: 10,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.concession).toBe("0.00");
+    expect(result.documentConcession.effectivePct).toBe(0);
+    expect(result.documentConcession.exceedsCap).toBe(false);
+  });
+
+  it("sets exceedsCap once a price cut pushes the concession over the region cap", () => {
+    // $10,000 list, cut to $8,900 (11% concession) against a 10% cap.
+    const result = computeTotals({
+      items: [{ unitPrice: 8900, listPrice: 10000, lines: [] }],
+      extraLines: [],
+      documentDiscountValue: null,
+      regionMaxDiscountPct: 10,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.effectivePct).toBeCloseTo(11, 5);
+    expect(result.documentConcession.exceedsCap).toBe(true);
+  });
+
+  it("stays within the cap just under the boundary (9.99% against a 10% cap)", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 9001, listPrice: 10000, lines: [] }], // 9.99% concession
+      extraLines: [],
+      documentDiscountValue: null,
+      regionMaxDiscountPct: 10,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.effectivePct).toBeCloseTo(9.99, 5);
+    expect(result.documentConcession.exceedsCap).toBe(false);
+  });
+
+  it("does not flag exceedsCap exactly at the boundary (10% against a 10% cap)", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 9000, listPrice: 10000, lines: [] }], // exactly 10%
+      extraLines: [],
+      documentDiscountValue: null,
+      regionMaxDiscountPct: 10,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.effectivePct).toBe(10);
+    expect(result.documentConcession.exceedsCap).toBe(false);
+  });
+
+  it("flags exceedsCap just over the boundary (10.01% against a 10% cap)", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 8999, listPrice: 10000, lines: [] }], // 10.01%
+      extraLines: [],
+      documentDiscountValue: null,
+      regionMaxDiscountPct: 10,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.effectivePct).toBeCloseTo(10.01, 5);
+    expect(result.documentConcession.exceedsCap).toBe(true);
+  });
+
+  it("counts a negative extra line (a trade-in) toward the concession", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 10000, listPrice: 10000, lines: [] }],
+      extraLines: [{ qty: 1, unitPrice: -2000 }],
+      documentDiscountValue: null,
+      taxRate: 0,
+    });
+    // listValue is unaffected by the trade-in (a negative extra line
+    // contributes nothing to listValue, only to the concession numerator).
+    expect(result.documentConcession).toEqual({
+      concession: "2000.00",
+      listValue: "10000.00",
+      effectivePct: 20,
+      allowedPct: 100,
+      exceedsCap: false,
+    });
+  });
+
+  it("counts a positive extra line toward listValue but not the concession", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 10000, listPrice: 10000, lines: [] }],
+      extraLines: [{ qty: 1, unitPrice: 500 }],
+      documentDiscountValue: null,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.concession).toBe("0.00");
+    expect(result.documentConcession.listValue).toBe("10500.00");
+  });
+
+  it("counts an item discount and a manual price cut on the same item once each, not double-counted", () => {
+    // List $10,000, manually cut to $9,000 (a $1,000 concession), then a
+    // further 10% item discount on top of that already-cut $9,000 base
+    // ($900) — the two must add, not compound through listPrice twice.
+    const result = computeTotals({
+      items: [
+        {
+          unitPrice: 9000,
+          listPrice: 10000,
+          discountMode: "PERCENT",
+          discountValue: "10",
+          lines: [],
+        },
+      ],
+      extraLines: [],
+      documentDiscountValue: null,
+      taxRate: 0,
+    });
+    expect(result.itemDiscounts).toEqual([900]);
+    // 1000 (price cut) + 900 (discount on the cut price) = 1900.
+    expect(result.documentConcession.concession).toBe("1900.00");
+    expect(result.documentConcession.listValue).toBe("10000.00");
+  });
+
+  it("counts an option line's manual price cut alongside the item's own", () => {
+    const result = computeTotals({
+      items: [
+        {
+          unitPrice: 9000,
+          listPrice: 10000,
+          lines: [{ qty: 2, unitPrice: 400, listPrice: 500 }],
+        },
+      ],
+      extraLines: [],
+      documentDiscountValue: null,
+      taxRate: 0,
+    });
+    // item: 10000 - 9000 = 1000; line: (500 - 400) * 2 = 200.
+    expect(result.documentConcession.concession).toBe("1200.00");
+    expect(result.documentConcession.listValue).toBe("11000.00"); // 10000 + 500*2
+  });
+
+  it("counts the document-level discount amount toward the concession", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 10000, listPrice: 10000, lines: [] }],
+      extraLines: [],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "5",
+      taxRate: 0,
+    });
+    expect(result.documentConcession.concession).toBe("500.00");
+    expect(result.documentConcession.listValue).toBe("10000.00");
+  });
+
+  it("percentage-only behaviour (no listPrice/regionMaxDiscountPct given) is unchanged to the cent", () => {
+    // Same fixture as the "combines an item discount and a document
+    // discount" test above, with no listPrice anywhere — every money total
+    // must match exactly what it was before this feature existed.
+    const result = computeTotals({
+      items: [{ unitPrice: 100, discountMode: "PERCENT", discountValue: "10", lines: [] }],
+      extraLines: [],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "10",
+      taxRate: 0,
+    });
+    expect(result.itemTotals).toEqual([90]);
+    expect(result.grossSubtotal).toBe(100);
+    expect(result.subtotal).toBe(90);
+    expect(result.discountAmount).toBe(9);
+    expect(result.totalDiscountAmount).toBe(19);
+    expect(result.taxableBase).toBe(81);
+    expect(result.total).toBe(81);
+    // With no listPrice anywhere, listPrice defaults to unitPrice for both
+    // the item discount's base and the document discount's base, so the
+    // concession is exactly the item discount (10) plus the document
+    // discount (9) — no price-cut component.
+    expect(result.documentConcession.concession).toBe("19.00");
+    expect(result.documentConcession.listValue).toBe("100.00");
+  });
+});
+
+describe("concessionCapMessage", () => {
+  it("names the concession amount, its percentage, the cap, and the region", () => {
+    // A non-whole-dollar concession so formatMoney's own "whole amounts
+    // render without decimals" rule (see src/lib/format.ts) doesn't make
+    // this assertion depend on that unrelated formatting choice.
+    const message = concessionCapMessage(
+      { concession: "34000.55", listValue: "195402.30", effectivePct: 17.402982, allowedPct: 10, exceedsCap: true },
+      "Australia",
+      "AUD"
+    );
+    expect(message).toBe(
+      "Total concessions of $34,000.55 are 17.4% of list price — above the 10% limit for Australia."
+    );
   });
 });
 

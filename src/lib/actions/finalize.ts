@@ -61,12 +61,15 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
   // would produce one (see NegativeSubtotalError there), so a DRAFT reaching
   // this point should never carry one; rejecting finalize on it is a later
   // task's concern (see the P0 plan's validity-fields task), not this one's.
-  const { violations } = await recalcDocument(document.id);
+  const { violations, documentConcession } = await recalcDocument(document.id);
 
   const validationError = validateFinalizable(
     { companyId: document.companyId, items: document.items, lines: document.lines },
     violations,
-    session.user.role
+    documentConcession,
+    session.user.role,
+    document.region.name,
+    document.currency
   );
   if (validationError) return { error: validationError };
 
@@ -86,6 +89,16 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
       documentId: document.id,
       adminUserId: session.user.id,
       violations,
+    });
+  }
+
+  // Same override-logging as above, for the whole-document concession cap
+  // (see `validateFinalizable`'s point 4).
+  if (documentConcession.exceedsCap && session.user.role === "ADMIN") {
+    console.warn("[finalize] admin override: document concession cap exceeded, finalized anyway", {
+      documentId: document.id,
+      adminUserId: session.user.id,
+      documentConcession,
     });
   }
 

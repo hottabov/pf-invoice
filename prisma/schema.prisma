@@ -303,7 +303,16 @@ model DocumentItem {
   code           String // snapshot
   name           String // snapshot
   description    String? // snapshot
-  unitPrice      Decimal        @db.Decimal(12, 2) // snapshot
+  unitPrice      Decimal        @db.Decimal(12, 2) // snapshot -- what the customer is actually charged; a salesperson can hand-edit this (see setItemUnitPrice, src/lib/actions/documents.ts), including down to 0.
+  // The catalogue price at the moment this row was added -- never shown to
+  // the customer, only used (alongside unitPrice above) to compute the
+  // region discount-cap "concession" a manual price represents (see the
+  // documentConcession comment on PricingTotals in src/lib/pricing.ts).
+  // Null for a row added before this column existed; migration
+  // 13_line_list_price backfills those to unitPrice so they read as "no
+  // concession". Nullable rather than defaulted to unitPrice at the type
+  // level so "never priced by hand" stays distinguishable in the data.
+  listPrice      Decimal?       @db.Decimal(12, 2)
   // Same mode + value shape as Document.discountMode/discountValue above —
   // see the DiscountMode enum comment.
   discountMode   DiscountMode   @default(PERCENT)
@@ -341,7 +350,11 @@ model DocumentLine {
   name        String
   description String?
   qty         Int           @default(1)
-  unitPrice   Decimal       @db.Decimal(12, 2)
+  unitPrice   Decimal       @db.Decimal(12, 2) // what the customer is actually charged -- see DocumentItem.unitPrice's comment; hand-editable for an OPTION line via setLineUnitPrice, not offered for a CUSTOM (extra) line, which has no catalogue price to concede against.
+  // Catalogue price snapshot -- see DocumentItem.listPrice's comment. Only
+  // ever populated for an OPTION line (the option's price at selection
+  // time); a CUSTOM line has no catalogue entry to snapshot and stays null.
+  listPrice   Decimal?      @db.Decimal(12, 2)
   attributes  Json? // { metres: 4, tables: 2 }
   showImage   Boolean       @default(false)
   // A custom extra line has no catalogue entry to inherit an image from, so

@@ -17,20 +17,28 @@
 // ES2020+; this project targets ES2017, so plain `BigInt(100)` calls are
 // used throughout instead — functionally identical, just without the
 // literal syntax that trips TS2737.
+import { formatMoney } from "./format";
 
-/** A single option/component line attached to an item (qty * unitPrice). */
+/** A single option/component line attached to an item (qty * unitPrice).
+ * `listPrice` is the catalogue price at the moment the line was added —
+ * `null` (a custom/legacy line with no catalogue price) is treated as equal
+ * to `unitPrice`, i.e. no concession — see `effectiveListPriceCents` below. */
 export type EngineItemLine = {
   qty: number;
   unitPrice: number;
+  listPrice?: number | null;
 };
 
 /** A discount is either a percentage of its base or a fixed cash amount —
  * see `discountCents` below. */
 export type DiscountMode = "PERCENT" | "AMOUNT";
 
-/** One priced line item on the document (e.g. a machine + its options). */
+/** One priced line item on the document (e.g. a machine + its options).
+ * `listPrice` is the catalogue price at the moment the item was added — see
+ * `EngineItemLine.listPrice`'s doc comment for the same null-handling rule. */
 export type EngineItem = {
   unitPrice: number;
+  listPrice?: number | null;
   /** Defaults to `"PERCENT"` when omitted — matters only when
    * `discountValue` is non-null (a null value is 0 discount regardless of
    * mode). */
@@ -40,7 +48,10 @@ export type EngineItem = {
   lines: EngineItemLine[];
 };
 
-/** A freeform document-level line (e.g. delivery, install). */
+/** A freeform document-level line (e.g. delivery, install). No `listPrice`:
+ * a custom line has no catalogue entry to concede against — see
+ * `documentConcession`'s doc comment on `PricingTotals` for how a negative
+ * one still counts. */
 export type EngineExtraLine = {
   qty: number;
   unitPrice: number;
@@ -51,6 +62,15 @@ export type EngineInput = {
   extraLines: EngineExtraLine[];
   documentDiscountMode?: DiscountMode | null;
   documentDiscountValue?: string | null;
+  /** The document's region discount cap (`Region.maxDiscountPct`) — used
+   * only for `documentConcession.exceedsCap` below. Distinct from
+   * `EngineItem.maxDiscountPct` (compared per-item against the engine's own
+   * per-item `violations`); in practice both are fed the same region value
+   * by `recalcDocument`/`getDocumentForBuilder`, but they answer different
+   * questions — one item's discount vs. the whole document's concession —
+   * so they stay two separate inputs rather than one shared field. `null`/
+   * omitted means "no cap" (matches `EngineItem.maxDiscountPct`'s default). */
+  regionMaxDiscountPct?: number | null;
   taxRate: number;
 };
 
@@ -60,6 +80,52 @@ export type EngineInput = {
 export type EngineViolation = {
   itemIndex: number;
   allowedPct: number;
+};
+
+/**
+ * The whole-document version of a discount-cap check — distinct from
+ * `EngineViolation` (which is per item, indexed, and formatted by
+ * `src/lib/validation/finalize.ts` as "item N"; a document-level entry must
+ * never be pushed into that array, or it would corrupt those messages with
+ * a fake index).
+ *
+ * Exists because a manual unit price (see `EngineItem.unitPrice`/
+ * `EngineItemLine.unitPrice`) bypasses the per-item `%`/`AMOUNT` discount
+ * entirely — a salesperson can sell at any price with no `discountValue` set
+ * at all, so `violations` above would simply never fire no matter how far
+ * below list the price was cut. `documentConcession` is what actually closes
+ * that hole: it aggregates every source of "money given away" across the
+ * whole document (see `concession`'s doc comment below) and compares it, as
+ * one percentage, against the region's cap — the same check Ross described:
+ * "if the price they're selling for is less than the maximum discount
+ * that's allowed... it shouldn't allow them to save the quote."
+ *
+ * Always present on `PricingTotals` (never omitted the way `violations` can
+ * be empty-but-present) so a caller can both enforce `exceedsCap` and
+ * display the figures without a second computation.
+ */
+export type DocumentConcession = {
+  /** Total money given away across the document, as a plain decimal string
+   * (2dp) ready for `formatMoney` — see `concessionCapMessage`. Can be
+   * negative (net price *increases* outweigh every discount/give-away) or
+   * exceed `listValue` (e.g. a large trade-in) — never clamped. */
+  concession: string;
+  /** The document's full catalogue-price value (see `concession`'s doc
+   * comment for what feeds it) — the denominator `effectivePct` is measured
+   * against. Never negative. */
+  listValue: string;
+  /** `concession / listValue * 100` (0 when `listValue` is 0) — a float,
+   * like `effectivePct` above; only ever compared against `allowedPct`, never
+   * fed back into money math. */
+  effectivePct: number;
+  /** The region's discount cap (`EngineInput.regionMaxDiscountPct`), or 100
+   * (no cap) when that input is null/omitted — same default as
+   * `EngineItem.maxDiscountPct`. */
+  allowedPct: number;
+  /** `effectivePct > allowedPct`. The caller (`recalcDocument` in
+   * src/lib/actions/documents.ts) decides what to do about it — same
+   * division of responsibility as `violations`/`negativeSubtotal` above. */
+  exceedsCap: boolean;
 };
 
 export type PricingTotals = {
@@ -88,6 +154,8 @@ export type PricingTotals = {
    * caller (see `recalcDocument` in src/lib/actions/documents.ts) decides
    * whether to reject the save. */
   negativeSubtotal: boolean;
+  /** See `DocumentConcession`'s doc comment — always present. */
+  documentConcession: DocumentConcession;
 };
 
 // ---------------------------------------------------------------------------
@@ -290,14 +358,64 @@ export function capPct(mode: DiscountMode, value: string | null, baseCents: numb
  * All arithmetic happens in integer cents internally (see toCents/fromCents
  * and the fraction helpers above); the returned totals are back in currency
  * units.
+ *
+ * Alongside all of that, `documentConcession` (see its own doc comment on
+ * `DocumentConcession`) is accumulated in the same pass:
+ *
+ *   concession = Σ over items and option lines of (listPrice − unitPrice) × qty   // signed, see below
+ *              + Σ item discount amounts
+ *              + Σ |negative extra lines|
+ *              + document discount amount
+ *
+ *   listValue  = Σ over items and option lines of listPrice × qty
+ *              + Σ positive extra lines
+ *
+ * The `(listPrice − unitPrice)` term is signed ON PURPOSE — do not "simplify"
+ * it to `Math.max(0, listPrice - unitPrice)`. A price *raised* above list
+ * (John: "you can increase the price of the machine by $10,000 and then give
+ * away $10,000 worth of options — we do that all the time") must contribute a
+ * *negative* concession, so that maneuver nets to zero instead of being
+ * counted as a $10,000 discount on top of the $10,000 given away in options.
+ * Clamping to zero would silently double the apparent concession every time
+ * a salesperson uses exactly the workflow this feature exists to support.
+ *
+ * A negative extra line is today's mechanism for entering a trade-in (see
+ * `customLineSchema`), and a trade-in allowance is money given away just
+ * like a discount — so its absolute value counts toward `concession` too,
+ * added on top of (not instead of) the listPrice/unitPrice term above, which
+ * never runs over extra lines at all (`EngineExtraLine` has no `listPrice` —
+ * a custom line has no catalogue price to concede against). This will want
+ * revisiting once a trade-in becomes its own catalogue product with a real
+ * list price, at which point it should probably move into the first term
+ * instead of being a special case here.
+ *
+ * `listPrice: null` (a custom/legacy line with no catalogue price recorded)
+ * is treated as equal to `unitPrice` — zero concession, and its value still
+ * counts toward `listValue` at whatever `unitPrice` actually is.
  */
 export function computeTotals(input: EngineInput): PricingTotals {
   const violations: EngineViolation[] = [];
 
+  // Accumulated across the items/lines loop below alongside the existing
+  // per-item math — see the doc comment above for the formula.
+  let concessionCents = 0;
+  let listValueCents = 0;
+
   const itemDiscountsCents: number[] = [];
   const itemTotalsCents = input.items.map((item, itemIndex) => {
-    const linesCents = item.lines.reduce((sum, line) => sum + line.qty * toCents(line.unitPrice), 0);
-    const baseCents = toCents(item.unitPrice) + linesCents;
+    const itemUnitPriceCents = toCents(item.unitPrice);
+    const itemListPriceCents = item.listPrice != null ? toCents(item.listPrice) : itemUnitPriceCents;
+    concessionCents += itemListPriceCents - itemUnitPriceCents;
+    listValueCents += itemListPriceCents;
+
+    const linesCents = item.lines.reduce((sum, line) => {
+      const lineUnitPriceCents = toCents(line.unitPrice);
+      const lineListPriceCents = line.listPrice != null ? toCents(line.listPrice) : lineUnitPriceCents;
+      concessionCents += (lineListPriceCents - lineUnitPriceCents) * line.qty;
+      listValueCents += lineListPriceCents * line.qty;
+      return sum + line.qty * lineUnitPriceCents;
+    }, 0);
+    const baseCents = itemUnitPriceCents + linesCents;
 
     const mode = item.discountMode ?? "PERCENT";
     const value = item.discountValue ?? null;
@@ -311,7 +429,16 @@ export function computeTotals(input: EngineInput): PricingTotals {
     return baseCents - discount;
   });
 
-  const extraLinesCents = input.extraLines.reduce((sum, line) => sum + line.qty * toCents(line.unitPrice), 0);
+  let extraLinesCents = 0;
+  let negativeExtraLinesAbsCents = 0;
+  let positiveExtraLinesCents = 0;
+  for (const line of input.extraLines) {
+    const lineCents = line.qty * toCents(line.unitPrice);
+    extraLinesCents += lineCents;
+    if (lineCents < 0) negativeExtraLinesAbsCents += -lineCents;
+    else positiveExtraLinesCents += lineCents;
+  }
+  listValueCents += positiveExtraLinesCents;
 
   const subtotalCents = itemTotalsCents.reduce((sum, cents) => sum + cents, 0) + extraLinesCents;
   const itemDiscountTotalCents = itemDiscountsCents.reduce((sum, cents) => sum + cents, 0);
@@ -326,6 +453,20 @@ export function computeTotals(input: EngineInput): PricingTotals {
   const taxAmountCents = percentOf(taxableBaseCents, input.taxRate);
   const totalCents = taxableBaseCents + taxAmountCents;
 
+  // Item discounts, the negative-extra-line total, and the document
+  // discount all count toward the concession — see the doc comment above.
+  concessionCents += itemDiscountTotalCents + negativeExtraLinesAbsCents + discountAmountCents;
+
+  const documentAllowedPct = input.regionMaxDiscountPct ?? 100;
+  const documentEffectivePct = effectivePct(listValueCents, concessionCents);
+  const documentConcession: DocumentConcession = {
+    concession: fromCents(concessionCents).toFixed(2),
+    listValue: fromCents(listValueCents).toFixed(2),
+    effectivePct: documentEffectivePct,
+    allowedPct: documentAllowedPct,
+    exceedsCap: documentEffectivePct > documentAllowedPct,
+  };
+
   return {
     itemTotals: itemTotalsCents.map(fromCents),
     itemDiscounts: itemDiscountsCents.map(fromCents),
@@ -338,5 +479,37 @@ export function computeTotals(input: EngineInput): PricingTotals {
     total: fromCents(totalCents),
     violations,
     negativeSubtotal: subtotalCents < 0,
+    documentConcession,
   };
+}
+
+/** Trims a percentage to a display-friendly string (2dp, no trailing zeros)
+ * — `effectivePct`/`DocumentConcession.effectivePct` are floats that can
+ * carry rounding noise (e.g. `19.999999999999996`), which would look wrong
+ * printed straight into a user-facing message. Shared by
+ * `concessionCapMessage` below and by `formatEffectivePct` in
+ * src/lib/actions/documents.ts (which predates this export and formats the
+ * unrelated per-item/per-document discount-cap message — not merged with
+ * this one to avoid an unrelated cross-file behavior change). */
+function formatPct(pct: number): string {
+  return (Math.round(pct * 100) / 100).toString();
+}
+
+/**
+ * Builds the region-cap-exceeded message for `documentConcession` — shared
+ * by every mutating action in src/lib/actions/documents.ts (via
+ * `recalcDocument`) and by `finalizeDocument` (via `validateFinalizable` in
+ * src/lib/validation/finalize.ts), so it lives here rather than in either of
+ * those (neither imports the other, and this module is the one thing both
+ * already depend on). Pulls in `formatMoney` from src/lib/format.ts — a
+ * plain, dependency-free formatter, so this stays safe to import from a
+ * `@/lib/db`-free unit test the same as the rest of this module — purely for
+ * that reason, despite this file's usual "no formatting concerns" framing.
+ *
+ * Names both figures the owner asked for, e.g. "Total concessions of
+ * $34,000.00 are 17.4% of list price — above the 10% limit for Australia." —
+ * mirrors `discountCapMessage`'s shape in actions/documents.ts.
+ */
+export function concessionCapMessage(dc: DocumentConcession, regionName: string, currency: string): string {
+  return `Total concessions of ${formatMoney(dc.concession, currency)} are ${formatPct(dc.effectivePct)}% of list price — above the ${dc.allowedPct}% limit for ${regionName}.`;
 }

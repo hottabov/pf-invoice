@@ -6,11 +6,29 @@ import {
   type FinalizableItem,
   type FinalizerRole,
 } from "../src/lib/validation/finalize";
-import type { EngineViolation } from "../src/lib/pricing";
+import type { DocumentConcession, EngineViolation } from "../src/lib/pricing";
 
 const noViolations: EngineViolation[] = [];
 const MANAGER: FinalizerRole = "MANAGER";
 const ADMIN: FinalizerRole = "ADMIN";
+const REGION_NAME = "Australia";
+const CURRENCY = "AUD";
+
+const noConcession: DocumentConcession = {
+  concession: "0.00",
+  listValue: "10000.00",
+  effectivePct: 0,
+  allowedPct: 10,
+  exceedsCap: false,
+};
+
+const overCapConcession: DocumentConcession = {
+  concession: "3400.00",
+  listValue: "10000.00",
+  effectivePct: 34,
+  allowedPct: 10,
+  exceedsCap: true,
+};
 
 function baseDoc(overrides: Partial<FinalizableDocument> = {}): FinalizableDocument {
   return {
@@ -24,19 +42,21 @@ function baseDoc(overrides: Partial<FinalizableDocument> = {}): FinalizableDocum
 describe("validateFinalizable", () => {
   it("rejects a document with no client selected", () => {
     const doc = baseDoc({ companyId: null });
-    expect(validateFinalizable(doc, noViolations, MANAGER)).toBe("Select a client before finalizing");
+    expect(validateFinalizable(doc, noViolations, noConcession, MANAGER, REGION_NAME, CURRENCY)).toBe(
+      "Select a client before finalizing"
+    );
   });
 
   it("rejects a document with zero items and zero document-level lines", () => {
     const doc = baseDoc({ items: [], lines: [] });
-    expect(validateFinalizable(doc, noViolations, MANAGER)).toBe(
+    expect(validateFinalizable(doc, noViolations, noConcession, MANAGER, REGION_NAME, CURRENCY)).toBe(
       "Add at least one item or line before finalizing"
     );
   });
 
   it("accepts a document with zero items but at least one document-level line", () => {
     const doc = baseDoc({ items: [], lines: [{ itemId: null }] });
-    expect(validateFinalizable(doc, noViolations, MANAGER)).toBeNull();
+    expect(validateFinalizable(doc, noViolations, noConcession, MANAGER, REGION_NAME, CURRENCY)).toBeNull();
   });
 
   it("ignores lines attached to an item when checking for document-level lines", () => {
@@ -44,7 +64,7 @@ describe("validateFinalizable", () => {
     // not a document-level "extra line" — it must not count toward the
     // "at least one line" fallback when there are zero items.
     const doc = baseDoc({ items: [], lines: [{ itemId: "item-1" }] });
-    expect(validateFinalizable(doc, noViolations, MANAGER)).toBe(
+    expect(validateFinalizable(doc, noViolations, noConcession, MANAGER, REGION_NAME, CURRENCY)).toBe(
       "Add at least one item or line before finalizing"
     );
   });
@@ -52,7 +72,7 @@ describe("validateFinalizable", () => {
   it("rejects a MANAGER finalizing a document with discount-cap violations, naming item indexes and allowed pcts", () => {
     const doc = baseDoc();
     const violations: EngineViolation[] = [{ itemIndex: 0, allowedPct: 10 }];
-    const result = validateFinalizable(doc, violations, MANAGER);
+    const result = validateFinalizable(doc, violations, noConcession, MANAGER, REGION_NAME, CURRENCY);
     expect(result).toContain("item 1");
     expect(result).toContain("10%");
   });
@@ -63,7 +83,7 @@ describe("validateFinalizable", () => {
       { itemIndex: 0, allowedPct: 10 },
       { itemIndex: 2, allowedPct: 5 },
     ];
-    const result = validateFinalizable(doc, violations, MANAGER);
+    const result = validateFinalizable(doc, violations, noConcession, MANAGER, REGION_NAME, CURRENCY);
     expect(result).toContain("item 1");
     expect(result).toContain("10%");
     expect(result).toContain("item 3");
@@ -73,13 +93,13 @@ describe("validateFinalizable", () => {
   it("allows an ADMIN to finalize a document with discount-cap violations", () => {
     const doc = baseDoc();
     const violations: EngineViolation[] = [{ itemIndex: 0, allowedPct: 10 }];
-    expect(validateFinalizable(doc, violations, ADMIN)).toBeNull();
+    expect(validateFinalizable(doc, violations, noConcession, ADMIN, REGION_NAME, CURRENCY)).toBeNull();
   });
 
   it("returns null for a valid, finalizable document regardless of role", () => {
     const doc = baseDoc();
-    expect(validateFinalizable(doc, noViolations, MANAGER)).toBeNull();
-    expect(validateFinalizable(doc, noViolations, ADMIN)).toBeNull();
+    expect(validateFinalizable(doc, noViolations, noConcession, MANAGER, REGION_NAME, CURRENCY)).toBeNull();
+    expect(validateFinalizable(doc, noViolations, noConcession, ADMIN, REGION_NAME, CURRENCY)).toBeNull();
   });
 
   it("checks client and emptiness before violations, for both roles", () => {
@@ -89,8 +109,42 @@ describe("validateFinalizable", () => {
     // otherwise sail past the violation check.
     const doc = baseDoc({ companyId: null });
     const violations: EngineViolation[] = [{ itemIndex: 0, allowedPct: 10 }];
-    expect(validateFinalizable(doc, violations, MANAGER)).toBe("Select a client before finalizing");
-    expect(validateFinalizable(doc, violations, ADMIN)).toBe("Select a client before finalizing");
+    expect(validateFinalizable(doc, violations, noConcession, MANAGER, REGION_NAME, CURRENCY)).toBe(
+      "Select a client before finalizing"
+    );
+    expect(validateFinalizable(doc, violations, noConcession, ADMIN, REGION_NAME, CURRENCY)).toBe(
+      "Select a client before finalizing"
+    );
+  });
+
+  it("rejects a MANAGER finalizing a document whose whole-document concession exceeds the region cap", () => {
+    // A manual price cut has no discountValue of its own, so `violations`
+    // stays empty here — this is the case `documentConcession` alone must
+    // catch (see the P0 spec: "if the price they're selling for is less
+    // than the maximum discount that's allowed... it shouldn't allow them
+    // to save the quote").
+    const doc = baseDoc();
+    const result = validateFinalizable(doc, noViolations, overCapConcession, MANAGER, REGION_NAME, CURRENCY);
+    expect(result).toContain("34%");
+    expect(result).toContain("10%");
+    expect(result).toContain(REGION_NAME);
+  });
+
+  it("allows an ADMIN to finalize a document whose whole-document concession exceeds the region cap", () => {
+    const doc = baseDoc();
+    expect(
+      validateFinalizable(doc, noViolations, overCapConcession, ADMIN, REGION_NAME, CURRENCY)
+    ).toBeNull();
+  });
+
+  it("checks client and emptiness before the concession cap, for both roles", () => {
+    const doc = baseDoc({ companyId: null });
+    expect(validateFinalizable(doc, noViolations, overCapConcession, MANAGER, REGION_NAME, CURRENCY)).toBe(
+      "Select a client before finalizing"
+    );
+    expect(validateFinalizable(doc, noViolations, overCapConcession, ADMIN, REGION_NAME, CURRENCY)).toBe(
+      "Select a client before finalizing"
+    );
   });
 });
 

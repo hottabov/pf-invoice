@@ -149,6 +149,24 @@ export function exceedsPercentCeiling(mode: DiscountModeInput, value: DiscountVa
   return mode === "PERCENT" && value !== null && Number(value) > 100;
 }
 
+/** A non-negative decimal with at most 2 decimal places, up to 9 digits
+ * before the point (same bound as `DISCOUNT_VALUE_REGEX`) — a hand-typed
+ * unit price (`setItemUnitPrice`/`setLineUnitPrice` in
+ * src/lib/actions/documents.ts). Kept as a validated string, not
+ * `Number`-coerced, so it goes straight to `new Prisma.Decimal(...)` without
+ * a float round-trip — same pattern as `customLineSchema.unitPrice` and
+ * `discountValueSchema`. Deliberately allows `0` (John: "if I give it away
+ * for zero dollars... I give them back zero dollars") but not a negative
+ * value — unlike a custom extra line (which enters a trade-in as a negative
+ * unitPrice, see `SIGNED_AMOUNT_REGEX`), a catalogue item/option's price
+ * being hand-set is a discount at most, never a rebate. */
+const UNIT_PRICE_REGEX = /^\d{1,9}(\.\d{1,2})?$/;
+export const unitPriceSchema = z
+  .string()
+  .trim()
+  .regex(UNIT_PRICE_REGEX, "Enter a non-negative number with at most 2 decimal places");
+export type UnitPriceInput = z.infer<typeof unitPriceSchema>;
+
 /** One option selection from the item options editor: the option's code,
  * the quantity of it on the item, and (when the option carries an
  * `attributeSchema`) the freeform attribute values keyed by attribute

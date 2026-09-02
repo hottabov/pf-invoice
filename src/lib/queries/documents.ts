@@ -2,7 +2,7 @@ import type { DocumentStatus, LineKind, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { companyWhereForUser, documentWhereForUser, type ScopeUser } from "@/lib/scope";
 import { listProductsBySeries, listSeriesWithCounts } from "@/lib/queries/catalog";
-import { computeTotals, type EngineInput } from "@/lib/pricing";
+import { computeTotals, type DocumentConcession, type EngineInput } from "@/lib/pricing";
 import { compatibilityOrFilter } from "@/lib/catalog-compat";
 import { getQuoteValidityDays } from "@/lib/queries/settings";
 
@@ -111,6 +111,14 @@ export type BuilderLine = {
   description: string | null;
   qty: number;
   unitPrice: string;
+  /** `DocumentLine.listPrice` — the catalogue price at the moment this line
+   * was added, or `null` for a CUSTOM line (no catalogue entry to snapshot
+   * one from) or a pre-migration OPTION row that predates this column. Feeds
+   * the builder's "list price struck through" hint next to a hand-edited
+   * OPTION line's price (see `LineUnitPriceField`) — never rendered on a
+   * customer-facing sheet (see src/lib/sheet-data.ts, which never reads this
+   * field at all). */
+  listPrice: string | null;
   /** `DocumentLine.attributes` (e.g. `{ metres: 4 }`) as stored — only
    * meaningful on OPTION lines whose option has an `attributeSchema`; loosely
    * typed since it's opaque JSON round-tripped straight from the option
@@ -147,6 +155,10 @@ export type BuilderItem = {
   name: string;
   description: string | null;
   unitPrice: string;
+  /** `DocumentItem.listPrice` — see `BuilderLine.listPrice`'s doc comment,
+   * same rule one level up. `null` only for a pre-migration row; every item
+   * `addItem` creates going forward gets one. */
+  listPrice: string | null;
   discountMode: "PERCENT" | "AMOUNT";
   discountValue: string | null;
   /** The document's region's discount cap (`Region.maxDiscountPct`) — the
@@ -257,6 +269,13 @@ export type DocumentForBuilder = {
   summarySubtotal: string;
   /** Combined item-level and document-level discount, for Summary. */
   summaryDiscountAmount: string;
+  /** The whole-document region-discount-cap check (see `DocumentConcession`
+   * in src/lib/pricing.ts) — same figure `recalcDocument`/`recalcAndEnforce`
+   * (src/lib/actions/documents.ts) enforce on every save and
+   * `finalizeDocument` re-checks. Surfaced here so the builder can display
+   * it (e.g. an "exceeds cap" banner) without a second `computeTotals` run;
+   * always present, `exceedsCap` is what a caller actually branches on. */
+  documentConcession: DocumentConcession;
   taxAmount: string;
   total: string;
   regionId: string;
@@ -327,6 +346,7 @@ function toBuilderLine(
     description: string | null;
     qty: number;
     unitPrice: { toString(): string };
+    listPrice: { toString(): string } | null;
     attributes: unknown;
     sortOrder: number;
     refId: string | null;
@@ -343,6 +363,7 @@ function toBuilderLine(
     description: line.description,
     qty: line.qty,
     unitPrice: line.unitPrice.toString(),
+    listPrice: line.listPrice !== null ? line.listPrice.toString() : null,
     attributes:
       line.attributes && typeof line.attributes === "object" && !Array.isArray(line.attributes)
         ? (line.attributes as Record<string, string | number>)
@@ -459,14 +480,20 @@ export async function getDocumentForBuilder(
   const engineInput: EngineInput = {
     items: document.items.map((item) => ({
       unitPrice: Number(item.unitPrice),
+      listPrice: item.listPrice !== null ? Number(item.listPrice) : null,
       discountMode: item.discountMode,
       discountValue: item.discountValue !== null ? item.discountValue.toString() : null,
       maxDiscountPct: regionMaxDiscountPct,
-      lines: item.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
+      lines: item.lines.map((line) => ({
+        qty: line.qty,
+        unitPrice: Number(line.unitPrice),
+        listPrice: line.listPrice !== null ? Number(line.listPrice) : null,
+      })),
     })),
     extraLines: document.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
     documentDiscountMode: document.discountMode,
     documentDiscountValue: document.discountValue !== null ? document.discountValue.toString() : null,
+    regionMaxDiscountPct,
     taxRate: Number(document.taxRate),
   };
   const totals = computeTotals(engineInput);
@@ -487,6 +514,7 @@ export async function getDocumentForBuilder(
     discountAmount: totals.discountAmount.toString(),
     summarySubtotal: totals.grossSubtotal.toString(),
     summaryDiscountAmount: totals.totalDiscountAmount.toString(),
+    documentConcession: totals.documentConcession,
     taxAmount: document.taxAmount.toString(),
     total: document.total.toString(),
     regionId: document.regionId,
@@ -538,6 +566,7 @@ export async function getDocumentForBuilder(
       name: item.name,
       description: item.description,
       unitPrice: item.unitPrice.toString(),
+      listPrice: item.listPrice !== null ? item.listPrice.toString() : null,
       discountMode: item.discountMode,
       discountValue: item.discountValue?.toString() ?? null,
       maxDiscountPct: document.region.maxDiscountPct?.toString() ?? null,

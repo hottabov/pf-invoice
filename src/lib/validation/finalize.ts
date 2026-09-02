@@ -8,7 +8,7 @@
 // (src/lib/pricing.ts); `reconcileEasyLoaderSections` walks the same
 // db-free chain (resolve.ts -> specs/* -> validation/production-spec.ts),
 // so pulling it in here doesn't compromise that either.
-import type { EngineViolation } from "../pricing";
+import { concessionCapMessage, type DocumentConcession, type EngineViolation } from "../pricing";
 import { reconcileEasyLoaderSections } from "../production-forms/resolve";
 
 /** The minimal shape `validateFinalizable` needs — deliberately not typed
@@ -47,11 +47,25 @@ export type FinalizerRole = "ADMIN" | "MANAGER";
  *      just be a second copy of a rule that's already role-gated upstream);
  *      the caller (`finalizeDocument`) is responsible for logging that an
  *      admin overrode a violation.
+ *   4. the whole-document `documentConcession` (see its own doc comment on
+ *      `PricingTotals` in src/lib/pricing.ts) exceeds the region cap — same
+ *      re-check-at-finalize-time reasoning as #3 (a cap can be lowered after
+ *      a manual price was saved), and same MANAGER-blocked/ADMIN-allowed
+ *      split. This is the finalize-time half of closing Ross's hole: without
+ *      it, a MANAGER could still get an over-cap manually-priced document
+ *      *saved* as a draft (blocked at every mutating action — see
+ *      `recalcAndEnforce`, src/lib/actions/documents.ts) but never actually
+ *      finalized only by luck of ordering; checking it here too means
+ *      finalize refuses on its own even if some future save path ever
+ *      forgets to.
  */
 export function validateFinalizable(
   doc: FinalizableDocument,
   violations: EngineViolation[],
-  role: FinalizerRole
+  documentConcession: DocumentConcession,
+  role: FinalizerRole,
+  regionName: string,
+  currency: string
 ): string | null {
   if (!doc.companyId) {
     return "Select a client before finalizing";
@@ -67,6 +81,10 @@ export function validateFinalizable(
       .map((v) => `item ${v.itemIndex + 1} (max ${v.allowedPct}%)`)
       .join(", ");
     return `Reduce the discount before finalizing: ${detail}`;
+  }
+
+  if (documentConcession.exceedsCap && role !== "ADMIN") {
+    return concessionCapMessage(documentConcession, regionName, currency);
   }
 
   return null;

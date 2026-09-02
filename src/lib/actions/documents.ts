@@ -8,7 +8,16 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
 import { companyWhereForUser, documentWhereForUser } from "@/lib/scope";
 import { compatibilityOrFilter } from "@/lib/catalog-compat";
-import { capPct, computeTotals, discountCents, toCents, type EngineInput, type EngineViolation } from "@/lib/pricing";
+import {
+  capPct,
+  computeTotals,
+  concessionCapMessage,
+  discountCents,
+  toCents,
+  type DocumentConcession,
+  type EngineInput,
+  type EngineViolation,
+} from "@/lib/pricing";
 import { isHtmlContent, sanitizeRichText } from "@/lib/rich-text";
 import { formatMoney } from "@/lib/format";
 import {
@@ -23,6 +32,7 @@ import {
   optionalIdSchema,
   priceDisplaySchema,
   reorderSchema,
+  unitPriceSchema,
   validityDaysSchema,
   type DiscountModeInput,
   type OptionSelectionInput,
@@ -50,6 +60,15 @@ const NEGATIVE_SUBTOTAL_ERROR = "Discounts and trade-ins cannot exceed the value
  * maps it to `{ error: NEGATIVE_SUBTOTAL_ERROR }`. */
 class NegativeSubtotalError extends Error {}
 
+/** Thrown the same way as `NegativeSubtotalError` — to abort and roll back
+ * a `db.$transaction` — when `recalcDocument` reports
+ * `documentConcession.exceedsCap` for a MANAGER (an ADMIN is instead let
+ * through with a `warning`, same role split `setItemDiscount` already gives
+ * a per-item cap breach). Carries the ready-made message (see
+ * `concessionCapMessage`) so the catch site at every call can surface it
+ * directly, the same way every other error path here does. */
+class ConcessionCapError extends Error {}
+
 /** Join every zod issue message (form-level + field-level) into one string
  * for a plain `{ error }` result — same helper as actions/catalog.ts, kept
  * local here to avoid a cross-file dependency between the two action
@@ -73,7 +92,31 @@ function flattenZodError(error: z.ZodError): string {
  * and get the default `db`. */
 type RecalcClient = { document: Prisma.TransactionClient["document"] };
 
-export type RecalcResult = { violations: EngineViolation[]; negativeSubtotal: boolean };
+/** A concession-free, uncapped placeholder for the (never actually
+ * reachable in practice) "document not found" branch of `recalcDocument`
+ * below — every real caller has already scope-checked the document exists
+ * before calling this, so this value is never inspected for `exceedsCap`,
+ * but `documentConcession` is typed as always-present on `RecalcResult`
+ * (mirrors `PricingTotals.documentConcession`), so a concrete value is
+ * needed either way. */
+const NO_CONCESSION: DocumentConcession = {
+  concession: "0.00",
+  listValue: "0.00",
+  effectivePct: 0,
+  allowedPct: 100,
+  exceedsCap: false,
+};
+
+export type RecalcResult = {
+  violations: EngineViolation[];
+  negativeSubtotal: boolean;
+  documentConcession: DocumentConcession;
+  /** Pre-formatted "Total concessions of ..." message (see
+   * `concessionCapMessage`), present only when `documentConcession.exceedsCap`
+   * — built here, not by each caller, since this is the one place that
+   * already has the document's region name/currency loaded. */
+  concessionMessage: string | null;
+};
 
 /**
  * Recomputes and persists a document's subtotal/taxAmount/total from its
@@ -85,7 +128,9 @@ export type RecalcResult = { violations: EngineViolation[]; negativeSubtotal: bo
  * every call site below). Returns the engine's discount-cap violations —
  * which `finalizeDocument` re-checks via `validateFinalizable`, since a
  * region's maxDiscountPct can be lowered after a discount was saved —
- * alongside `negativeSubtotal`;
+ * alongside `negativeSubtotal` and `documentConcession` (see
+ * `recalcAndEnforce` below for how the two guardrails are actually
+ * enforced, role-gated, by every mutating action's transaction);
  * this function itself never throws or refuses to persist — it's the
  * caller's job to inspect the result and decide whether to reject the save.
  * A missing document is treated as a no-op — the caller has already
@@ -105,24 +150,36 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
       region: true,
     },
   });
-  if (!document) return { violations: [], negativeSubtotal: false };
+  if (!document) {
+    return { violations: [], negativeSubtotal: false, documentConcession: NO_CONCESSION, concessionMessage: null };
+  }
 
   const regionMaxDiscountPct = document.region.maxDiscountPct ? Number(document.region.maxDiscountPct) : null;
   const engineInput: EngineInput = {
     items: document.items.map((item) => ({
       unitPrice: Number(item.unitPrice),
+      listPrice: item.listPrice !== null ? Number(item.listPrice) : null,
       discountMode: item.discountMode,
       discountValue: item.discountValue !== null ? item.discountValue.toString() : null,
       maxDiscountPct: regionMaxDiscountPct,
-      lines: item.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
+      lines: item.lines.map((line) => ({
+        qty: line.qty,
+        unitPrice: Number(line.unitPrice),
+        listPrice: line.listPrice !== null ? Number(line.listPrice) : null,
+      })),
     })),
     extraLines: document.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
     documentDiscountMode: document.discountMode,
     documentDiscountValue: document.discountValue !== null ? document.discountValue.toString() : null,
+    regionMaxDiscountPct,
     taxRate: Number(document.taxRate),
   };
 
   const totals = computeTotals(engineInput);
+
+  const concessionMessage = totals.documentConcession.exceedsCap
+    ? concessionCapMessage(totals.documentConcession, document.region.name, document.currency)
+    : null;
 
   await client.document.update({
     where: { id: documentId },
@@ -133,7 +190,50 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
     },
   });
 
-  return { violations: totals.violations, negativeSubtotal: totals.negativeSubtotal };
+  return {
+    violations: totals.violations,
+    negativeSubtotal: totals.negativeSubtotal,
+    documentConcession: totals.documentConcession,
+    concessionMessage,
+  };
+}
+
+/**
+ * Runs `recalcDocument` and enforces the two guardrails every mutating
+ * action in this file shares, thrown as sentinel errors so the caller's
+ * `db.$transaction` rolls back (mirrors the existing `NegativeSubtotalError`
+ * pattern, extended here to `ConcessionCapError`):
+ *
+ *  - `negativeSubtotal` — unconditional, same as before this change.
+ *  - `documentConcession.exceedsCap` — a MANAGER's save is rejected and
+ *    rolled back (throws `ConcessionCapError`); an ADMIN's save proceeds,
+ *    and the message comes back as `warning` for the caller to surface as a
+ *    non-blocking toast — the same MANAGER-blocked/ADMIN-warned split
+ *    `setItemDiscount`/`setDocumentDiscount` already give a per-item/
+ *    per-document discount-cap breach (see their own doc comments), now
+ *    applied to the aggregate whole-document figure instead. This is what
+ *    actually closes the hole a manual price opens: `EngineViolation`
+ *    (the per-item `%`/`AMOUNT` discount check) never fires for a price cut
+ *    entered as a straight `unitPrice` edit with no `discountValue` set at
+ *    all, so without this, a MANAGER could sell at any price no matter how
+ *    far below list, cap or no cap.
+ *
+ * Called by every mutating action below inside its own `db.$transaction`,
+ * immediately after (or in place of) its old bare `recalcDocument` +
+ * `negativeSubtotal` check.
+ */
+async function recalcAndEnforce(
+  documentId: string,
+  tx: RecalcClient,
+  role: "ADMIN" | "MANAGER"
+): Promise<{ warning?: string }> {
+  const { negativeSubtotal, documentConcession, concessionMessage } = await recalcDocument(documentId, tx);
+  if (negativeSubtotal) throw new NegativeSubtotalError();
+  if (documentConcession.exceedsCap) {
+    if (role !== "ADMIN") throw new ConcessionCapError(concessionMessage!);
+    return { warning: concessionMessage! };
+  }
+  return {};
 }
 
 // --- draft lifecycle -----------------------------------------------------
@@ -333,6 +433,7 @@ export async function addItem(documentId: string, productCode: string): Promise<
   // than special-casing "safe" ones. Interactive transaction also still
   // ensures the aggregate(max) and create are not interleaved with other
   // writes.
+  let concessionWarning: string | undefined;
   try {
     await db.$transaction(async (tx) => {
       const maxSortOrder = await tx.documentItem.aggregate({
@@ -349,6 +450,10 @@ export async function addItem(documentId: string, productCode: string): Promise<
           name: product.name,
           description: product.description,
           unitPrice: price.amount,
+          // Snapshot the catalogue price alongside unitPrice — a fresh item
+          // starts identical to its list price (no concession) until a
+          // salesperson hand-edits it via `setItemUnitPrice`.
+          listPrice: price.amount,
           imageUrl: product.imageUrl,
           // Quotation-first default (behavior change): a newly added item with a
           // product image starts with its image already switched on for display
@@ -361,16 +466,16 @@ export async function addItem(documentId: string, productCode: string): Promise<
         },
       });
 
-      const { negativeSubtotal } = await recalcDocument(document.id, tx);
-      if (negativeSubtotal) throw new NegativeSubtotalError();
+      concessionWarning = (await recalcAndEnforce(document.id, tx, session.user.role)).warning;
     });
   } catch (error) {
     if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    if (error instanceof ConcessionCapError) return { error: error.message };
     throw error;
   }
 
   revalidatePath(`/documents/${document.id}`);
-  return {};
+  return concessionWarning ? { warning: concessionWarning } : {};
 }
 
 /** Removes an item (and its lines, via cascade) from a draft. Scoped
@@ -393,20 +498,24 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
 
   // Removing an item can reveal a negative subtotal (a trade-in extra line
   // that was previously offset by this item's price) — same guarded
-  // transaction pattern as every other mutation here.
+  // transaction pattern as every other mutation here. Removing an item can
+  // also *raise* the document's concession percentage (it shrinks
+  // `listValue` while any remaining concession stays the same), so the cap
+  // is re-checked here too.
+  let concessionWarning: string | undefined;
   try {
     await db.$transaction(async (tx) => {
       await tx.documentItem.delete({ where: { id: item.id } });
-      const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
-      if (negativeSubtotal) throw new NegativeSubtotalError();
+      concessionWarning = (await recalcAndEnforce(item.documentId, tx, session.user.role)).warning;
     });
   } catch (error) {
     if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    if (error instanceof ConcessionCapError) return { error: error.message };
     throw error;
   }
 
   revalidatePath(`/documents/${item.documentId}`);
-  return {};
+  return concessionWarning ? { warning: concessionWarning } : {};
 }
 
 /**
@@ -505,18 +614,19 @@ export async function setItemOptions(
   if (!item.product) return { error: "This item has no product to attach options to" };
 
   if (codes.length === 0) {
+    let concessionWarning: string | undefined;
     try {
       await db.$transaction(async (tx) => {
         await tx.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } });
-        const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
-        if (negativeSubtotal) throw new NegativeSubtotalError();
+        concessionWarning = (await recalcAndEnforce(item.documentId, tx, session.user.role)).warning;
       });
     } catch (error) {
       if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+      if (error instanceof ConcessionCapError) return { error: error.message };
       throw error;
     }
     revalidatePath(`/documents/${item.documentId}`);
-    return {};
+    return concessionWarning ? { warning: concessionWarning } : {};
   }
 
   // item.product is checked truthy above, so both its id and seriesId
@@ -569,6 +679,7 @@ export async function setItemOptions(
   // roll back the whole thing, never leaving an item with no options where
   // it had some a moment ago, or a set of options committed that the
   // negative-subtotal guard should have rejected).
+  let concessionWarning: string | undefined;
   try {
     await db.$transaction(async (tx) => {
       await tx.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } });
@@ -586,21 +697,27 @@ export async function setItemOptions(
             description: option.shortDescription,
             qty: selection.qty,
             unitPrice: price.amount,
+            // Snapshot the catalogue price too — see setItemUnitPrice's
+            // comment. A freshly (re)selected option always starts equal to
+            // its list price; any prior manual edit to this option line is
+            // gone anyway once selections are resaved (this whole-set
+            // replace deletes and recreates every OPTION line).
+            listPrice: price.amount,
             attributes: selection.attributes as Prisma.InputJsonValue | undefined,
             sortOrder: index,
           },
         });
       }
-      const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
-      if (negativeSubtotal) throw new NegativeSubtotalError();
+      concessionWarning = (await recalcAndEnforce(item.documentId, tx, session.user.role)).warning;
     });
   } catch (error) {
     if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    if (error instanceof ConcessionCapError) return { error: error.message };
     throw error;
   }
 
   revalidatePath(`/documents/${item.documentId}`);
-  return {};
+  return concessionWarning ? { warning: concessionWarning } : {};
 }
 
 // --- extra lines (Task D) ---------------------------------------------------
@@ -636,8 +753,12 @@ export async function addCustomLine(documentId: string, formData: FormData): Pro
   });
 
   // A negative unitPrice (a trade-in — see customLineSchema) can push the
-  // document's subtotal below zero; create + recalc run in one transaction
-  // so a rejected save never leaves the line committed with a stale total.
+  // document's subtotal below zero, and also counts toward the region
+  // concession cap (see the doc comment on `computeTotals`, src/lib/pricing.ts);
+  // create + recalc run in one transaction so a rejected save never leaves
+  // the line committed with a stale total. `listPrice` is left null: a
+  // custom line has no catalogue entry to snapshot one from.
+  let concessionWarning: string | undefined;
   try {
     await db.$transaction(async (tx) => {
       await tx.documentLine.create({
@@ -658,16 +779,16 @@ export async function addCustomLine(documentId: string, formData: FormData): Pro
         },
       });
 
-      const { negativeSubtotal } = await recalcDocument(document.id, tx);
-      if (negativeSubtotal) throw new NegativeSubtotalError();
+      concessionWarning = (await recalcAndEnforce(document.id, tx, session.user.role)).warning;
     });
   } catch (error) {
     if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    if (error instanceof ConcessionCapError) return { error: error.message };
     throw error;
   }
 
   revalidatePath(`/documents/${document.id}`);
-  return {};
+  return concessionWarning ? { warning: concessionWarning } : {};
 }
 
 /**
@@ -696,20 +817,23 @@ export async function removeLine(lineId: string): Promise<ActionResult> {
 
   // Removing a positive extra line can reveal a negative subtotal (e.g. a
   // trade-in line elsewhere that this one was offsetting) — same guarded
-  // transaction pattern as every other mutation here.
+  // transaction pattern as every other mutation here. It can also raise the
+  // document's concession percentage (removing a positive extra line shrinks
+  // `listValue`), so the cap is re-checked too.
+  let concessionWarning: string | undefined;
   try {
     await db.$transaction(async (tx) => {
       await tx.documentLine.delete({ where: { id: line.id } });
-      const { negativeSubtotal } = await recalcDocument(line.documentId, tx);
-      if (negativeSubtotal) throw new NegativeSubtotalError();
+      concessionWarning = (await recalcAndEnforce(line.documentId, tx, session.user.role)).warning;
     });
   } catch (error) {
     if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    if (error instanceof ConcessionCapError) return { error: error.message };
     throw error;
   }
 
   revalidatePath(`/documents/${line.documentId}`);
-  return {};
+  return concessionWarning ? { warning: concessionWarning } : {};
 }
 
 // --- discounts (Task D, extended for mode+value in Task 6) ------------------
@@ -830,7 +954,11 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
 
   // A larger item discount can reveal a negative subtotal (e.g. against a
   // trade-in extra line elsewhere on the document) — same guarded
-  // transaction pattern as every other mutation here.
+  // transaction pattern as every other mutation here. It's also the same
+  // `recalcAndEnforce` guard as every other mutation, checking the
+  // *whole-document* concession — distinct from (and in addition to) the
+  // per-item cap check already done above.
+  let concessionWarning: string | undefined;
   try {
     await db.$transaction(async (tx) => {
       await tx.documentItem.update({
@@ -840,16 +968,208 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
           discountValue: parsedValue.data === null ? null : new Prisma.Decimal(parsedValue.data),
         },
       });
-      const { negativeSubtotal } = await recalcDocument(item.documentId, tx);
-      if (negativeSubtotal) throw new NegativeSubtotalError();
+      concessionWarning = (await recalcAndEnforce(item.documentId, tx, session.user.role)).warning;
     });
   } catch (error) {
     if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    if (error instanceof ConcessionCapError) return { error: error.message };
     throw error;
   }
 
   revalidatePath(`/documents/${item.documentId}`);
-  return warning ? { warning } : {};
+  const combinedWarning = warning ?? concessionWarning;
+  return combinedWarning ? { warning: combinedWarning } : {};
+}
+
+// --- manual unit price ------------------------------------------------------
+//
+// The highest-risk half of this feature (see docs/specs -- the owners'
+// framing: "if I give it away for zero dollars... I give them back zero
+// dollars", "increase the price of the machine by $10,000 and then give
+// away $10,000 worth of options -- we do that all the time"). A salesperson
+// can hand-set the price of an item or an option line to anything from $0
+// up, snapshotting the catalogue price alongside it the first time (see
+// `listPrice` below) so `recalcAndEnforce`'s whole-document concession check
+// can measure the concession afterwards -- that check is what actually
+// closes Ross's hole ("if the price they're selling for is less than the
+// maximum discount that's allowed... it shouldn't allow them to save the
+// quote"): unlike `setItemDiscount`, neither action here does its own
+// pre-check against a per-item cap, because a manual price has no
+// percentage of its own to compare -- the document-level concession check
+// inside `recalcAndEnforce` is the only guard, and it is not optional.
+
+/**
+ * Hand-sets a `DocumentItem`'s price -- the customer-facing "what they're
+ * actually charged" figure, replacing the catalogue snapshot `addItem` wrote
+ * originally. Accepts any non-negative value including `0` (John: "if I give
+ * it away for zero dollars... I give them back zero dollars" -- a demo unit
+ * really can be quoted at $0). The item's `listPrice` is snapshotted from
+ * its *current* `unitPrice` the first time this is ever called on it (a
+ * fresh item's `listPrice` already equals its `unitPrice` from `addItem`, so
+ * this is a no-op then; it only matters for a pre-migration row backfilled
+ * with `listPrice = unitPrice` -- either way, this action never overwrites
+ * an already-recorded `listPrice`, so a second edit measures against the
+ * original catalogue price, not the previous manual one).
+ */
+export async function setItemUnitPrice(itemId: string, formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedItemId = idSchema.safeParse(itemId);
+  if (!parsedItemId.success) return { error: NOT_FOUND_ERROR };
+
+  const parsedValue = unitPriceSchema.safeParse(formData.get("unitPrice"));
+  if (!parsedValue.success) return { error: flattenZodError(parsedValue.error) };
+
+  const item = await db.documentItem.findFirst({
+    where: {
+      id: parsedItemId.data,
+      document: { status: "DRAFT", ...documentWhereForUser(session.user) },
+    },
+    select: { id: true, documentId: true, unitPrice: true, listPrice: true },
+  });
+  if (!item) return { error: NOT_FOUND_ERROR };
+
+  let concessionWarning: string | undefined;
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentItem.update({
+        where: { id: item.id },
+        data: {
+          unitPrice: new Prisma.Decimal(parsedValue.data),
+          listPrice: item.listPrice ?? item.unitPrice,
+        },
+      });
+      concessionWarning = (await recalcAndEnforce(item.documentId, tx, session.user.role)).warning;
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    if (error instanceof ConcessionCapError) return { error: error.message };
+    throw error;
+  }
+
+  revalidatePath(`/documents/${item.documentId}`);
+  return concessionWarning ? { warning: concessionWarning } : {};
+}
+
+/** Resets a `DocumentItem`'s price back to its own recorded `listPrice`
+ * (a no-op, functionally, from the customer's point of view — the item's
+ * concession simply goes back to zero). Exists as its own action, rather
+ * than making the builder re-type the list figure into `setItemUnitPrice`,
+ * because the UI shows the list price struck through specifically so a
+ * single click can restore it. */
+export async function resetItemUnitPrice(itemId: string): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedItemId = idSchema.safeParse(itemId);
+  if (!parsedItemId.success) return { error: NOT_FOUND_ERROR };
+
+  const item = await db.documentItem.findFirst({
+    where: {
+      id: parsedItemId.data,
+      document: { status: "DRAFT", ...documentWhereForUser(session.user) },
+    },
+    select: { id: true, documentId: true, listPrice: true },
+  });
+  if (!item) return { error: NOT_FOUND_ERROR };
+  if (item.listPrice === null) return {};
+
+  let concessionWarning: string | undefined;
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentItem.update({ where: { id: item.id }, data: { unitPrice: item.listPrice! } });
+      concessionWarning = (await recalcAndEnforce(item.documentId, tx, session.user.role)).warning;
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    if (error instanceof ConcessionCapError) return { error: error.message };
+    throw error;
+  }
+
+  revalidatePath(`/documents/${item.documentId}`);
+  return concessionWarning ? { warning: concessionWarning } : {};
+}
+
+/** Hand-sets an OPTION `DocumentLine`'s price — same rules as
+ * `setItemUnitPrice`, one level down. Deliberately matches only `kind:
+ * "OPTION"` (never a CUSTOM/extra line, which already gets an arbitrary
+ * price — including negative, for a trade-in — at creation via
+ * `addCustomLine`, and has no catalogue price to snapshot a concession
+ * against in the first place). */
+export async function setLineUnitPrice(lineId: string, formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedLineId = idSchema.safeParse(lineId);
+  if (!parsedLineId.success) return { error: NOT_FOUND_ERROR };
+
+  const parsedValue = unitPriceSchema.safeParse(formData.get("unitPrice"));
+  if (!parsedValue.success) return { error: flattenZodError(parsedValue.error) };
+
+  const line = await db.documentLine.findFirst({
+    where: {
+      id: parsedLineId.data,
+      kind: "OPTION",
+      document: { status: "DRAFT", ...documentWhereForUser(session.user) },
+    },
+    select: { id: true, documentId: true, unitPrice: true, listPrice: true },
+  });
+  if (!line) return { error: NOT_FOUND_ERROR };
+
+  let concessionWarning: string | undefined;
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentLine.update({
+        where: { id: line.id },
+        data: {
+          unitPrice: new Prisma.Decimal(parsedValue.data),
+          listPrice: line.listPrice ?? line.unitPrice,
+        },
+      });
+      concessionWarning = (await recalcAndEnforce(line.documentId, tx, session.user.role)).warning;
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    if (error instanceof ConcessionCapError) return { error: error.message };
+    throw error;
+  }
+
+  revalidatePath(`/documents/${line.documentId}`);
+  return concessionWarning ? { warning: concessionWarning } : {};
+}
+
+/** Resets an OPTION `DocumentLine`'s price back to its own recorded
+ * `listPrice` — see `resetItemUnitPrice`'s doc comment, same reasoning one
+ * level down. */
+export async function resetLineUnitPrice(lineId: string): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedLineId = idSchema.safeParse(lineId);
+  if (!parsedLineId.success) return { error: NOT_FOUND_ERROR };
+
+  const line = await db.documentLine.findFirst({
+    where: {
+      id: parsedLineId.data,
+      kind: "OPTION",
+      document: { status: "DRAFT", ...documentWhereForUser(session.user) },
+    },
+    select: { id: true, documentId: true, listPrice: true },
+  });
+  if (!line) return { error: NOT_FOUND_ERROR };
+  if (line.listPrice === null) return {};
+
+  let concessionWarning: string | undefined;
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.documentLine.update({ where: { id: line.id }, data: { unitPrice: line.listPrice! } });
+      concessionWarning = (await recalcAndEnforce(line.documentId, tx, session.user.role)).warning;
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    if (error instanceof ConcessionCapError) return { error: error.message };
+    throw error;
+  }
+
+  revalidatePath(`/documents/${line.documentId}`);
+  return concessionWarning ? { warning: concessionWarning } : {};
 }
 
 /**
@@ -948,6 +1268,14 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
   // subtotal), so this can never actually trigger the guard on its own; the
   // same transaction pattern is still used for consistency with every other
   // mutation here, and as a defensive backstop should that ever change.
+  // `recalcAndEnforce`'s concession-cap check, unlike `negativeSubtotal`,
+  // *does* directly cover this discount (it's one of the terms summed into
+  // `concession` — see computeTotals) — a document discount alone can be
+  // enough to push the whole-document figure over the region cap even when
+  // it stays under the per-discount check above (that one compares only this
+  // discount's own percentage; the concession check sums every source at
+  // once).
+  let concessionWarning: string | undefined;
   try {
     await db.$transaction(async (tx) => {
       await tx.document.update({
@@ -957,16 +1285,17 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
           discountValue: parsedValue.data === null ? null : new Prisma.Decimal(parsedValue.data),
         },
       });
-      const { negativeSubtotal } = await recalcDocument(document.id, tx);
-      if (negativeSubtotal) throw new NegativeSubtotalError();
+      concessionWarning = (await recalcAndEnforce(document.id, tx, session.user.role)).warning;
     });
   } catch (error) {
     if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    if (error instanceof ConcessionCapError) return { error: error.message };
     throw error;
   }
 
   revalidatePath(`/documents/${document.id}`);
-  return warning ? { warning } : {};
+  const combinedWarning = warning ?? concessionWarning;
+  return combinedWarning ? { warning: combinedWarning } : {};
 }
 
 // --- price display toggles (quotation-first) --------------------------------
