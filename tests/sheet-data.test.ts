@@ -49,6 +49,7 @@ function baseItem(overrides: Partial<ToSheetItemInput> = {}): ToSheetItemInput {
     imageUrl: null,
     showImage: false,
     lines: [],
+    isCredit: false,
     ...overrides,
   };
 }
@@ -403,6 +404,28 @@ describe("toSheetData — a $0 manual price prints, it is not swallowed as absen
     expect(breakdown.basePrice).not.toBeNull();
     expect(breakdown.options[0].lineTotal).toBe("0.00");
     expect(breakdown.options[0].lineTotal).not.toBeNull();
+  });
+
+  it("buildItemBreakdown negates basePrice (and option lineTotal) for a credit item -- unitPrice is stored/typed positive", () => {
+    const breakdown = buildItemBreakdown(
+      baseItem({
+        unitPrice: "20000.00",
+        total: "-20000.00", // already signed by the pricing engine
+        isCredit: true,
+        lines: [{ id: "line-1", code: null, name: "Extra", description: null, qty: 1, unitPrice: "500.00" }],
+      }),
+      true // showOptionPrices
+    );
+    expect(breakdown.basePrice).toBe("-20000.00");
+    expect(breakdown.options[0].lineTotal).toBe("-500.00");
+    // subtotal is a passthrough of the already-signed engine total, never
+    // recomputed here.
+    expect(breakdown.subtotal).toBe("-20000.00");
+  });
+
+  it("buildItemBreakdown leaves an ordinary (isCredit: false) item's basePrice positive", () => {
+    const breakdown = buildItemBreakdown(baseItem({ unitPrice: "20000.00", isCredit: false }), true);
+    expect(breakdown.basePrice).toBe("20000.00");
   });
 });
 

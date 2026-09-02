@@ -31,6 +31,8 @@ export function ItemsSection({
   setLineUnitPriceAction,
   resetLineUnitPriceAction,
   setItemShowImageAction,
+  setItemSerialNumberAction,
+  setItemDescriptionAction,
   reorderItemsAction,
   showOptionIcons = true,
   readOnly = false,
@@ -49,6 +51,12 @@ export function ItemsSection({
   setLineUnitPriceAction: (lineId: string, formData: FormData) => Promise<ActionResult>;
   resetLineUnitPriceAction: (lineId: string) => Promise<ActionResult>;
   setItemShowImageAction: (itemId: string, show: boolean) => Promise<ActionResult>;
+  /** Credit-item-only field (see `ItemsList`'s doc comment) — sets
+   * `DocumentItem.serialNumber`, the machine being taken in trade. */
+  setItemSerialNumberAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
+  /** Credit-item-only field, alongside `setItemSerialNumberAction` — sets
+   * `DocumentItem.description`. */
+  setItemDescriptionAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
   reorderItemsAction: (documentId: string, orderedItemIds: string[]) => Promise<ActionResult>;
   /** "ui.showOptionIcons" app setting, read server-side by the builder page
    * and threaded down to `ItemOptionsEditor` — see its own doc comment. */
@@ -73,6 +81,8 @@ export function ItemsSection({
           setLineUnitPriceAction={setLineUnitPriceAction}
           resetLineUnitPriceAction={resetLineUnitPriceAction}
           setItemShowImageAction={setItemShowImageAction}
+          setItemSerialNumberAction={setItemSerialNumberAction}
+          setItemDescriptionAction={setItemDescriptionAction}
           reorderItemsAction={reorderItemsAction}
           showOptionIcons={showOptionIcons}
           readOnly={readOnly}

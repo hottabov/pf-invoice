@@ -19,6 +19,7 @@ function baseItem(overrides: Partial<ToSheetItemInput> = {}): ToSheetItemInput {
     imageUrl: null,
     showImage: false,
     lines: [],
+    isCredit: false,
     ...overrides,
   };
 }
@@ -84,6 +85,22 @@ describe("toSheetData — item.breakdown", () => {
 
     expect(breakdown.basePrice).toBe("175000.00");
     expect(breakdown.subtotal).toBe("186000.00");
+  });
+
+  it("negates a credit item's base price to match its already-negative total (isCredit: true)", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({
+          code: "TRADE-IN",
+          unitPrice: "20000.00", // typed positive, per Product.isCredit's design
+          total: "-20000.00", // already signed by the pricing engine (see getDocumentForBuilder)
+          isCredit: true,
+        }),
+      ],
+    });
+    const breakdown = toSheetData(doc).items[0].breakdown;
+    expect(breakdown.basePrice).toBe("-20000.00");
+    expect(breakdown.subtotal).toBe("-20000.00");
   });
 
   it("always reports qty 1 for a product line", () => {

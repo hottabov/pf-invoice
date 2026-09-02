@@ -168,6 +168,7 @@ function baseItem(overrides: Partial<QuotationItemInput> = {}): QuotationItemInp
     seriesCode: "M",
     specs: { cutHeightCm: 18, cutWidthCm: 180 },
     lines: [],
+    isCredit: false,
     ...overrides,
   };
 }

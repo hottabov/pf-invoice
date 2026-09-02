@@ -193,6 +193,45 @@ export const optionSelectionSchema = z.object({
 });
 export type OptionSelectionInput = z.infer<typeof optionSelectionSchema>;
 
+// --- credit item fields (trade-in: which machine is being taken) -----------
+
+/** `DocumentItem.serialNumber` — for a credit item (`Product.isCredit`, the
+ * TRADE-IN catalogue product) this is where the salesperson records the
+ * serial number of the specific machine being taken in trade (see the
+ * "Recording the machine taken" design note: `DocumentItem` already has this
+ * column, so no new one was added — it's simply made editable, for a credit
+ * item, via `setItemSerialNumber`). Missing/blank collapses to `null`
+ * (clears it) rather than `undefined`, matching `notesSchema`'s pattern for
+ * the same reason: this feeds a Prisma write directly and the column is
+ * nullable, not omittable. 200 chars is generous for any real serial number
+ * format while still rejecting an obviously-wrong paragraph-length paste. */
+export const serialNumberSchema = z.preprocess(
+  (value) =>
+    value === null || value === undefined || (typeof value === "string" && value.trim() === "")
+      ? null
+      : value,
+  z.union([z.null(), z.string().trim().max(200, "Serial number must be at most 200 characters")])
+);
+export type SerialNumberInput = z.infer<typeof serialNumberSchema>;
+
+/** `DocumentItem.description` — for an ordinary item this starts (and stays)
+ * as a snapshot of `Product.description` (see `addItem`); for a credit item
+ * it starts as that same snapshot (the terms John dictated — see
+ * `catalog.json`'s TRADE-IN entry) but is made editable via
+ * `setItemDescription` so the salesperson can add which machine/model is
+ * being traded in alongside those terms — the design note's "the model goes
+ * in the item's own description". Same null-collapsing shape as
+ * `notesSchema`; 2000 chars matches the catalog product description's own
+ * bound (this can legitimately hold the full terms text plus a model note). */
+export const itemDescriptionSchema = z.preprocess(
+  (value) =>
+    value === null || value === undefined || (typeof value === "string" && value.trim() === "")
+      ? null
+      : value,
+  z.union([z.null(), z.string().trim().max(2000, "Description must be at most 2000 characters")])
+);
+export type ItemDescriptionInput = z.infer<typeof itemDescriptionSchema>;
+
 // --- item reordering (drag-and-drop) ---------------------------------------
 
 /** The full ordered list of a document's item ids submitted by the builder's

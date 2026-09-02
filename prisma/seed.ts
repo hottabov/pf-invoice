@@ -259,8 +259,15 @@ async function main() {
     if (!seriesId) throw new Error(`seed: product ${p.code} references unknown series ${p.seriesCode}`);
     const product = await db.product.upsert({
       where: { code: p.code },
-      update: { name: p.name, description: p.description, seriesId, sortOrder: p.sortOrder },
-      create: { code: p.code, name: p.name, description: p.description, seriesId, sortOrder: p.sortOrder },
+      update: { name: p.name, description: p.description, seriesId, sortOrder: p.sortOrder, isCredit: p.isCredit },
+      create: {
+        code: p.code,
+        name: p.name,
+        description: p.description,
+        seriesId,
+        sortOrder: p.sortOrder,
+        isCredit: p.isCredit,
+      },
     });
     productIdByCode.set(p.code, product.id);
   }

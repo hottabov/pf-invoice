@@ -39,6 +39,12 @@ type CatalogItem = {
    *  by buildGlobalOptions; unset/undefined for series-scoped items and for
    *  every product (products don't have compatibility of their own). */
   compatibleProducts?: string[];
+  /** `Product.isCredit` (see that column's doc comment in schema.prisma) --
+   *  only meaningful on a product entry (an option has no such column).
+   *  Unset/undefined for every entry except TRADE-IN (see MANUAL_PRODUCTS.SVC)
+   *  -- prisma/seed-lib.ts's `mapProducts` defaults a missing value to
+   *  `false`. */
+  isCredit?: boolean;
 };
 
 type CatalogSeries = {
@@ -661,6 +667,37 @@ const MANUAL_PRODUCTS: Record<string, CatalogItem[]> = {
       description: "Installation, training and support services.",
       price: 0,
       needsReview: false,
+    },
+    // A credit product, not a discount -- John (meeting transcript): "we
+    // should create another product called trade-in, so that way the
+    // terminology is correct for everybody in the world... It's a line
+    // item. It's a product. You're selling a trade in. It's a negative
+    // value." `isCredit: true` (see Product.isCredit in schema.prisma) is
+    // what actually makes it subtract from a quote -- the salesperson still
+    // types a positive amount. `price: 20000` is John's own stated default
+    // ("I would put a value of $20,000 on it. Australian dollars, for
+    // example, as a default, they can always change it up or down.") --
+    // AU only, same as every other product here; no NA figure exists to
+    // seed a US price from (see prisma/seed.ts step 7 vs. 7b).
+    //
+    // PROVISIONAL WORDING: `description` below is transcribed from that same
+    // meeting and is NOT the agreed legal redaction -- it captures the three
+    // terms John dictated (removal/disposal responsibility, no re-entering
+    // the market as parts or as a machine, Pathfinder's chance to remove/
+    // destroy components first) in the order he gave them, but has not been
+    // reviewed by counsel. Whoever finalizes the real wording should replace
+    // this string (and prisma/seed-data/catalog.json's matching TRADE-IN
+    // entry, which duplicates it -- see prisma/seed.ts, product descriptions
+    // aren't overwritten by a re-seed of an existing row) in one edit, not
+    // patch around it.
+    {
+      code: "TRADE-IN",
+      name: "Trade-in",
+      description:
+        "The customer is responsible for removing the traded-in machine and disposing of (trashing) it. The customer agrees that neither the machine nor its parts may be re-entered into the market, whether as parts or as a machine. Before the machine is trashed, Pathfinder's engineers have the opportunity to remove or destroy its components.",
+      price: 20000,
+      needsReview: false,
+      isCredit: true,
     },
   ],
 };

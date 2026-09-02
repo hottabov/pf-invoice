@@ -71,6 +71,8 @@ export function ItemsList({
   setLineUnitPriceAction,
   resetLineUnitPriceAction,
   setItemShowImageAction,
+  setItemSerialNumberAction,
+  setItemDescriptionAction,
   reorderItemsAction,
   showOptionIcons = true,
   readOnly = false,
@@ -87,6 +89,10 @@ export function ItemsList({
   setLineUnitPriceAction: (lineId: string, formData: FormData) => Promise<ActionResult>;
   resetLineUnitPriceAction: (lineId: string) => Promise<ActionResult>;
   setItemShowImageAction: (itemId: string, show: boolean) => Promise<ActionResult>;
+  /** See `CreditItemFields` below — only ever rendered for a credit item
+   * (`item.isCredit`, e.g. the TRADE-IN product). */
+  setItemSerialNumberAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
+  setItemDescriptionAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
   reorderItemsAction: (documentId: string, orderedItemIds: string[]) => Promise<ActionResult>;
   showOptionIcons?: boolean;
   readOnly?: boolean;
@@ -350,6 +356,17 @@ export function ItemsList({
                   />
                 </div>
 
+                {item.isCredit ? (
+                  <CreditItemFields
+                    itemId={item.id}
+                    serialNumber={item.serialNumber}
+                    description={item.description}
+                    setSerialNumberAction={setItemSerialNumberAction}
+                    setDescriptionAction={setItemDescriptionAction}
+                    readOnly={readOnly}
+                  />
+                ) : null}
+
                 <ItemOptionsEditor
                   itemId={item.id}
                   itemName={item.name}
@@ -397,6 +414,107 @@ export function ItemsList({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * The two fields a credit item (`item.isCredit` — the TRADE-IN catalogue
+ * product, today) needs to say *which* machine is being taken, that no
+ * ordinary item exposes any builder affordance for editing at all today
+ * (see `BuilderItem.serialNumber`'s/`getDocumentForBuilder`'s doc comments):
+ *
+ * - Serial number (`DocumentItem.serialNumber`) — the specific unit.
+ * - Description (`DocumentItem.description`) — starts as a snapshot of the
+ *   catalogue product's own terms text (see `addItem`), editable here so the
+ *   salesperson can add the model/make of the machine being traded in
+ *   alongside those terms; both print on the sheets exactly as any item
+ *   description already does (see `item-breakdown.tsx`/`sheet-data.ts`).
+ *
+ * Plain onBlur-save text fields (not the pencil-reveal pattern
+ * `item-breakdown-editor.tsx` uses for prices) — these aren't numbers with a
+ * list-price concession to show alongside, just two freeform facts, so a
+ * plain always-editable field reads more honestly than a price-editor
+ * affordance would here.
+ */
+function CreditItemFields({
+  itemId,
+  serialNumber,
+  description,
+  setSerialNumberAction,
+  setDescriptionAction,
+  readOnly,
+}: {
+  itemId: string;
+  serialNumber: string | null;
+  description: string | null;
+  setSerialNumberAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
+  setDescriptionAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
+  readOnly: boolean;
+}) {
+  const toast = useToast();
+  const [serial, setSerial] = useState(serialNumber ?? "");
+  const [desc, setDesc] = useState(description ?? "");
+  const [, startTransition] = useTransition();
+
+  function saveSerial() {
+    if (serial === (serialNumber ?? "")) return;
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.set("serialNumber", serial);
+      const result = await setSerialNumberAction(itemId, formData);
+      if (result.error) toast.error(result.error);
+    });
+  }
+
+  function saveDescription() {
+    if (desc === (description ?? "")) return;
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.set("description", desc);
+      const result = await setDescriptionAction(itemId, formData);
+      if (result.error) toast.error(result.error);
+    });
+  }
+
+  if (readOnly) {
+    return (
+      <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 text-sm">
+        <div>
+          <span className="font-medium text-slate-600">Serial number: </span>
+          <span className="text-slate-700">{serialNumber || "—"}</span>
+        </div>
+        <div>
+          <span className="font-medium text-slate-600">Description: </span>
+          <span className="whitespace-pre-wrap text-slate-700">{description || "—"}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3">
+      <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+        Serial number (machine being traded in)
+        <input
+          type="text"
+          value={serial}
+          onChange={(e) => setSerial(e.target.value)}
+          onBlur={saveSerial}
+          placeholder="e.g. PF-2019-00412"
+          className="focus-ring rounded-lg border border-slate-300 px-2 py-1.5 text-sm font-normal text-brand-dark outline-none focus-visible:border-brand"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+        Description (terms + traded-in machine model)
+        <textarea
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          onBlur={saveDescription}
+          rows={4}
+          className="focus-ring rounded-lg border border-slate-300 px-2 py-1.5 text-sm font-normal text-brand-dark outline-none focus-visible:border-brand"
+        />
+      </label>
     </div>
   );
 }

@@ -7,6 +7,7 @@ interface CatalogItem {
   description: string;
   price: number | null;
   needsReview: boolean;
+  isCredit?: boolean;
 }
 
 interface GlobalOption extends CatalogItem {
@@ -64,9 +65,12 @@ describe('Catalog Extraction Validation', () => {
     // MANUAL_PRODUCTS.EF), and the new "SERVICE" container product was added
     // (+1, see MANUAL_PRODUCTS.SVC). See that file's header comments for the
     // full history of how 64 itself was reached (10 NA-only additions).
-    it('should have exactly 67 total products across all series', () => {
+    // 67 -> 68: the TRADE-IN credit product was added (+1, see
+    // MANUAL_PRODUCTS.SVC) -- a real catalogue product (John: "you're selling
+    // a trade in. It's a negative value"), not a discount.
+    it('should have exactly 68 total products across all series', () => {
       const totalProducts = catalog.series.reduce((sum, series) => sum + series.products.length, 0);
-      expect(totalProducts).toBe(67);
+      expect(totalProducts).toBe(68);
     });
 
     it('M series should have 16 products (12 original + NA-only M3300/M5300/M7300/M10300)', () => {
@@ -108,17 +112,44 @@ describe('Catalog Extraction Validation', () => {
 
     // New hand-authored series (see MANUAL_PRODUCTS.SVC in
     // scripts/extract-catalog.ts) -- a container product for the SVC-*
-    // service options, not sold on its own (price 0, needsReview false).
-    it('Service (SVC) should have exactly 1 product: "SERVICE"', () => {
+    // service options, not sold on its own (price 0, needsReview false), plus
+    // the TRADE-IN credit product added alongside it (see the next test).
+    it('Service (SVC) should have exactly 2 products: "SERVICE" and "TRADE-IN"', () => {
       const svc = catalog.series.find((s) => s.seriesCode === 'SVC')!;
       expect(svc).toBeDefined();
-      expect(svc.products).toHaveLength(1);
+      expect(svc.products).toHaveLength(2);
       expect(svc.products[0]).toMatchObject({
         code: 'SERVICE',
         name: 'Service',
         price: 0,
         needsReview: false,
       });
+    });
+
+    // TRADE-IN is a credit product (John: "we should create another product
+    // called trade-in... it's a negative value") -- see MANUAL_PRODUCTS.SVC
+    // in scripts/extract-catalog.ts. `price: 20000` is John's own stated
+    // default ("I would put a value of $20,000 on it... as a default, they
+    // can always change it up or down"); `isCredit: true` is what actually
+    // makes it subtract from a quote rather than add to it (see
+    // Product.isCredit in schema.prisma / EngineItem.isCredit in
+    // src/lib/pricing.ts). Its `description` carries the disposal/no-resale/
+    // Pathfinder-inspection terms John dictated -- transcribed, provisional,
+    // not the agreed legal redaction (see the fuller note on the
+    // MANUAL_PRODUCTS.SVC entry itself), so this only checks that the
+    // structural fields are right, not the exact wording.
+    it('TRADE-IN should be a credit product priced 20000, needsReview=false', () => {
+      const svc = catalog.series.find((s) => s.seriesCode === 'SVC')!;
+      const tradeIn = svc.products.find((p) => p.code === 'TRADE-IN');
+      expect(tradeIn).toBeDefined();
+      expect(tradeIn).toMatchObject({
+        code: 'TRADE-IN',
+        name: 'Trade-in',
+        price: 20000,
+        needsReview: false,
+        isCredit: true,
+      });
+      expect(tradeIn?.description.length).toBeGreaterThan(0);
     });
   });
 

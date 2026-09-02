@@ -537,6 +537,14 @@
           "description": "Installation, training and support services.",
           "price": 0,
           "needsReview": false
+        },
+        {
+          "code": "TRADE-IN",
+          "name": "Trade-in",
+          "description": "The customer is responsible for removing the traded-in machine and disposing of (trashing) it. The customer agrees that neither the machine nor its parts may be re-entered into the market, whether as parts or as a machine. Before the machine is trashed, Pathfinder's engineers have the opportunity to remove or destroy its components.",
+          "price": 20000,
+          "needsReview": false,
+          "isCredit": true
         }
       ]
     }

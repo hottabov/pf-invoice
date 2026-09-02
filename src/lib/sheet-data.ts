@@ -65,6 +65,15 @@ export type ToSheetItemInput = {
   imageUrl: string | null;
   showImage: boolean;
   lines: ToSheetLineInput[];
+  /** `Product.isCredit` (the item's product — see that column's doc comment
+   * in schema.prisma) — `false` for an ordinary item. Read by
+   * `buildItemBreakdown` to negate `ItemBreakdown.basePrice`/`options[].lineTotal`
+   * for a credit item, so the sheet prints the same minus sign the pricing
+   * engine already applied to `total` (`ToSheetItemInput.total`, via
+   * `EngineItem.isCredit` — see src/lib/pricing.ts) — without this, the
+   * item's own base-price row would show a positive figure while its
+   * subtotal row showed a negative one. */
+  isCredit: boolean;
 };
 
 export type ToSheetCompanyInput = {
@@ -524,6 +533,15 @@ function lineTotal(qty: number, unitPrice: string): string {
   return fromCents(qty * toCents(unitPrice)).toFixed(2);
 }
 
+/** Same as `lineTotal`, negated when `isCredit` — the salesperson always
+ * types a positive `unitPrice` (see `ToSheetItemInput.isCredit`'s doc
+ * comment), so the negative sign a credit item's row must print has to be
+ * applied here rather than read off the stored value. */
+function signedLineTotal(isCredit: boolean, qty: number, unitPrice: string): string {
+  const cents = qty * toCents(unitPrice);
+  return fromCents(isCredit ? -cents : cents).toFixed(2);
+}
+
 /**
  * Returns `description` unless it's redundant with `name` — i.e. `name`
  * and `description` are the same string, or one fully contains the other
@@ -556,23 +574,33 @@ export function dedupeDescription(name: string, description: string | null): str
  * the pricing engine already resolved them.
  */
 export function buildItemBreakdown(
-  item: Pick<ToSheetItemInput, "unitPrice" | "discountMode" | "discountValue" | "discountAmount" | "total" | "lines">,
+  item: Pick<
+    ToSheetItemInput,
+    "unitPrice" | "discountMode" | "discountValue" | "discountAmount" | "total" | "lines" | "isCredit"
+  >,
   showOptionPrices: boolean
 ): ItemBreakdown {
   return {
     qty: 1,
-    basePrice: lineTotal(1, item.unitPrice),
+    basePrice: signedLineTotal(item.isCredit, 1, item.unitPrice),
     options: item.lines.map((line) => ({
       name: line.name,
       code: line.code,
       description: dedupeDescription(line.name, line.description),
       qty: line.qty,
-      lineTotal: showOptionPrices ? lineTotal(line.qty, line.unitPrice) : null,
+      // A credit item should never carry options in practice (see
+      // `Product.isCredit`'s doc comment) — negated the same way as
+      // `basePrice` regardless, so the sign stays consistent across the
+      // whole item on the rare/invalid case that it does.
+      lineTotal: showOptionPrices ? signedLineTotal(item.isCredit, line.qty, line.unitPrice) : null,
     })),
     discount:
       item.discountValue !== null
         ? { mode: item.discountMode, value: item.discountValue, amount: item.discountAmount }
         : null,
+    // Already correctly signed by the pricing engine (`EngineItem.isCredit`,
+    // see src/lib/pricing.ts) — `total` is `PricingTotals.itemTotals[i]`,
+    // never recomputed here.
     subtotal: item.total,
   };
 }

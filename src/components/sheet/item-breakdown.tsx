@@ -1,4 +1,4 @@
-import { formatMoney } from "@/lib/format";
+import { formatMoney, isNegativeAmount } from "@/lib/format";
 import type { ItemBreakdown } from "@/lib/sheet-data";
 
 /**
@@ -52,6 +52,14 @@ import type { ItemBreakdown } from "@/lib/sheet-data";
  *   figure (`showItemPrices` on).
  * - When `showPrices` is false, no money renders anywhere in this
  *   component — the document total is still shown elsewhere, unaffected.
+ * - A credit item's `basePrice`/`options[].lineTotal`/`subtotal` are already
+ *   negative decimal strings by the time they reach here (see
+ *   `buildItemBreakdown`) — the base-price row, an option row, and the
+ *   subtotal row each independently get the same `.pq-negative` muted
+ *   treatment a negative extra line already gets on both sheets (reusing
+ *   `isNegativeAmount`, not a second mechanism), so a trade-in entered as a
+ *   credit product reads the same "this is money coming off, not a charge"
+ *   way a freeform negative extra line always has.
  */
 export function ItemBreakdownRows({
   breakdown,
@@ -64,29 +72,37 @@ export function ItemBreakdownRows({
   currency: string;
   showPrices: boolean;
 }) {
+  const baseNegative = isNegativeAmount(breakdown.basePrice);
   return (
     <>
       <tr className="pq-option-row">
         <td className="pq-col-item pq-option-indent">
           <div className="pq-option-name">{code}</div>
         </td>
-        <td className="pq-col-qty">{breakdown.qty}</td>
-        <td className="pq-col-amount pq-amount">
+        <td className={baseNegative && showPrices ? "pq-col-qty pq-negative" : "pq-col-qty"}>{breakdown.qty}</td>
+        <td className={baseNegative && showPrices ? "pq-col-amount pq-amount pq-negative" : "pq-col-amount pq-amount"}>
           {showPrices ? formatMoney(breakdown.basePrice, currency) : null}
         </td>
       </tr>
-      {breakdown.options.map((option, index) => (
-        <tr className="pq-option-row" key={`${option.name}-${index}`}>
-          <td className="pq-col-item pq-option-indent">
-            <div className="pq-option-name">{option.code ? `${option.code} — ${option.name}` : option.name}</div>
-            {option.description ? <div className="pq-option-desc">{option.description}</div> : null}
-          </td>
-          <td className="pq-col-qty">{option.qty}</td>
-          <td className="pq-col-amount pq-amount">
-            {showPrices && option.lineTotal !== null ? formatMoney(option.lineTotal, currency) : null}
-          </td>
-        </tr>
-      ))}
+      {breakdown.options.map((option, index) => {
+        const optionNegative = option.lineTotal !== null && isNegativeAmount(option.lineTotal);
+        return (
+          <tr className="pq-option-row" key={`${option.name}-${index}`}>
+            <td className="pq-col-item pq-option-indent">
+              <div className="pq-option-name">{option.code ? `${option.code} — ${option.name}` : option.name}</div>
+              {option.description ? <div className="pq-option-desc">{option.description}</div> : null}
+            </td>
+            <td className={optionNegative && showPrices ? "pq-col-qty pq-negative" : "pq-col-qty"}>{option.qty}</td>
+            <td
+              className={
+                optionNegative && showPrices ? "pq-col-amount pq-amount pq-negative" : "pq-col-amount pq-amount"
+              }
+            >
+              {showPrices && option.lineTotal !== null ? formatMoney(option.lineTotal, currency) : null}
+            </td>
+          </tr>
+        );
+      })}
       {breakdown.discount && showPrices ? (
         <tr className="pq-discount-row">
           <td className="pq-col-item pq-option-indent">{discountLabel(breakdown.discount)}</td>
@@ -98,7 +114,9 @@ export function ItemBreakdownRows({
         <tr className="pq-item-subtotal-row">
           <td className="pq-col-item pq-option-indent">{code} subtotal</td>
           <td className="pq-col-qty" />
-          <td className="pq-col-amount pq-amount">{formatMoney(breakdown.subtotal, currency)}</td>
+          <td className={isNegativeAmount(breakdown.subtotal) ? "pq-col-amount pq-amount pq-negative" : "pq-col-amount pq-amount"}>
+            {formatMoney(breakdown.subtotal, currency)}
+          </td>
         </tr>
       ) : null}
     </>

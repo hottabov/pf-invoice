@@ -190,8 +190,19 @@ export type BuilderItem = {
    * product or no specs recorded. */
   specs: unknown;
   /** `DocumentItem.serialNumber` — set post-installation, used as-is in the
-   * quotation's RSP coverage table. */
+   * quotation's RSP coverage table. Not editable anywhere in the builder for
+   * an ordinary item; for a credit item (`isCredit`) it's opened up via
+   * `setItemSerialNumber` so a salesperson can record the traded-in
+   * machine's serial number. */
   serialNumber: string | null;
+  /** `Product.isCredit`, read live off the joined product (same rule as
+   * `seriesId`/`seriesCode`/`specs` above) — true for the TRADE-IN product.
+   * Drives the negative-amount rendering in `buildItemBreakdown`
+   * (src/lib/sheet-data.ts) and gates the serial-number/description edit UI
+   * for this item in the builder (`items-list.tsx`). See the doc comment on
+   * `EngineItem.isCredit` in src/lib/pricing.ts for why the sign lives on
+   * the product, not on what the salesperson types. */
+  isCredit: boolean;
   imageUrl: string | null;
   /** Whether the item's thumbnail should actually be shown on a rendered
    * document (the sheet renderer/PDF) — distinct from `imageUrl` being
@@ -594,6 +605,7 @@ export async function getDocumentForBuilder(
       productId: item.product?.id ?? null,
       specs: item.product?.specs ?? null,
       serialNumber: item.serialNumber,
+      isCredit: item.product?.isCredit ?? false,
       imageUrl: item.imageUrl,
       showImage: item.showImage,
       productHasImage: item.imageUrl !== null,

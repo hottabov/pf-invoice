@@ -94,10 +94,29 @@ describe("seed-lib: pure mapping (FIXTURE -> literal expected outputs)", () => {
 
   it("mapProducts produces the exact product payload with per-series sortOrder", () => {
     expect(mapProducts(FIXTURE)).toEqual([
-      { code: "A-100", name: "Widget", description: "A widget", seriesCode: "A", sortOrder: 0 },
-      { code: "A-200", name: "Gadget", description: "A gadget", seriesCode: "A", sortOrder: 1 },
-      { code: "B-100", name: "Doohickey", description: "A doohickey", seriesCode: "B", sortOrder: 0 },
+      { code: "A-100", name: "Widget", description: "A widget", seriesCode: "A", sortOrder: 0, isCredit: false },
+      { code: "A-200", name: "Gadget", description: "A gadget", seriesCode: "A", sortOrder: 1, isCredit: false },
+      { code: "B-100", name: "Doohickey", description: "A doohickey", seriesCode: "B", sortOrder: 0, isCredit: false },
     ]);
+  });
+
+  it("mapProducts defaults isCredit to false when the catalog entry omits it, and passes it through when set", () => {
+    const withCredit: Catalog = {
+      ...FIXTURE,
+      series: [
+        {
+          ...FIXTURE.series[0],
+          products: [
+            ...FIXTURE.series[0].products,
+            { code: "A-300", name: "Trade-in", description: "Terms.", price: 999, needsReview: false, isCredit: true },
+          ],
+        },
+        FIXTURE.series[1],
+      ],
+    };
+    const mapped = mapProducts(withCredit);
+    expect(mapped.find((p) => p.code === "A-100")?.isCredit).toBe(false);
+    expect(mapped.find((p) => p.code === "A-300")?.isCredit).toBe(true);
   });
 
   it("mapOptions produces the exact option payload", () => {
@@ -138,8 +157,8 @@ describe("seed-lib: smoke assertions against the real catalog.json (counts only)
     expect(mapSeries(catalog)).toHaveLength(10);
   });
 
-  it("has exactly 67 total products", () => {
-    expect(mapProducts(catalog)).toHaveLength(67);
+  it("has exactly 68 total products", () => {
+    expect(mapProducts(catalog)).toHaveLength(68);
   });
 });
 

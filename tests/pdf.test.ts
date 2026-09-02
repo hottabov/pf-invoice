@@ -253,6 +253,52 @@ describe("renderDocumentHtml — item breakdown honours the price-display flags"
     // flags — those only gate the itemized per-item detail.
     expect(html).toContain("1,100");
   });
+
+  it("prints a credit item's (TRADE-IN) base price with an explicit minus and the negative-extra-line muted styling", async () => {
+    const creditItem = baseDocSheetItem({
+      code: "TRADE-IN",
+      name: "Trade-in",
+      unitPrice: "20000.00", // typed positive -- see Product.isCredit
+      total: "-20000.00", // already signed by the pricing engine
+      isCredit: true,
+      lines: [],
+    });
+    const html = await renderDocumentHtml(
+      baseSheetData({
+        showItemPrices: true,
+        showOptionPrices: true,
+        items: [creditItem],
+      })
+    );
+    expect(html).toContain("-$20,000");
+    // Same muted treatment a negative extra line already gets (isNegativeAmount
+    // / .pq-negative) -- reused, not a second mechanism (see item-breakdown.tsx).
+    expect(html).toContain('class="pq-col-amount pq-amount pq-negative"');
+  });
+
+  it("an ordinary (isCredit: false) item's base price prints with no minus and no muted styling", async () => {
+    const ordinaryItem = baseDocSheetItem({
+      code: "X-5180",
+      unitPrice: "175000.00",
+      total: "175000.00",
+      isCredit: false,
+      lines: [],
+    });
+    const html = await renderDocumentHtml(
+      baseSheetData({
+        showItemPrices: true,
+        showOptionPrices: true,
+        items: [ordinaryItem],
+      })
+    );
+    expect(html).toContain("$175,000");
+    expect(html).not.toContain("-$175,000");
+    // The embedded <style> block always defines .pq-negative regardless (same
+    // caveat as the price-display-flags tests above) -- assert on the actual
+    // class *attribute* an element would carry, not the bare class name.
+    expect(html).not.toContain('class="pq-col-amount pq-amount pq-negative"');
+    expect(html).not.toContain('class="pq-col-qty pq-negative"');
+  });
 });
 
 describe("renderDocumentHtml — Ex Works delivery terms", () => {
@@ -340,7 +386,17 @@ function baseQuotationData(overrides: Partial<QuotationData> = {}): QuotationDat
 // discount fields a test overrides — a caller can still override
 // `breakdown` explicitly when a test wants to exercise a shape
 // `buildItemBreakdown` wouldn't itself produce.
-function baseDocSheetItem(overrides: Partial<QuotationData["items"][number]> = {}): QuotationData["items"][number] {
+//
+// `isCredit` isn't a field of `QuotationData["items"][number]` (= `DocSheetItem`
+// — see `sheet-data.ts`; the sign is already baked into `breakdown` by the
+// time it gets there) — it's accepted here as an extra, breakdown-only input
+// so a test can drive `buildItemBreakdown`'s own `isCredit` sign without
+// having to hand-build `breakdown` itself. Defaults to `false`, same as
+// `ToSheetItemInput.isCredit` everywhere else.
+function baseDocSheetItem(
+  overrides: Partial<QuotationData["items"][number]> & { isCredit?: boolean } = {}
+): QuotationData["items"][number] {
+  const { isCredit = false, ...rest } = overrides;
   const merged = {
     id: "item-1",
     code: "X-5180",
@@ -352,7 +408,7 @@ function baseDocSheetItem(overrides: Partial<QuotationData["items"][number]> = {
     total: "215425.00",
     image: null,
     lines: [],
-    ...overrides,
+    ...rest,
   };
   return {
     ...merged,
@@ -366,6 +422,7 @@ function baseDocSheetItem(overrides: Partial<QuotationData["items"][number]> = {
           discountAmount: "0.00",
           total: merged.total,
           lines: merged.lines,
+          isCredit,
         },
         true
       ),
@@ -535,6 +592,25 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
     // rendered element (its class *attribute*) rather than the bare
     // substring "subtotal", which the stylesheet text alone would satisfy.
     expect(withoutOptions).not.toContain('class="pq-item-subtotal-row"');
+  });
+
+  it("prints a credit item's (TRADE-IN) base price with an explicit minus and the negative-extra-line muted styling", async () => {
+    const creditItem = baseDocSheetItem({
+      code: "TRADE-IN",
+      name: "Trade-in",
+      unitPrice: "20000.00", // typed positive -- see Product.isCredit
+      total: "-20000.00", // already signed by the pricing engine
+      isCredit: true,
+      lines: [],
+    });
+    const html = await renderQuotationHtml(baseQuotationData({ items: [creditItem] }));
+    const summaryStart = html.indexOf('class="pq-section pq-summary-section"');
+    const summaryHtml = html.slice(summaryStart);
+
+    expect(summaryHtml).toContain("-$20,000");
+    // Same muted treatment a negative extra line already gets -- reused, not
+    // a second mechanism (see item-breakdown.tsx).
+    expect(summaryHtml).toContain('class="pq-col-amount pq-amount pq-negative"');
   });
 
   it("hides the per-item subtotal row when price display is off, even with options", async () => {

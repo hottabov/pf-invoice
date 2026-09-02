@@ -13,6 +13,15 @@ export interface CatalogItem {
   description: string;
   price: number | null;
   needsReview: boolean;
+  /** `Product.isCredit` (see that column's doc comment in schema.prisma) —
+   * only meaningful for a product entry (an `Option` has no such column);
+   * absent/`undefined` on every entry except the TRADE-IN product means
+   * `mapProducts` below defaults it to `false`, so nothing about any
+   * existing catalog.json entry needs to change for this field to exist.
+   * PROVISIONAL WORDING: the TRADE-IN entry's own `description` is
+   * transcribed from a meeting, not the agreed legal redaction — see the
+   * fuller note on it in scripts/extract-catalog.ts's `MANUAL_PRODUCTS.SVC`. */
+  isCredit?: boolean;
 }
 
 export interface CatalogSeries {
@@ -124,6 +133,9 @@ export interface ProductPayload {
   description: string | null;
   seriesCode: string;
   sortOrder: number;
+  /** See `CatalogItem.isCredit`'s doc comment — defaults to `false` when the
+   * catalog entry doesn't set it. */
+  isCredit: boolean;
 }
 
 export function mapProducts(catalog: Catalog): ProductPayload[] {
@@ -136,6 +148,7 @@ export function mapProducts(catalog: Catalog): ProductPayload[] {
         description: p.description ?? null,
         seriesCode: series.seriesCode,
         sortOrder: i,
+        isCredit: p.isCredit ?? false,
       });
     });
   }

@@ -28,8 +28,10 @@ import {
   setDocumentClient,
   setDocumentDiscount,
   setDocumentNotes,
+  setItemDescription,
   setItemDiscount,
   setItemOptions,
+  setItemSerialNumber,
   setItemShowImage,
   setItemUnitPrice,
   setLineUnitPrice,
@@ -179,6 +181,8 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
             setLineUnitPriceAction={setLineUnitPrice}
             resetLineUnitPriceAction={resetLineUnitPrice}
             setItemShowImageAction={setItemShowImage}
+            setItemSerialNumberAction={setItemSerialNumber}
+            setItemDescriptionAction={setItemDescription}
             reorderItemsAction={reorderItems}
             showOptionIcons={showOptionIcons}
             readOnly={!isDraft}
