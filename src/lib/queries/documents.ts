@@ -491,6 +491,7 @@ export async function getDocumentForBuilder(
   // setItemDiscount in src/lib/actions/documents.ts for the enforcement
   // side of this move from Series to Region.
   const regionMaxDiscountPct = document.region.maxDiscountPct ? Number(document.region.maxDiscountPct) : null;
+  const regionMaxMarkupPct = document.region.maxMarkupPct ? Number(document.region.maxMarkupPct) : null;
   const engineInput: EngineInput = {
     items: document.items.map((item) => ({
       unitPrice: Number(item.unitPrice),
@@ -508,6 +509,7 @@ export async function getDocumentForBuilder(
     documentDiscountMode: document.discountMode,
     documentDiscountValue: document.discountValue !== null ? document.discountValue.toString() : null,
     regionMaxDiscountPct,
+    regionMaxMarkupPct,
     taxRate: Number(document.taxRate),
   };
   const totals = computeTotals(engineInput);

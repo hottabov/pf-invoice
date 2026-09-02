@@ -5,7 +5,7 @@
 // src/lib/actions/regions.ts). Mirrors the style of
 // src/lib/validation/users.ts and src/lib/validation/catalog.ts.
 import { z } from "zod";
-import { maxDiscountPctSchema } from "./catalog";
+import { maxDiscountPctSchema, maxMarkupPctSchema } from "./catalog";
 
 // --- field pieces ----------------------------------------------------------
 
@@ -164,6 +164,10 @@ const regionFormFields = {
   // old series-level cap, so this reuses `maxDiscountPctSchema` from
   // validation/catalog.ts rather than duplicating it.
   maxDiscountPct: maxDiscountPctSchema,
+  // The mirror of maxDiscountPct above: how far ABOVE list a distributor may
+  // price (Ross: "he's got a minimum selling price. And a maximum selling
+  // price."). Same 0..100, ≤2dp, empty-means-no-ceiling shape.
+  maxMarkupPct: maxMarkupPctSchema,
   active: activeSchema,
 };
 

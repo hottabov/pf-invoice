@@ -12,6 +12,7 @@ import {
   computeTotals,
   concessionCapMessage,
   discountCents,
+  markupCapMessage,
   toCents,
   type DocumentConcession,
   type EngineInput,
@@ -105,6 +106,8 @@ const NO_CONCESSION: DocumentConcession = {
   effectivePct: 0,
   allowedPct: 100,
   exceedsCap: false,
+  allowedMarkupPct: null,
+  exceedsMarkupCap: false,
   parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
 };
 
@@ -117,6 +120,10 @@ export type RecalcResult = {
    * — built here, not by each caller, since this is the one place that
    * already has the document's region name/currency loaded. */
   concessionMessage: string | null;
+  /** Pre-formatted "This quote is priced ... above list" message (see
+   * `markupCapMessage`) — the mirror of `concessionMessage` above, present
+   * only when `documentConcession.exceedsMarkupCap`. */
+  markupMessage: string | null;
 };
 
 /**
@@ -152,10 +159,17 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
     },
   });
   if (!document) {
-    return { violations: [], negativeSubtotal: false, documentConcession: NO_CONCESSION, concessionMessage: null };
+    return {
+      violations: [],
+      negativeSubtotal: false,
+      documentConcession: NO_CONCESSION,
+      concessionMessage: null,
+      markupMessage: null,
+    };
   }
 
   const regionMaxDiscountPct = document.region.maxDiscountPct ? Number(document.region.maxDiscountPct) : null;
+  const regionMaxMarkupPct = document.region.maxMarkupPct ? Number(document.region.maxMarkupPct) : null;
   const engineInput: EngineInput = {
     items: document.items.map((item) => ({
       unitPrice: Number(item.unitPrice),
@@ -173,6 +187,7 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
     documentDiscountMode: document.discountMode,
     documentDiscountValue: document.discountValue !== null ? document.discountValue.toString() : null,
     regionMaxDiscountPct,
+    regionMaxMarkupPct,
     // An Ex Works quote (collected at the factory door) is not a domestic
     // taxable supply, so its tax is zero — resolved here, the one place a
     // document's effective tax rate is computed, rather than scattered
@@ -186,6 +201,9 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
 
   const concessionMessage = totals.documentConcession.exceedsCap
     ? concessionCapMessage(totals.documentConcession, document.region.name, document.currency)
+    : null;
+  const markupMessage = totals.documentConcession.exceedsMarkupCap
+    ? markupCapMessage(totals.documentConcession, document.region.name, document.currency)
     : null;
 
   await client.document.update({
@@ -202,6 +220,7 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
     negativeSubtotal: totals.negativeSubtotal,
     documentConcession: totals.documentConcession,
     concessionMessage,
+    markupMessage,
   };
 }
 
@@ -224,6 +243,15 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
  *    entered as a straight `unitPrice` edit with no `discountValue` set at
  *    all, so without this, a MANAGER could sell at any price no matter how
  *    far below list, cap or no cap.
+ *  - `documentConcession.exceedsMarkupCap` — the mirror of `exceedsCap`
+ *    above, for `Region.maxMarkupPct` (Ross: "he's got a minimum selling
+ *    price. And a maximum selling price."): same MANAGER-rejected/
+ *    ADMIN-warned split, via the same `ConcessionCapError`/`warning` path
+ *    (see `markupCapMessage`). Mutually exclusive with `exceedsCap` in
+ *    practice — a concession can't be simultaneously a discount and a
+ *    markup — so this is checked as a separate `if`, not an `else if`, but
+ *    only one of the two bodies below can ever actually run for a given
+ *    document.
  *
  * Called by every mutating action below inside its own `db.$transaction`,
  * immediately after (or in place of) its old bare `recalcDocument` +
@@ -234,11 +262,18 @@ async function recalcAndEnforce(
   tx: RecalcClient,
   role: "ADMIN" | "MANAGER"
 ): Promise<{ warning?: string }> {
-  const { negativeSubtotal, documentConcession, concessionMessage } = await recalcDocument(documentId, tx);
+  const { negativeSubtotal, documentConcession, concessionMessage, markupMessage } = await recalcDocument(
+    documentId,
+    tx
+  );
   if (negativeSubtotal) throw new NegativeSubtotalError();
   if (documentConcession.exceedsCap) {
     if (role !== "ADMIN") throw new ConcessionCapError(concessionMessage!);
     return { warning: concessionMessage! };
+  }
+  if (documentConcession.exceedsMarkupCap) {
+    if (role !== "ADMIN") throw new ConcessionCapError(markupMessage!);
+    return { warning: markupMessage! };
   }
   return {};
 }

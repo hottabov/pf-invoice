@@ -47,6 +47,12 @@ export type RegionAdminDetail = {
    * is enforced in setItemDiscount/setDocumentDiscount
    * (src/lib/actions/documents.ts). */
   maxDiscountPct: string | null;
+  /** String form of the region's markup ceiling (like `maxDiscountPct`), or
+   * `null` for no ceiling — feeds the region edit form's `maxMarkupPct`
+   * default and is enforced via `documentConcession`/`recalcAndEnforce`
+   * (src/lib/actions/documents.ts) — the mirror of `maxDiscountPct` for
+   * pricing above list instead of below it. */
+  maxMarkupPct: string | null;
   active: boolean;
 };
 
@@ -85,6 +91,7 @@ export async function getRegionAdmin(regionId: string): Promise<RegionAdminDetai
     logoUrl: region.logoUrl,
     footerText: region.footerText,
     maxDiscountPct: region.maxDiscountPct?.toString() ?? null,
+    maxMarkupPct: region.maxMarkupPct?.toString() ?? null,
     active: region.active,
   };
 }

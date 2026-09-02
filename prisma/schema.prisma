@@ -58,6 +58,13 @@ model Region {
   logoUrl        String?
   footerText     String?
   maxDiscountPct Decimal?       @db.Decimal(5, 2) // AU: 10, US: 15 -- discount cap enforced against a document's region (see setItemDiscount/setDocumentDiscount in src/lib/actions/documents.ts); not shown in the catalog UI.
+  // The mirror of maxDiscountPct: how far ABOVE list a distributor may price
+  // (Ross: "he's got a minimum selling price. And a maximum selling price.
+  // And those rules apply to the LLC as well."). Null means no ceiling, same
+  // "unset changes nothing" contract maxDiscountPct already has. Enforced
+  // via the same concession machinery as the discount cap -- a negative
+  // concession is a markup -- see documentConcession/recalcAndEnforce.
+  maxMarkupPct   Decimal?       @db.Decimal(5, 2)
   active         Boolean        @default(true)
   users          User[]
   companies      Company[]

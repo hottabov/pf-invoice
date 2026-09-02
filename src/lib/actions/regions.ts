@@ -43,6 +43,7 @@ function readRegionForm(formData: FormData) {
     footerText: formData.get("footerText"),
     bankDetails: formData.get("bankDetails"),
     maxDiscountPct: formData.get("maxDiscountPct"),
+    maxMarkupPct: formData.get("maxMarkupPct"),
     active: formData.get("active"),
   };
 }
@@ -94,6 +95,7 @@ export async function createRegion(formData: FormData): Promise<ActionResult> {
         bankDetails: bankDetailsWrite(parsed.data.bankDetails),
         maxDiscountPct:
           parsed.data.maxDiscountPct === null ? null : new Prisma.Decimal(parsed.data.maxDiscountPct),
+        maxMarkupPct: parsed.data.maxMarkupPct === null ? null : new Prisma.Decimal(parsed.data.maxMarkupPct),
         active: parsed.data.active,
       },
     });
@@ -152,6 +154,7 @@ export async function updateRegion(regionId: string, formData: FormData): Promis
       bankDetails: bankDetailsWrite(parsed.data.bankDetails),
       maxDiscountPct:
         parsed.data.maxDiscountPct === null ? null : new Prisma.Decimal(parsed.data.maxDiscountPct),
+      maxMarkupPct: parsed.data.maxMarkupPct === null ? null : new Prisma.Decimal(parsed.data.maxMarkupPct),
       active: parsed.data.active,
     },
   });

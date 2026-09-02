@@ -71,6 +71,13 @@ export type EngineInput = {
    * so they stay two separate inputs rather than one shared field. `null`/
    * omitted means "no cap" (matches `EngineItem.maxDiscountPct`'s default). */
   regionMaxDiscountPct?: number | null;
+  /** The document's region markup ceiling (`Region.maxMarkupPct`) — the
+   * mirror of `regionMaxDiscountPct` above, for `documentConcession`'s
+   * `exceedsMarkupCap` below. `null`/omitted means "no ceiling" (unlike
+   * `regionMaxDiscountPct`, whose omitted default is 100 — a markup has no
+   * natural 100% boundary the way "all of list price" bounds a discount, so
+   * "no ceiling" has to be its own state rather than a large number). */
+  regionMaxMarkupPct?: number | null;
   taxRate: number;
 };
 
@@ -126,6 +133,22 @@ export type DocumentConcession = {
    * src/lib/actions/documents.ts) decides what to do about it — same
    * division of responsibility as `violations`/`negativeSubtotal` above. */
   exceedsCap: boolean;
+  /** The region's markup ceiling (`EngineInput.regionMaxMarkupPct`), or
+   * `null` when that input is null/omitted — meaning "no ceiling" (see that
+   * field's own doc comment for why this can't default to a number the way
+   * `allowedPct` defaults to 100). */
+  allowedMarkupPct: number | null;
+  /** `-effectivePct > allowedMarkupPct` (a negative concession is a markup —
+   * see the module doc comment on `computeTotals`'s price-adjustment sign
+   * convention). Always `false` when `allowedMarkupPct` is `null`, and — by
+   * construction, since `effectivePct` cannot be simultaneously positive and
+   * negative — never `true` at the same time as `exceedsCap` above: the
+   * discount cap and the markup ceiling are opposite signs of the same
+   * figure, so at most one of the two can ever fire for a given document.
+   * The caller (`recalcAndEnforce` in src/lib/actions/documents.ts) decides
+   * what to do about it, the same MANAGER-blocked/ADMIN-warned split
+   * `exceedsCap` already gets. */
+  exceedsMarkupCap: boolean;
   /** `concession`, broken into the four sources `computeTotals`'s own doc
    * comment sums to build it — added so `concessionCapMessage` (and any
    * other reader) can name what a concession is actually made of instead of
@@ -498,12 +521,15 @@ export function computeTotals(input: EngineInput): PricingTotals {
 
   const documentAllowedPct = input.regionMaxDiscountPct ?? 100;
   const documentEffectivePct = effectivePct(listValueCents, concessionCents);
+  const documentAllowedMarkupPct = input.regionMaxMarkupPct ?? null;
   const documentConcession: DocumentConcession = {
     concession: fromCents(concessionCents).toFixed(2),
     listValue: fromCents(listValueCents).toFixed(2),
     effectivePct: documentEffectivePct,
     allowedPct: documentAllowedPct,
     exceedsCap: documentEffectivePct > documentAllowedPct,
+    allowedMarkupPct: documentAllowedMarkupPct,
+    exceedsMarkupCap: documentAllowedMarkupPct !== null && -documentEffectivePct > documentAllowedMarkupPct,
     parts: {
       documentDiscount: fromCents(discountAmountCents).toFixed(2),
       itemDiscounts: fromCents(itemDiscountTotalCents).toFixed(2),
@@ -614,4 +640,35 @@ export function concessionCapMessage(dc: DocumentConcession, regionName: string,
   const partsSegment = partsClause ? ` — ${partsClause}` : "";
 
   return `Concessions total ${formatMoney(dc.concession, currency)} (${formatPct(dc.effectivePct)}% of list price)${partsSegment} — above the ${dc.allowedPct}% limit for ${regionName}.`;
+}
+
+/**
+ * Builds the region-markup-ceiling-exceeded message for `documentConcession`
+ * — the mirror of `concessionCapMessage` above, for the opposite-signed case
+ * (Ross: "he's got a minimum selling price. And a maximum selling price. And
+ * those rules apply to the LLC as well."). Shares `concessionCapMessage`'s
+ * caller (`recalcAndEnforce` in src/lib/actions/documents.ts) and UI
+ * surfacing (`ConcessionCapBadge`/`ConcessionCapToast`) rather than a
+ * parallel mechanism of its own — see `DocumentConcession.exceedsMarkupCap`.
+ *
+ * Deliberately kept in the same shape `concessionCapMessage` reads in — the
+ * amount, then its percentage, then the ceiling and the region — so the two
+ * read as one family of message rather than two differently-worded rules,
+ * e.g.:
+ *
+ *   "This quote is priced $12,000.00 above list (12% markup) — above the
+ *   10% markup ceiling for Australia."
+ *
+ * Never called with `allowedMarkupPct: null` — a caller only builds this
+ * once `exceedsMarkupCap` is true, which already implies a non-null ceiling
+ * (see `computeTotals`).
+ */
+export function markupCapMessage(dc: DocumentConcession, regionName: string, currency: string): string {
+  // `dc.concession` is negative for a markup (a price raised above list) —
+  // negate it back to a plain positive "how much over list" figure, the
+  // same way `dc.effectivePct` is negated to a plain positive markup
+  // percentage below.
+  const overListCents = -toCents(dc.concession);
+  const markupPct = -dc.effectivePct;
+  return `This quote is priced ${formatMoney(fromCents(overListCents).toFixed(2), currency)} above list (${formatPct(markupPct)}% markup) — above the ${dc.allowedMarkupPct}% markup ceiling for ${regionName}.`;
 }

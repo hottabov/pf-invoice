@@ -14,7 +14,7 @@ import {
 } from "@/lib/queries/documents";
 import { listActiveRegions } from "@/lib/queries/catalog";
 import { getQuoteValidityDays, getShowOptionIcons } from "@/lib/queries/settings";
-import { concessionCapMessage } from "@/lib/pricing";
+import { concessionCapMessage, markupCapMessage } from "@/lib/pricing";
 import {
   addCustomLine,
   addItem,
@@ -93,9 +93,18 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
   // ConcessionCapBadge/ConcessionCapToast) rather than a shorter paraphrase
   // that could drift from it. `null` whenever the document isn't over the
   // cap, which is also what makes both of those components render nothing.
-  const concessionCapMessageText = document.documentConcession.exceedsCap
+  //
+  // The markup ceiling (Region.maxMarkupPct) shares this exact badge/toast
+  // surfacing rather than a parallel mechanism of its own — see
+  // recalcAndEnforce's own doc comment on why exceedsCap/exceedsMarkupCap
+  // can never both be true for the same document at once, so at most one of
+  // these two ternary branches ever actually applies.
+  const capMessageText = document.documentConcession.exceedsCap
     ? concessionCapMessage(document.documentConcession, document.regionName, document.currency)
-    : null;
+    : document.documentConcession.exceedsMarkupCap
+      ? markupCapMessage(document.documentConcession, document.regionName, document.currency)
+      : null;
+  const capExceeded = document.documentConcession.exceedsCap || document.documentConcession.exceedsMarkupCap;
 
   const [companies, catalog, showOptionIcons, regions, orgDefaultValidityDays, formsDocument] = await Promise.all([
     listClientPickerCompanies(session.user),
@@ -255,7 +264,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
           <SectionCard title="Summary">
             <div className="flex flex-col gap-4">
               <DocumentSummaryHeader document={document} />
-              {concessionCapMessageText ? <ConcessionCapBadge message={concessionCapMessageText} /> : null}
+              {capMessageText ? <ConcessionCapBadge message={capMessageText} /> : null}
               <div className="border-t border-slate-100 pt-4">
                 <DocumentTotals
                   taxName={document.taxName}
@@ -287,7 +296,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
         <SectionCard title="Status & actions">
           <div className="flex flex-col gap-4">
             <DocumentSummaryHeader document={document} />
-            {concessionCapMessageText ? <ConcessionCapBadge message={concessionCapMessageText} /> : null}
+            {capMessageText ? <ConcessionCapBadge message={capMessageText} /> : null}
             <DocumentActions document={document} isDraft={isDraft} isAdmin={isAdmin} />
           </div>
         </SectionCard>
@@ -298,7 +307,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
           outright, so a MANAGER's own actions can never produce the
           within-cap -> over-cap transition this toasts. */}
       {isAdmin ? (
-        <ConcessionCapToast exceedsCap={document.documentConcession.exceedsCap} message={concessionCapMessageText} />
+        <ConcessionCapToast exceedsCap={capExceeded} message={capMessageText} />
       ) : null}
 
       <StickyFooter

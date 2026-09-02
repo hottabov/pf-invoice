@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { toCents, fromCents, computeTotals, discountCents, capPct, concessionCapMessage } from "../src/lib/pricing";
+import {
+  toCents,
+  fromCents,
+  computeTotals,
+  discountCents,
+  capPct,
+  concessionCapMessage,
+  markupCapMessage,
+} from "../src/lib/pricing";
 
 describe("toCents", () => {
   it("converts a whole-dollar amount", () => {
@@ -96,6 +104,8 @@ describe("computeTotals", () => {
         effectivePct: 0,
         allowedPct: 100,
         exceedsCap: false,
+        allowedMarkupPct: null,
+        exceedsMarkupCap: false,
         parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
       },
     });
@@ -345,6 +355,8 @@ describe("computeTotals", () => {
         effectivePct: 0,
         allowedPct: 100,
         exceedsCap: false,
+        allowedMarkupPct: null,
+        exceedsMarkupCap: false,
         parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
       },
     });
@@ -428,6 +440,8 @@ describe("documentConcession", () => {
       effectivePct: 0,
       allowedPct: 100,
       exceedsCap: false,
+      allowedMarkupPct: null,
+      exceedsMarkupCap: false,
       parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
     });
   });
@@ -449,6 +463,8 @@ describe("documentConcession", () => {
       effectivePct: 100,
       allowedPct: 100,
       exceedsCap: false,
+      allowedMarkupPct: null,
+      exceedsMarkupCap: false,
       parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "1000.00", tradeIns: "0.00" },
     });
   });
@@ -547,6 +563,8 @@ describe("documentConcession", () => {
       effectivePct: 20,
       allowedPct: 100,
       exceedsCap: false,
+      allowedMarkupPct: null,
+      exceedsMarkupCap: false,
       parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "2000.00" },
     });
   });
@@ -657,6 +675,8 @@ describe("concessionCapMessage", () => {
         effectivePct: 17.402982,
         allowedPct: 10,
         exceedsCap: true,
+        allowedMarkupPct: null,
+        exceedsMarkupCap: false,
         parts: { documentDiscount: "34000.55", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
       },
       "Australia",
@@ -681,6 +701,8 @@ describe("concessionCapMessage", () => {
         effectivePct: 10.12,
         allowedPct: 10,
         exceedsCap: true,
+        allowedMarkupPct: null,
+        exceedsMarkupCap: false,
         parts: {
           documentDiscount: "10448.20",
           itemDiscounts: "0.00",
@@ -704,6 +726,8 @@ describe("concessionCapMessage", () => {
         effectivePct: 10,
         allowedPct: 10,
         exceedsCap: false,
+        allowedMarkupPct: null,
+        exceedsMarkupCap: false,
         parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "5000.50" },
       },
       "Australia",
@@ -726,6 +750,8 @@ describe("concessionCapMessage", () => {
         effectivePct: 8,
         allowedPct: 10,
         exceedsCap: false,
+        allowedMarkupPct: null,
+        exceedsMarkupCap: false,
         parts: {
           documentDiscount: "10000.40",
           itemDiscounts: "0.00",
@@ -750,6 +776,8 @@ describe("concessionCapMessage", () => {
         effectivePct: -1.5,
         allowedPct: 10,
         exceedsCap: false,
+        allowedMarkupPct: null,
+        exceedsMarkupCap: false,
         parts: {
           documentDiscount: "0.00",
           itemDiscounts: "0.00",
@@ -805,6 +833,129 @@ describe("DocumentConcession.parts", () => {
       Number(result.documentConcession.parts.tradeIns);
     expect(partsSum.toFixed(2)).toBe(result.documentConcession.concession);
     expect(result.documentConcession.concession).toBe("5155.00");
+  });
+});
+
+describe("markup ceiling (Region.maxMarkupPct)", () => {
+  // Mirrors the discount-cap boundary tests above ("stays within the cap
+  // just under the boundary" / "does not flag exceedsCap exactly at the
+  // boundary" / "flags exceedsCap just over the boundary"), for the
+  // opposite-signed case: a negative concession (a price raised above list)
+  // is a markup — see `exceedsMarkupCap`'s own doc comment on
+  // `DocumentConcession`.
+
+  it("does not flag exceedsMarkupCap exactly at the boundary (10% markup against a 10% ceiling)", () => {
+    // $10,000 list, sold at $11,000 -- exactly 10% above list.
+    const result = computeTotals({
+      items: [{ unitPrice: 11000, listPrice: 10000, lines: [] }],
+      extraLines: [],
+      documentDiscountValue: null,
+      regionMaxMarkupPct: 10,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.effectivePct).toBe(-10);
+    expect(result.documentConcession.exceedsMarkupCap).toBe(false);
+  });
+
+  it("flags exceedsMarkupCap a cent past the boundary (10.01% markup against a 10% ceiling)", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 11001, listPrice: 10000, lines: [] }], // 10.01% above list
+      extraLines: [],
+      documentDiscountValue: null,
+      regionMaxMarkupPct: 10,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.effectivePct).toBeCloseTo(-10.01, 5);
+    expect(result.documentConcession.exceedsMarkupCap).toBe(true);
+  });
+
+  it("never flags exceedsMarkupCap when regionMaxMarkupPct is unset (no ceiling), no matter how large the markup", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 1000000, listPrice: 10000, lines: [] }], // 9,900% above list
+      extraLines: [],
+      documentDiscountValue: null,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.allowedMarkupPct).toBeNull();
+    expect(result.documentConcession.exceedsMarkupCap).toBe(false);
+  });
+
+  it("leaves a document priced below list unaffected by the markup ceiling", () => {
+    // Sold *under* list -- a discount, not a markup -- so the ceiling (which
+    // only ever bounds a negative concession) can never fire here regardless
+    // of how tight it is.
+    const result = computeTotals({
+      items: [{ unitPrice: 8900, listPrice: 10000, lines: [] }], // 11% below list
+      extraLines: [],
+      documentDiscountValue: null,
+      regionMaxMarkupPct: 1,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.effectivePct).toBeCloseTo(11, 5);
+    expect(result.documentConcession.exceedsMarkupCap).toBe(false);
+  });
+
+  it("never fires the discount cap and the markup ceiling at once for the same document (opposite signs)", () => {
+    // Same region (both caps set to 10%), two documents: one discounted well
+    // past the discount cap, one marked up well past the markup ceiling.
+    // Each can only ever trip its own guardrail -- a single concession
+    // figure can't be simultaneously a large positive discount and a large
+    // negative markup.
+    const heavilyDiscounted = computeTotals({
+      items: [{ unitPrice: 5000, listPrice: 10000, lines: [] }], // 50% below list
+      extraLines: [],
+      documentDiscountValue: null,
+      regionMaxDiscountPct: 10,
+      regionMaxMarkupPct: 10,
+      taxRate: 0,
+    });
+    expect(heavilyDiscounted.documentConcession.exceedsCap).toBe(true);
+    expect(heavilyDiscounted.documentConcession.exceedsMarkupCap).toBe(false);
+
+    const heavilyMarkedUp = computeTotals({
+      items: [{ unitPrice: 15000, listPrice: 10000, lines: [] }], // 50% above list
+      extraLines: [],
+      documentDiscountValue: null,
+      regionMaxDiscountPct: 10,
+      regionMaxMarkupPct: 10,
+      taxRate: 0,
+    });
+    expect(heavilyMarkedUp.documentConcession.exceedsCap).toBe(false);
+    expect(heavilyMarkedUp.documentConcession.exceedsMarkupCap).toBe(true);
+
+    // Neither result ever has both flags true at once.
+    expect(heavilyDiscounted.documentConcession.exceedsCap && heavilyDiscounted.documentConcession.exceedsMarkupCap).toBe(
+      false
+    );
+    expect(heavilyMarkedUp.documentConcession.exceedsCap && heavilyMarkedUp.documentConcession.exceedsMarkupCap).toBe(
+      false
+    );
+  });
+});
+
+describe("markupCapMessage", () => {
+  // Non-whole-dollar figures throughout, same reasoning as
+  // concessionCapMessage's own tests above — formatMoney's "whole amounts
+  // render without decimals" rule would otherwise make a `toBe` assertion
+  // depend on that unrelated formatting choice.
+  it("states the amount over list, its percentage, the ceiling, and the region", () => {
+    const message = markupCapMessage(
+      {
+        concession: "-1000.50",
+        listValue: "10000.00",
+        effectivePct: -10,
+        allowedPct: 100,
+        exceedsCap: false,
+        allowedMarkupPct: 10,
+        exceedsMarkupCap: true,
+        parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "-1000.50", tradeIns: "0.00" },
+      },
+      "Australia",
+      "AUD"
+    );
+    expect(message).toBe(
+      "This quote is priced $1,000.50 above list (10% markup) — above the 10% markup ceiling for Australia."
+    );
   });
 });
 

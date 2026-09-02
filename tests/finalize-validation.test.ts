@@ -20,6 +20,8 @@ const noConcession: DocumentConcession = {
   effectivePct: 0,
   allowedPct: 10,
   exceedsCap: false,
+  allowedMarkupPct: null,
+  exceedsMarkupCap: false,
   parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
 };
 
@@ -29,6 +31,8 @@ const overCapConcession: DocumentConcession = {
   effectivePct: 34,
   allowedPct: 10,
   exceedsCap: true,
+  allowedMarkupPct: null,
+  exceedsMarkupCap: false,
   parts: { documentDiscount: "3400.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
 };
 

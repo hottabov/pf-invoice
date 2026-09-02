@@ -36,6 +36,7 @@ export default async function NewRegionPage() {
             footerText: "",
             bankDetails: null,
             maxDiscountPct: "",
+            maxMarkupPct: "",
             active: true,
           }}
           submitLabel="Create region"

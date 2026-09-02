@@ -185,6 +185,31 @@ export const maxDiscountPctSchema = z.preprocess(
 );
 export type MaxDiscountPctInput = z.infer<typeof maxDiscountPctSchema>;
 
+/**
+ * A markup ceiling percentage: the mirror of `maxDiscountPctSchema` above,
+ * for `Region.maxMarkupPct` (Ross: "he's got a minimum selling price. And a
+ * maximum selling price. And those rules apply to the LLC as well." — the
+ * minimum is the discount cap above, this is the maximum). Same 0..100, at
+ * most 2 decimal places, empty-means-no-ceiling shape — kept as its own
+ * schema (not a bare alias) purely so its validation messages say "markup",
+ * not "discount". */
+export const maxMarkupPctSchema = z.preprocess(
+  (value) =>
+    value === null || value === undefined || (typeof value === "string" && value.trim() === "")
+      ? null
+      : value,
+  z.union([
+    z.null(),
+    z
+      .string()
+      .trim()
+      .regex(MAX_DISCOUNT_PCT_REGEX, "Max markup must be a number between 0 and 100 with at most 2 decimal places")
+      .transform((value) => Number(value))
+      .refine((value) => value >= 0 && value <= 100, "Max markup must be between 0 and 100"),
+  ])
+);
+export type MaxMarkupPctInput = z.infer<typeof maxMarkupPctSchema>;
+
 // --- compatibility diff -----------------------------------------------------
 
 export type CompatDiff = { toAdd: string[]; toRemove: string[] };

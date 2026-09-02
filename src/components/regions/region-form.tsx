@@ -21,6 +21,9 @@ export type RegionFormValues = {
   /** String form of the region's discount cap for the input's defaultValue
    * (mirrors `taxRate`) — empty string means no cap. */
   maxDiscountPct: string;
+  /** String form of the region's markup ceiling (mirrors `maxDiscountPct`
+   * above, for the opposite direction) — empty string means no ceiling. */
+  maxMarkupPct: string;
   active: boolean;
 };
 
@@ -135,6 +138,22 @@ export function RegionForm({
             inputMode="decimal"
             defaultValue={defaultValues.maxDiscountPct}
             placeholder="No cap"
+            className={fieldInputClass}
+          />
+        </FieldRow>
+
+        <FieldRow
+          label="Max markup %"
+          htmlFor="region-max-markup-pct"
+          hint="How far above list a price may go. Leave blank for no ceiling."
+        >
+          <input
+            id="region-max-markup-pct"
+            name="maxMarkupPct"
+            type="text"
+            inputMode="decimal"
+            defaultValue={defaultValues.maxMarkupPct}
+            placeholder="No ceiling"
             className={fieldInputClass}
           />
         </FieldRow>

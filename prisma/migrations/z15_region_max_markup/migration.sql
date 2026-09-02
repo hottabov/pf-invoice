@@ -1,0 +1,18 @@
+-- The mirror of Region.maxDiscountPct (see 6_region_max_discount): a
+-- ceiling on how far ABOVE list a distributor may price, not just how far
+-- below (Ross: "he's got a minimum selling price. And a maximum selling
+-- price. And those rules apply to the LLC as well."). Nullable with no
+-- column default -- NULL is Postgres's implicit default for a nullable
+-- column with none specified -- so every existing region has no ceiling
+-- until an admin sets one, same "unset changes nothing" contract
+-- maxDiscountPct already has. Enforced via the existing concession
+-- machinery (documentConcession in src/lib/pricing.ts / recalcAndEnforce in
+-- src/lib/actions/documents.ts): a negative concession is a markup.
+--
+-- Kept as its own migration (separate from z14_delivery_terms) so the two
+-- changes stay independently revertible.
+--
+-- Column style verified against prisma/migrations/6_region_max_discount/migration.sql
+-- (same DECIMAL(5,2) shape as Region.maxDiscountPct in
+-- prisma/migrations/0_init/migration.sql).
+ALTER TABLE "Region" ADD COLUMN "maxMarkupPct" DECIMAL(5,2);
