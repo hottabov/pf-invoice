@@ -46,6 +46,19 @@ export type EngineItem = {
   discountValue?: string | null;
   maxDiscountPct?: number | null;
   lines: EngineItemLine[];
+  /** `Product.isCredit` (the TRADE-IN catalogue product, today) — mirrors
+   * the schema column's own doc comment: a credit item's `unitPrice` (plus
+   * any option lines, though it should never carry any in practice — see
+   * `computeTotals`'s doc comment) is entered as a plain positive number by
+   * the salesperson, and this flag is the ONLY thing that turns it into a
+   * subtraction from the document's subtotal. Deliberately not "just make
+   * `unitPrice` negative": that would mean a salesperson typing `-20000` for
+   * a trade-in and, sooner or later, `20000` by mistake — silently *adding*
+   * $20,000 to a quote meant to lose it. Keeping the sign out of the typed
+   * value and in this flag instead makes that particular mistake
+   * impossible. Defaults to `false` when omitted, so every existing caller
+   * (and every ordinary product) is unaffected. */
+  isCredit?: boolean;
 };
 
 /** A freeform document-level line (e.g. delivery, install). No `listPrice`:
@@ -176,9 +189,12 @@ export type DocumentConcession = {
     /** Net of `(listPrice − unitPrice) × qty` across every item and option
      * line — signed; see this field's doc comment above. */
     priceAdjustments: string;
-    /** Sum of every negative extra line's absolute value (today's
-     * trade-in mechanism — see `computeTotals`'s doc comment) — never
-     * negative. */
+    /** Sum of every negative extra line's absolute value, PLUS every credit
+     * item's full magnitude (`EngineItem.isCredit` — see `computeTotals`'s
+     * doc comment for both mechanisms) — never negative. A credit item's
+     * magnitude is counted here, in full, instead of through
+     * `priceAdjustments`/`itemDiscounts` — see `computeTotals` for how that
+     * avoids double-counting it. */
     tradeIns: string;
   };
 };
@@ -434,15 +450,36 @@ export function capPct(mode: DiscountMode, value: string | null, baseCents: numb
  * Clamping to zero would silently double the apparent concession every time
  * a salesperson uses exactly the workflow this feature exists to support.
  *
- * A negative extra line is today's mechanism for entering a trade-in (see
+ * A negative extra line is one mechanism for entering a trade-in (see
  * `customLineSchema`), and a trade-in allowance is money given away just
  * like a discount — so its absolute value counts toward `concession` too,
  * added on top of (not instead of) the listPrice/unitPrice term above, which
  * never runs over extra lines at all (`EngineExtraLine` has no `listPrice` —
- * a custom line has no catalogue price to concede against). This will want
- * revisiting once a trade-in becomes its own catalogue product with a real
- * list price, at which point it should probably move into the first term
- * instead of being a special case here.
+ * a custom line has no catalogue price to concede against).
+ *
+ * A credit item (`EngineItem.isCredit` — the TRADE-IN catalogue product,
+ * today) is the OTHER mechanism, and is folded into the SAME `tradeIns`
+ * bucket rather than a third one: its full magnitude (`unitPrice` + any
+ * option lines, after its own discount if any — see the items/lines loop
+ * below) is added to `tradeIns`, exactly as a negative extra line's absolute
+ * value already is. This is what "replacing, not duplicating, the
+ * negative-extra-line handling" means in practice — a salesperson uses one
+ * mechanism or the other for a given trade-in, never both, so nothing here
+ * forces that; it just makes sure a credit item's own contribution is never
+ * ALSO picked up by the listPrice/unitPrice `priceAdjustments` term or by
+ * `itemDiscounts` — a credit item is excluded from both of those (its
+ * `(listPrice − unitPrice)` term is skipped, and its own item discount, if
+ * any, is folded into its `tradeIns` magnitude instead of into
+ * `itemDiscounts`) precisely so its money is counted once, not twice. A
+ * credit item's `listPrice` also never adds to `listValue` (the cap's
+ * denominator), matching how a negative extra line's amount doesn't either —
+ * only what was actually "sold" (kept as a charge, not given back) counts
+ * toward the denominator.
+ *
+ * A credit item contributes `-(unitPrice + options)` (after its own
+ * discount) to `subtotal` itself, via its entry in the returned
+ * `itemTotals` — this is what makes it actually reduce the quote, not just
+ * something `documentConcession` reports on the side.
  *
  * `listPrice: null` (a custom/legacy line with no catalogue price recorded)
  * is treated as equal to `unitPrice` — zero concession, and its value still
@@ -455,19 +492,39 @@ export function computeTotals(input: EngineInput): PricingTotals {
   // per-item math — see the doc comment above for the formula.
   let concessionCents = 0;
   let listValueCents = 0;
+  // A credit item's full magnitude (see the doc comment above) — kept
+  // separate from `concessionCents` until the fold-in below so it can be
+  // reported on its own as part of `tradeIns`, the same way
+  // `negativeExtraLinesAbsCents` further down is.
+  let creditItemsAbsCents = 0;
+  // Sum of every non-credit item's own discount amount — the subset of
+  // `itemDiscountsCents` (below) that actually folds into `concessionCents`/
+  // `DocumentConcession.parts.itemDiscounts`. A credit item's own discount
+  // (an edge case — see `EngineItem.isCredit`'s doc comment: a credit item
+  // isn't expected to carry one) is deliberately excluded here so it isn't
+  // folded in a second time on top of the full magnitude already captured by
+  // `creditItemsAbsCents` above; it still contributes to `itemDiscountsCents`
+  // itself (and therefore `PricingTotals.itemDiscounts`/`totalDiscountAmount`)
+  // exactly like any other item's discount would, for display purposes.
+  let itemDiscountConcessionCents = 0;
 
   const itemDiscountsCents: number[] = [];
   const itemTotalsCents = input.items.map((item, itemIndex) => {
+    const isCredit = item.isCredit ?? false;
     const itemUnitPriceCents = toCents(item.unitPrice);
     const itemListPriceCents = item.listPrice != null ? toCents(item.listPrice) : itemUnitPriceCents;
-    concessionCents += itemListPriceCents - itemUnitPriceCents;
-    listValueCents += itemListPriceCents;
 
     const linesCents = item.lines.reduce((sum, line) => {
       const lineUnitPriceCents = toCents(line.unitPrice);
       const lineListPriceCents = line.listPrice != null ? toCents(line.listPrice) : lineUnitPriceCents;
-      concessionCents += (lineListPriceCents - lineUnitPriceCents) * line.qty;
-      listValueCents += lineListPriceCents * line.qty;
+      // A credit item is excluded from the price-adjustment/list-value
+      // accumulation entirely — its money is counted once, via
+      // `creditItemsAbsCents` below, not through this term too (see the
+      // doc comment above on avoiding double-counting).
+      if (!isCredit) {
+        concessionCents += (lineListPriceCents - lineUnitPriceCents) * line.qty;
+        listValueCents += lineListPriceCents * line.qty;
+      }
       return sum + line.qty * lineUnitPriceCents;
     }, 0);
     const baseCents = itemUnitPriceCents + linesCents;
@@ -481,7 +538,23 @@ export function computeTotals(input: EngineInput): PricingTotals {
     }
 
     itemDiscountsCents.push(discount);
-    return baseCents - discount;
+    if (!isCredit) itemDiscountConcessionCents += discount;
+    const itemMagnitudeCents = baseCents - discount;
+
+    if (isCredit) {
+      // Full magnitude counts once, in `tradeIns` — not also via
+      // `itemListPriceCents - itemUnitPriceCents` (skipped above) or via
+      // `itemDiscountsCents`/`itemDiscountTotalCents` below (see
+      // `documentConcession`'s doc comment on why credit items are excluded
+      // from that fold). Negated so it actually reduces `subtotal` — see
+      // the doc comment above.
+      creditItemsAbsCents += itemMagnitudeCents;
+      return -itemMagnitudeCents;
+    }
+
+    concessionCents += itemListPriceCents - itemUnitPriceCents;
+    listValueCents += itemListPriceCents;
+    return itemMagnitudeCents;
   });
 
   let extraLinesCents = 0;
@@ -515,9 +588,13 @@ export function computeTotals(input: EngineInput): PricingTotals {
   // can report it on its own.
   const priceAdjustmentsCents = concessionCents;
 
-  // Item discounts, the negative-extra-line total, and the document
-  // discount all count toward the concession — see the doc comment above.
-  concessionCents += itemDiscountTotalCents + negativeExtraLinesAbsCents + discountAmountCents;
+  // Item discounts (excluding a credit item's own — see
+  // `itemDiscountConcessionCents`'s doc comment), the negative-extra-line
+  // total plus every credit item's magnitude (the two `tradeIns` sources —
+  // see `computeTotals`'s doc comment), and the document discount all count
+  // toward the concession.
+  const tradeInsCents = negativeExtraLinesAbsCents + creditItemsAbsCents;
+  concessionCents += itemDiscountConcessionCents + tradeInsCents + discountAmountCents;
 
   const documentAllowedPct = input.regionMaxDiscountPct ?? 100;
   const documentEffectivePct = effectivePct(listValueCents, concessionCents);
@@ -532,9 +609,13 @@ export function computeTotals(input: EngineInput): PricingTotals {
     exceedsMarkupCap: documentAllowedMarkupPct !== null && -documentEffectivePct > documentAllowedMarkupPct,
     parts: {
       documentDiscount: fromCents(discountAmountCents).toFixed(2),
-      itemDiscounts: fromCents(itemDiscountTotalCents).toFixed(2),
+      // Excludes a credit item's own discount (if any — see
+      // `itemDiscountConcessionCents`) so `parts` still sums to `concession`
+      // exactly; `PricingTotals.itemDiscounts` below is unaffected (it's
+      // still the full per-item figure, used for per-item display).
+      itemDiscounts: fromCents(itemDiscountConcessionCents).toFixed(2),
       priceAdjustments: fromCents(priceAdjustmentsCents).toFixed(2),
-      tradeIns: fromCents(negativeExtraLinesAbsCents).toFixed(2),
+      tradeIns: fromCents(tradeInsCents).toFixed(2),
     },
   };
 

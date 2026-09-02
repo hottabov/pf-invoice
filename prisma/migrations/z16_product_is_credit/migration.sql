@@ -1,0 +1,17 @@
+-- A credit product (today: the TRADE-IN catalogue product) subtracts its
+-- amount from a quote instead of adding it -- John: "we should create
+-- another product called trade-in, so that way the terminology is correct
+-- for everybody in the world... It's a line item. It's a product. You're
+-- selling a trade in. It's a negative value." The salesperson still types a
+-- positive number for a credit item's unit price; the sign comes from this
+-- flag, never from what was typed -- see the doc comment on
+-- `EngineItem.isCredit` in src/lib/pricing.ts.
+--
+-- NOT NULL with a `false` default, so every existing product (and every row
+-- inserted by an older client mid-deploy) is unaffected -- same
+-- "unset/existing changes nothing" contract every boolean column addition in
+-- this app follows.
+--
+-- Column style verified against prisma/migrations/0_init/migration.sql
+-- (Product.active is the same BOOLEAN NOT NULL DEFAULT pattern).
+ALTER TABLE "Product" ADD COLUMN "isCredit" BOOLEAN NOT NULL DEFAULT false;

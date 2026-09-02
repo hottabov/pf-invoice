@@ -153,7 +153,10 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
   const document = await client.document.findUnique({
     where: { id: documentId },
     include: {
-      items: { include: { lines: true } },
+      // `isCredit` only — see `EngineItem.isCredit`'s doc comment
+      // (src/lib/pricing.ts) for why this flag (not the sign of a typed
+      // price) is what turns an item into a subtraction.
+      items: { include: { lines: true, product: { select: { isCredit: true } } } },
       lines: { where: { itemId: null } },
       region: true,
     },
@@ -177,6 +180,7 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
       discountMode: item.discountMode,
       discountValue: item.discountValue !== null ? item.discountValue.toString() : null,
       maxDiscountPct: regionMaxDiscountPct,
+      isCredit: item.product?.isCredit ?? false,
       lines: item.lines.map((line) => ({
         qty: line.qty,
         unitPrice: Number(line.unitPrice),

@@ -836,6 +836,122 @@ describe("DocumentConcession.parts", () => {
   });
 });
 
+// A trade-in as a real catalogue product (TRADE-IN, Product.isCredit) —
+// John: "you're selling a trade in. It's a negative value." The salesperson
+// types a positive unitPrice; `isCredit: true` is the only thing that turns
+// it into a subtraction — see `EngineItem.isCredit`'s doc comment.
+describe("EngineItem.isCredit (credit items -- the TRADE-IN product)", () => {
+  it("a credit item subtracts from the subtotal; the same figures with isCredit: false add", () => {
+    const credit = computeTotals({
+      items: [
+        { unitPrice: 5000, listPrice: 5000, lines: [], isCredit: true },
+        { unitPrice: 20000, listPrice: 20000, lines: [] }, // an ordinary machine
+      ],
+      extraLines: [],
+      taxRate: 0,
+    });
+    expect(credit.itemTotals).toEqual([-5000, 20000]);
+    expect(credit.subtotal).toBe(15000);
+
+    const noCredit = computeTotals({
+      items: [
+        { unitPrice: 5000, listPrice: 5000, lines: [], isCredit: false },
+        { unitPrice: 20000, listPrice: 20000, lines: [] },
+      ],
+      extraLines: [],
+      taxRate: 0,
+    });
+    expect(noCredit.itemTotals).toEqual([5000, 20000]);
+    expect(noCredit.subtotal).toBe(25000);
+  });
+
+  it("omitting isCredit behaves exactly like isCredit: false (defaults to an ordinary item)", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 5000, listPrice: 5000, lines: [] }],
+      extraLines: [],
+      taxRate: 0,
+    });
+    expect(result.itemTotals).toEqual([5000]);
+  });
+
+  it("a credit item counts once in DocumentConcession.parts.tradeIns, not twice, and not also as a price adjustment", () => {
+    const result = computeTotals({
+      items: [
+        { unitPrice: 20000, listPrice: 20000, lines: [], isCredit: true },
+        { unitPrice: 100000, listPrice: 100000, lines: [] },
+      ],
+      extraLines: [],
+      regionMaxDiscountPct: 100,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.parts).toEqual({
+      documentDiscount: "0.00",
+      itemDiscounts: "0.00",
+      priceAdjustments: "0.00",
+      tradeIns: "20000.00",
+    });
+    // The credit item's own listPrice never inflates listValue either — same
+    // treatment a negative extra line trade-in already gets (see "counts a
+    // negative extra line (a trade-in) toward the concession" above).
+    expect(result.documentConcession.listValue).toBe("100000.00");
+    expect(result.documentConcession.concession).toBe("20000.00");
+  });
+
+  it("a credit item pushing concessions past the cap trips exceedsCap exactly as a discount would", () => {
+    // $20,000 credit against $100,000 of list value = 20% concession, over a
+    // 10% region cap -- same shape as a discount-driven breach.
+    const result = computeTotals({
+      items: [
+        { unitPrice: 20000, listPrice: 20000, lines: [], isCredit: true },
+        { unitPrice: 100000, listPrice: 100000, lines: [] },
+      ],
+      extraLines: [],
+      regionMaxDiscountPct: 10,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.effectivePct).toBeCloseTo(20, 5);
+    expect(result.documentConcession.exceedsCap).toBe(true);
+  });
+
+  it("a credit item with options negates the whole item's contribution consistently (should not carry options in practice, but the sign still applies to the whole item)", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 20000, listPrice: 20000, lines: [{ qty: 1, unitPrice: 500, listPrice: 500 }], isCredit: true }],
+      extraLines: [],
+      taxRate: 0,
+    });
+    expect(result.itemTotals).toEqual([-20500]);
+  });
+
+  it("an ordinary product is unaffected by every isCredit-related change (same result with isCredit omitted vs. false, no tradeIns, no sign flip)", () => {
+    const withoutFlag = computeTotals({
+      items: [{ unitPrice: 9000, listPrice: 10000, discountMode: "PERCENT", discountValue: "10", lines: [] }],
+      extraLines: [{ qty: 1, unitPrice: -3000 }],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "5",
+      regionMaxDiscountPct: 10,
+      taxRate: 0,
+    });
+    const withFlagFalse = computeTotals({
+      items: [
+        {
+          unitPrice: 9000,
+          listPrice: 10000,
+          discountMode: "PERCENT",
+          discountValue: "10",
+          lines: [],
+          isCredit: false,
+        },
+      ],
+      extraLines: [{ qty: 1, unitPrice: -3000 }],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "5",
+      regionMaxDiscountPct: 10,
+      taxRate: 0,
+    });
+    expect(withFlagFalse).toEqual(withoutFlag);
+  });
+});
+
 describe("markup ceiling (Region.maxMarkupPct)", () => {
   // Mirrors the discount-cap boundary tests above ("stays within the cap
   // just under the boundary" / "does not flag exceedsCap exactly at the

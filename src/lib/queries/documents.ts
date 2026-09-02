@@ -499,6 +499,7 @@ export async function getDocumentForBuilder(
       discountMode: item.discountMode,
       discountValue: item.discountValue !== null ? item.discountValue.toString() : null,
       maxDiscountPct: regionMaxDiscountPct,
+      isCredit: item.product?.isCredit ?? false,
       lines: item.lines.map((line) => ({
         qty: line.qty,
         unitPrice: Number(line.unitPrice),

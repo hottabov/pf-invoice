@@ -147,6 +147,21 @@ model Product {
   imageUrl    String?
   active      Boolean               @default(true)
   sortOrder   Int                   @default(0)
+  // A credit product (today: the TRADE-IN catalogue product -- John: "we
+  // should create another product called trade-in, so that way the
+  // terminology is correct... it's a line item. It's a product. You're
+  // selling a trade in. It's a negative value") subtracts its amount from a
+  // quote instead of adding it. Deliberately NOT a negative unitPrice on the
+  // item -- a salesperson always types a positive number here, and only the
+  // reader of this flag (the pricing engine's sign, and the sheets'
+  // rendering) ever treats it as a reduction. That keeps "sell a trade-in
+  // for $20,000" and "accidentally type $20,000 instead of -$20,000" simply
+  // not the same mistake anymore: a credit item's arithmetic sign comes from
+  // the product, never from what was typed. See the doc comment on
+  // `EngineItem.isCredit` in src/lib/pricing.ts for how this is consumed.
+  // Migration z16_product_is_credit adds this column with its default, so
+  // every existing product is unaffected.
+  isCredit    Boolean               @default(false)
   prices      Price[]
   compat      OptionCompatibility[]
   docItems    DocumentItem[]
