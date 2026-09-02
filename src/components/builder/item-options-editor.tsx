@@ -5,6 +5,7 @@ import { ChevronDown, Minus, Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fieldInputClass } from "@/components/ui-kit";
 import { formatMoney } from "@/lib/format";
+import { formatMetres, unitLengthMetres } from "@/lib/option-length";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
 import type { CompatibleOption } from "@/lib/queries/documents";
@@ -299,6 +300,7 @@ export function ItemOptionsEditor({
                       const checked = Boolean(state);
                       const priced = Boolean(option.price && !option.price.needsReview);
                       const attributeFields = parseAttributeFields(option.attributeSchema);
+                      const unitLength = unitLengthMetres(option.name);
 
                       return (
                         <div
@@ -390,6 +392,16 @@ export function ItemOptionsEditor({
                                     <Plus className="size-3.5" />
                                   </span>
                                 </button>
+                                {/* An option sold by the section (the
+                                    EasyLoader's 1.2M lengths) is really a
+                                    length: four sections is 4.8 m of table,
+                                    and that is the figure the customer
+                                    asks about. See src/lib/option-length.ts. */}
+                                {unitLength !== null ? (
+                                  <span className="text-xs font-medium text-slate-600 tabular-nums">
+                                    = {formatMetres(unitLength * state!.qty)}
+                                  </span>
+                                ) : null}
                               </div>
                               {attributeFields.map((field) => (
                                 <label

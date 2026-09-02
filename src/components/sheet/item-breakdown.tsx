@@ -13,9 +13,11 @@ import type { ItemBreakdown } from "@/lib/sheet-data";
  * of the money breakdown this component owns.
  *
  * Rules (shared by both variants):
- * - The base price row always renders, labelled with `code` and `Qty 1`
- *   (`breakdown.qty` — always 1 today, a product line is always one
- *   machine). The quantity label renders regardless of `showPrices`; only
+ * - The base price row always renders, labelled with `code`, with a bare
+ *   quantity (`breakdown.qty` — always 1 today, a product line is always one
+ *   machine) in the same column shape the option rows use, so the machine
+ *   reads as the first line of its own list rather than a differently
+ *   formatted heading. The quantity renders regardless of `showPrices`; only
  *   the price itself is gated.
  * - Every option row always renders — `code`/name (as "`code` — `name`" when
  *   `code` is set, plain `name` otherwise, exactly the "sheet" variant's old
@@ -100,7 +102,7 @@ function SheetBreakdownRows({
         <td className="pq-col-item pq-option-indent">
           <div className="pq-option-name">{code}</div>
         </td>
-        <td className="pq-col-qty">Qty {breakdown.qty}</td>
+        <td className="pq-col-qty">{breakdown.qty}</td>
         <td className="pq-col-amount pq-amount">
           {showPrices ? formatMoney(breakdown.basePrice, currency) : null}
         </td>

@@ -155,8 +155,8 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
           <thead>
             <tr>
               <th className="pq-col-item">Item</th>
-              <th className="pq-col-qty">Qty × Price</th>
-              <th className="pq-col-amount">Total</th>
+              <th className="pq-col-qty">Qty</th>
+              <th className="pq-col-amount">Price</th>
             </tr>
           </thead>
           {data.items.map((item) => (
