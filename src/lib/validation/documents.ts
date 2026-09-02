@@ -149,6 +149,17 @@ export function exceedsPercentCeiling(mode: DiscountModeInput, value: DiscountVa
   return mode === "PERCENT" && value !== null && Number(value) > 100;
 }
 
+// --- delivery terms (Ex Works carries no GST) -------------------------------
+
+/** `setDeliveryTerms`'s input — DELIVERED (the domestic default) or
+ * EX_WORKS (an export sale collected at the factory door, not a domestic
+ * taxable supply — see the `DeliveryTerms` enum in schema.prisma). No
+ * `null`/empty collapsing (unlike `discountValueSchema`): there is no "clear
+ * it" state, only a choice between the two terms, mirroring
+ * `discountModeSchema`'s shape one field over. */
+export const deliveryTermsSchema = z.enum(["DELIVERED", "EX_WORKS"]);
+export type DeliveryTermsInput = z.infer<typeof deliveryTermsSchema>;
+
 /** A non-negative decimal with at most 2 decimal places, up to 9 digits
  * before the point (same bound as `DISCOUNT_VALUE_REGEX`) — a hand-typed
  * unit price (`setItemUnitPrice`/`setLineUnitPrice` in

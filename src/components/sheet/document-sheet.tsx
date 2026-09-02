@@ -264,12 +264,22 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
               <span>-{formatMoney(totals.discountAmount, totals.currency)}</span>
             </div>
           ) : null}
-          <div className="pq-totals-row">
-            <span>
-              {totals.taxName} {totals.taxRate}%
-            </span>
-            <span>{formatMoney(totals.taxAmount, totals.currency)}</span>
-          </div>
+          {totals.deliveryTerms === "EX_WORKS" ? (
+            // No GST line at all for an Ex Works quote — a `{taxName} 0%`
+            // row would read as a mistake (did someone forget to set the
+            // rate?) rather than the deliberate export-terms choice it is.
+            <div className="pq-totals-row">
+              <span>Ex Works — no {totals.taxName} applicable</span>
+              <span>{formatMoney(totals.taxAmount, totals.currency)}</span>
+            </div>
+          ) : (
+            <div className="pq-totals-row">
+              <span>
+                {totals.taxName} {totals.taxRate}%
+              </span>
+              <span>{formatMoney(totals.taxAmount, totals.currency)}</span>
+            </div>
+          )}
           <div className="pq-totals-row pq-totals-final">
             <span>TOTAL</span>
             <span>

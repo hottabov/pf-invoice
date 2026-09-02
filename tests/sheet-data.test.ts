@@ -63,6 +63,7 @@ function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
     currency: "AUD",
     taxName: "GST",
     taxRate: "10",
+    deliveryTerms: "DELIVERED",
     entitySnapshot: null,
     entityName: "Live Region Entity",
     entityLegalId: "ABN 111",
@@ -480,7 +481,13 @@ describe("toSheetData — totals passthrough", () => {
       taxRate: "0",
       taxAmount: "90.00",
       total: "990.00",
+      deliveryTerms: "DELIVERED",
     });
+  });
+
+  it("carries deliveryTerms straight through, DELIVERED or EX_WORKS", () => {
+    expect(toSheetData(baseDoc({ deliveryTerms: "DELIVERED" })).totals.deliveryTerms).toBe("DELIVERED");
+    expect(toSheetData(baseDoc({ deliveryTerms: "EX_WORKS" })).totals.deliveryTerms).toBe("EX_WORKS");
   });
 });
 

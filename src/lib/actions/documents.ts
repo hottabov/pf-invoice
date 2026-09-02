@@ -22,6 +22,7 @@ import { isHtmlContent, sanitizeRichText } from "@/lib/rich-text";
 import { formatMoney } from "@/lib/format";
 import {
   customLineSchema,
+  deliveryTermsSchema,
   discountModeSchema,
   discountValueSchema,
   exceedsPercentCeiling,
@@ -173,7 +174,13 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
     documentDiscountMode: document.discountMode,
     documentDiscountValue: document.discountValue !== null ? document.discountValue.toString() : null,
     regionMaxDiscountPct,
-    taxRate: Number(document.taxRate),
+    // An Ex Works quote (collected at the factory door) is not a domestic
+    // taxable supply, so its tax is zero — resolved here, the one place a
+    // document's effective tax rate is computed, rather than scattered
+    // across every reader of taxAmount/total. `document.taxRate` itself
+    // (the region's nominal rate) is left untouched; only the rate actually
+    // fed to the engine is overridden.
+    taxRate: document.deliveryTerms === "EX_WORKS" ? 0 : Number(document.taxRate),
   };
 
   const totals = computeTotals(engineInput);
@@ -1419,4 +1426,51 @@ export async function setValidityDays(documentId: string, formData: FormData): P
 
   revalidatePath(`/documents/${document.id}`);
   return {};
+}
+
+// --- delivery terms (Ex Works carries no GST) -------------------------------
+
+/**
+ * Sets `Document.deliveryTerms` — DELIVERED (the default) or EX_WORKS, an
+ * export sale collected at the factory door, which is not a domestic taxable
+ * supply (the meeting question left unanswered: "What if there's no GST? If
+ * it's Ex Works?"). Unlike the purely-display fields above (`setItemShowImage`/
+ * `setPriceDisplay`/`setDocumentNotes`/`setValidityDays`), this one *does*
+ * change what's owed — `recalcDocument` resolves an EX_WORKS document's
+ * effective tax rate to zero (see its own doc comment) — so this follows the
+ * same guarded-transaction + `recalcAndEnforce` pattern as every
+ * money-affecting mutation in this file, even though toggling terms alone can
+ * never itself trip `negativeSubtotal` or either concession cap (both are
+ * computed pre-tax) — same "no special-casing a 'safe' mutation" reasoning
+ * `addItem`'s own comment gives. DRAFT-only and scoped like every other
+ * document mutation here.
+ */
+export async function setDeliveryTerms(documentId: string, formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedDocumentId = idSchema.safeParse(documentId);
+  if (!parsedDocumentId.success) return { error: NOT_FOUND_ERROR };
+
+  const parsedTerms = deliveryTermsSchema.safeParse(formData.get("deliveryTerms"));
+  if (!parsedTerms.success) return { error: flattenZodError(parsedTerms.error) };
+
+  const document = await db.document.findFirst({
+    where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
+  });
+  if (!document) return { error: NOT_FOUND_ERROR };
+
+  let concessionWarning: string | undefined;
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.document.update({ where: { id: document.id }, data: { deliveryTerms: parsedTerms.data } });
+      concessionWarning = (await recalcAndEnforce(document.id, tx, session.user.role)).warning;
+    });
+  } catch (error) {
+    if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
+    if (error instanceof ConcessionCapError) return { error: error.message };
+    throw error;
+  }
+
+  revalidatePath(`/documents/${document.id}`);
+  return concessionWarning ? { warning: concessionWarning } : {};
 }

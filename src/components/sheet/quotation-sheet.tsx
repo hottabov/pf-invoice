@@ -172,7 +172,9 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
             {formatMoney(totals.total, totals.currency)} {totals.currency}
           </span>
           <span className="pq-total-banner-note">
-            (incl. {totals.taxName} {totals.taxRate}%)
+            {totals.deliveryTerms === "EX_WORKS"
+              ? `(Ex Works — no ${totals.taxName} applicable)`
+              : `(incl. ${totals.taxName} ${totals.taxRate}%)`}
           </span>
           {/* Repeats the header's expiry right next to the price it applies
               to (owner: "put the valid-to in this total investment line, so
@@ -425,12 +427,22 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                 <span>-{formatMoney(totals.discountAmount, totals.currency)}</span>
               </div>
             ) : null}
-            <div className="pq-totals-row">
-              <span>
-                {totals.taxName} {totals.taxRate}%
-              </span>
-              <span>{formatMoney(totals.taxAmount, totals.currency)}</span>
-            </div>
+            {totals.deliveryTerms === "EX_WORKS" ? (
+              // Same reasoning as the banner note above — no `{taxName} 0%`
+              // line, which would read as a mistake rather than the
+              // deliberate export-terms choice it is.
+              <div className="pq-totals-row">
+                <span>Ex Works — no {totals.taxName} applicable</span>
+                <span>{formatMoney(totals.taxAmount, totals.currency)}</span>
+              </div>
+            ) : (
+              <div className="pq-totals-row">
+                <span>
+                  {totals.taxName} {totals.taxRate}%
+                </span>
+                <span>{formatMoney(totals.taxAmount, totals.currency)}</span>
+              </div>
+            )}
             <div className="pq-totals-row pq-totals-final">
               <span>TOTAL</span>
               <span>

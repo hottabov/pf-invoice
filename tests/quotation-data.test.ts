@@ -182,6 +182,7 @@ function baseDoc(overrides: Partial<QuotationDataDoc> = {}): QuotationDataDoc {
     currency: "AUD",
     taxName: "GST",
     taxRate: "10",
+    deliveryTerms: "DELIVERED",
     entitySnapshot: null,
     entityName: "Pathfinder Australia Pty Ltd",
     entityLegalId: "ABN 64 072 458 667",

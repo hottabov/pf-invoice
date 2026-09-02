@@ -134,6 +134,15 @@ export type ToSheetDataDoc = {
   currency: string;
   taxName: string;
   taxRate: string;
+  /** DELIVERED (the default) or EX_WORKS — see the `DeliveryTerms` enum in
+   * schema.prisma. An EX_WORKS document's `taxAmount`/`total` below are
+   * already zero-tax (resolved once, at `recalcDocument`, src/lib/actions/
+   * documents.ts — the single source of truth for a document's effective
+   * tax rate); this field exists purely so `toSheetData` can swap the
+   * printed tax-rate line for the terms themselves (see `DocSheetTotals`) —
+   * an EX_WORKS quote must read as deliberate ("Ex Works — no GST
+   * applicable"), not as a forgotten "GST 0%" line. */
+  deliveryTerms: "DELIVERED" | "EX_WORKS";
   entitySnapshot: unknown;
   entityName: string;
   entityLegalId: string | null;
@@ -339,6 +348,11 @@ export type DocSheetTotals = {
   taxRate: string;
   taxAmount: string;
   total: string;
+  /** See `ToSheetDataDoc.deliveryTerms` — carried through so the two sheet
+   * renderers (`document-sheet.tsx`/`quotation-sheet.tsx`) can print "Ex
+   * Works — no GST applicable" in place of a `{taxName} 0%` line, which
+   * would otherwise read as a mistake rather than a deliberate choice. */
+  deliveryTerms: "DELIVERED" | "EX_WORKS";
 };
 
 export type DocSheetData = {
@@ -692,6 +706,7 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
       taxRate: doc.taxRate,
       taxAmount: doc.taxAmount,
       total: doc.total,
+      deliveryTerms: doc.deliveryTerms,
     },
     showSignature: true,
   };

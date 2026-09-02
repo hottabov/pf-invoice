@@ -33,6 +33,17 @@ enum DiscountMode {
   AMOUNT
 }
 
+// An export sale collected at the factory door is not a domestic taxable
+// supply -- the meeting question left unanswered ("What if there's no GST?
+// If it's Ex Works?"). DELIVERED is the default so every existing document
+// keeps its current (taxed) behaviour; see the zero-tax rule applied in
+// recalcDocument (src/lib/actions/documents.ts), the single place a
+// document's effective tax rate is resolved.
+enum DeliveryTerms {
+  DELIVERED
+  EX_WORKS
+}
+
 model Region {
   id             String         @id @default(cuid())
   code           String         @unique // AU, US, UK
@@ -263,6 +274,13 @@ model Document {
   currency         String
   taxName          String
   taxRate          Decimal        @db.Decimal(5, 2)
+  // DELIVERED (default) or EX_WORKS -- an Ex Works quote's tax is zeroed by
+  // recalcDocument (src/lib/actions/documents.ts), the single caller that
+  // resolves a document's effective tax rate; taxName/taxRate above are left
+  // untouched (they're the region's nominal figures, unrelated to this
+  // per-document override). finalizeDocument freezes nothing new for this --
+  // the terms live on the document itself, not the entitySnapshot.
+  deliveryTerms    DeliveryTerms  @default(DELIVERED)
   entitySnapshot   Json? // frozen on finalize
   // A discount is a mode + value (see the DiscountMode enum comment above) —
   // discountValue is a plain percentage (0..100) when discountMode is

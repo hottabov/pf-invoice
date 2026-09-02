@@ -258,6 +258,14 @@ export type DocumentForBuilder = {
   currency: string;
   taxName: string;
   taxRate: string;
+  /** DELIVERED (the default) or EX_WORKS — see the `DeliveryTerms` enum in
+   * schema.prisma and `setDeliveryTerms`/`recalcDocument` in
+   * src/lib/actions/documents.ts, which zeroes an EX_WORKS document's
+   * effective tax. Surfaced here so the builder's selector (see
+   * `DeliveryTermsField`) and the sheet renderers (see `ToSheetDataDoc`,
+   * which this structurally satisfies) both read it straight off the
+   * document. */
+  deliveryTerms: "DELIVERED" | "EX_WORKS";
   discountMode: "PERCENT" | "AMOUNT";
   discountValue: string | null;
   subtotal: string;
@@ -514,6 +522,7 @@ export async function getDocumentForBuilder(
     currency: document.currency,
     taxName: document.taxName,
     taxRate: document.taxRate.toString(),
+    deliveryTerms: document.deliveryTerms,
     discountMode: document.discountMode,
     discountValue: document.discountValue?.toString() ?? null,
     subtotal: document.subtotal.toString(),

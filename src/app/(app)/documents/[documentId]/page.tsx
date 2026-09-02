@@ -24,6 +24,7 @@ import {
   reorderItems,
   resetItemUnitPrice,
   resetLineUnitPrice,
+  setDeliveryTerms,
   setDocumentClient,
   setDocumentDiscount,
   setDocumentNotes,
@@ -44,6 +45,7 @@ import { DocumentDiscountField } from "@/components/builder/document-discount-fi
 import { PriceDisplayToggles } from "@/components/builder/price-display-toggles";
 import { NotesSection } from "@/components/builder/notes-section";
 import { ValidityDaysField } from "@/components/builder/validity-days-field";
+import { DeliveryTermsField } from "@/components/builder/delivery-terms-field";
 import { ProductionFormsSection } from "@/components/documents/production-forms-section";
 import { DocumentTotals, StickyFooter } from "@/components/builder/sticky-footer";
 import { FinalizeButton } from "@/components/builder/finalize-button";
@@ -193,6 +195,19 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
             />
           </SectionCard>
 
+          {/* An export sale collected at the factory door is not a domestic
+              taxable supply (the meeting question left unanswered: "What if
+              there's no GST? If it's Ex Works?") — this is what lets a quote
+              show no tax without hand-editing the tax rate. */}
+          <SectionCard title="Delivery terms">
+            <DeliveryTermsField
+              documentId={document.id}
+              deliveryTerms={document.deliveryTerms}
+              setDeliveryTermsAction={setDeliveryTerms}
+              readOnly={!isDraft}
+            />
+          </SectionCard>
+
           {/* Per-quote validity override (owner: "What's your capex process?
               ... I'll give you eight [weeks]") — placed next to Notes since
               both are small document-level fields with no pricing effect.
@@ -283,10 +298,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
           outright, so a MANAGER's own actions can never produce the
           within-cap -> over-cap transition this toasts. */}
       {isAdmin ? (
-        <ConcessionCapToast
-          exceedsCap={document.documentConcession.exceedsCap}
-          message={concessionCapMessageText}
-        />
+        <ConcessionCapToast exceedsCap={document.documentConcession.exceedsCap} message={concessionCapMessageText} />
       ) : null}
 
       <StickyFooter

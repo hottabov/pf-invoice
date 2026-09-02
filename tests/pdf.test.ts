@@ -74,6 +74,7 @@ function baseSheetData(overrides: Partial<DocSheetData> = {}): DocSheetData {
       taxRate: "10",
       taxAmount: "100.00",
       total: "1100.00",
+      deliveryTerms: "DELIVERED",
     },
     showSignature: false,
     preparedBy: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: null },
@@ -254,6 +255,40 @@ describe("renderDocumentHtml — item breakdown honours the price-display flags"
   });
 });
 
+describe("renderDocumentHtml — Ex Works delivery terms", () => {
+  it("prints the terms instead of a GST rate line when EX_WORKS, and never a '0%' tax line", async () => {
+    const html = await renderDocumentHtml(
+      baseSheetData({
+        totals: {
+          currency: "AUD",
+          subtotal: "1000.00",
+          discountMode: "PERCENT",
+          discountValue: null,
+          discountAmount: "0.00",
+          taxName: "GST",
+          taxRate: "10",
+          // Already zeroed by recalcDocument (src/lib/actions/documents.ts)
+          // for an EX_WORKS document — this fixture represents what the
+          // document row actually holds by the time it reaches the sheet.
+          taxAmount: "0.00",
+          total: "1000.00",
+          deliveryTerms: "EX_WORKS",
+        },
+      })
+    );
+    expect(html).toContain("Ex Works — no GST applicable");
+    expect(html).not.toContain("GST 0%");
+    expect(html).not.toContain("GST 10%");
+  });
+
+  it("still prints the ordinary tax-rate line when DELIVERED — unchanged from before this feature", async () => {
+    const html = await renderDocumentHtml(baseSheetData());
+    expect(html).toContain("GST");
+    expect(html).toContain("10%");
+    expect(html).not.toContain("Ex Works");
+  });
+});
+
 // --- renderQuotationHtml -----------------------------------------------------
 
 function baseQuotationData(overrides: Partial<QuotationData> = {}): QuotationData {
@@ -287,6 +322,7 @@ function baseQuotationData(overrides: Partial<QuotationData> = {}): QuotationDat
       taxRate: "10",
       taxAmount: "100.00",
       total: "1100.00",
+      deliveryTerms: "DELIVERED",
     },
     termsSections: [],
     conditionsSections: [],
@@ -673,5 +709,38 @@ describe("renderQuotationHtml — Notes section placement", () => {
   it("renders no Notes section at all when notesHtml is null", async () => {
     const html = await renderQuotationHtml(baseQuotationData({ notesHtml: null }));
     expect(html).not.toContain(">Notes<");
+  });
+});
+
+describe("renderQuotationHtml — Ex Works delivery terms", () => {
+  it("prints the terms in the total-investment banner and the totals block instead of a GST rate, and never a '0%' tax line", async () => {
+    const html = await renderQuotationHtml(
+      baseQuotationData({
+        totals: {
+          currency: "AUD",
+          subtotal: "1000.00",
+          discountMode: "PERCENT",
+          discountValue: null,
+          discountAmount: "0.00",
+          taxName: "GST",
+          taxRate: "10",
+          // Already zeroed by recalcDocument (src/lib/actions/documents.ts)
+          // for an EX_WORKS document.
+          taxAmount: "0.00",
+          total: "1000.00",
+          deliveryTerms: "EX_WORKS",
+        },
+      })
+    );
+    expect(html).toContain("Ex Works — no GST applicable");
+    expect(html).not.toContain("GST 0%");
+    expect(html).not.toContain("GST 10%");
+    expect(html).not.toContain("(incl. GST 10%)");
+  });
+
+  it("still prints the ordinary tax-rate line when DELIVERED — unchanged from before this feature", async () => {
+    const html = await renderQuotationHtml(baseQuotationData());
+    expect(html).toContain("incl. GST 10%");
+    expect(html).not.toContain("Ex Works");
   });
 });

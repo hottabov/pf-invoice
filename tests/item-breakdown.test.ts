@@ -33,6 +33,7 @@ function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
     currency: "AUD",
     taxName: "GST",
     taxRate: "10",
+    deliveryTerms: "DELIVERED",
     entitySnapshot: null,
     entityName: "Live Region Entity",
     entityLegalId: "ABN 111",
