@@ -11,6 +11,7 @@ import {
   tableClassName,
   tableHeadRowClassName,
   tableRowClassName,
+  RowCell,
   StatusBadge,
   STATUS_TONE,
   EmptyState,
@@ -90,31 +91,34 @@ export default async function UsersPage() {
 }
 
 function UserRow({ user: u }: { user: UserListItem }) {
+  const href = `/settings/users/${u.id}`;
   return (
-    <tr className={cn(tableRowClassName, "relative")}>
-      <td className="px-4 py-3 align-middle">
-        <Link
-          href={`/settings/users/${u.id}`}
-          className="absolute inset-0 focus-visible:z-10 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
-        >
-          <span className="sr-only">Open {u.email}</span>
-        </Link>
-        <span aria-hidden="true" className="relative flex items-center gap-3">
+    // One `Link` per cell (`RowCell`), the same pattern the documents and
+    // clients lists use. The previous single overlay link stretched across
+    // the row from inside the first cell, so the later cells painted on top
+    // of it and the email text — which needed its own `relative` to stay
+    // legible — sat above the link too: the one part of the row a person
+    // naturally clicks was the one part that did nothing.
+    <tr className={tableRowClassName}>
+      <RowCell href={href} primary={`Open ${u.email}`}>
+        <span className="flex items-center gap-3">
           <Avatar name={u.name} email={u.email} image={u.image} size={32} />
           <span className="font-medium text-brand-dark">{u.email}</span>
         </span>
-        {u.magicLinkOnly ? (
-          <span className="relative mt-0.5 block text-xs text-slate-500">Magic link only</span>
-        ) : null}
-      </td>
-      <td className="px-4 py-3 text-sm text-slate-600">{u.name ?? "—"}</td>
-      <td className="px-4 py-3">
+        {u.magicLinkOnly ? <span className="mt-0.5 block text-xs text-slate-500">Magic link only</span> : null}
+      </RowCell>
+      <RowCell href={href}>
+        <span className="text-sm text-slate-600">{u.name ?? "—"}</span>
+      </RowCell>
+      <RowCell href={href}>
         <StatusBadge tone={STATUS_TONE[u.role]}>{u.role}</StatusBadge>
-      </td>
-      <td className="px-4 py-3 text-sm text-slate-600">{u.regionCode ?? "—"}</td>
-      <td className="px-4 py-3">
+      </RowCell>
+      <RowCell href={href}>
+        <span className="text-sm text-slate-600">{u.regionCode ?? "—"}</span>
+      </RowCell>
+      <RowCell href={href}>
         <StatusBadge tone={u.active ? "green" : "slate"}>{u.active ? "Active" : "Inactive"}</StatusBadge>
-      </td>
+      </RowCell>
     </tr>
   );
 }
