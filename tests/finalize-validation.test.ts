@@ -20,6 +20,7 @@ const noConcession: DocumentConcession = {
   effectivePct: 0,
   allowedPct: 10,
   exceedsCap: false,
+  parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
 };
 
 const overCapConcession: DocumentConcession = {
@@ -28,6 +29,7 @@ const overCapConcession: DocumentConcession = {
   effectivePct: 34,
   allowedPct: 10,
   exceedsCap: true,
+  parts: { documentDiscount: "3400.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
 };
 
 function baseDoc(overrides: Partial<FinalizableDocument> = {}): FinalizableDocument {

@@ -126,6 +126,38 @@ export type DocumentConcession = {
    * src/lib/actions/documents.ts) decides what to do about it — same
    * division of responsibility as `violations`/`negativeSubtotal` above. */
   exceedsCap: boolean;
+  /** `concession`, broken into the four sources `computeTotals`'s own doc
+   * comment sums to build it — added so `concessionCapMessage` (and any
+   * other reader) can name what a concession is actually made of instead of
+   * reporting one opaque total. Each is a plain decimal string (2dp), and
+   * together they sum to `concession` exactly, to the cent:
+   *
+   *   documentDiscount + itemDiscounts + priceAdjustments + tradeIns === concession
+   *
+   * `documentDiscount`/`itemDiscounts` are never negative (see
+   * `discountCents`). `tradeIns` is reported as a positive figure — the
+   * absolute value of every negative extra line, matching `concession`'s own
+   * treatment of it (see `computeTotals`'s doc comment) — even though the
+   * line itself is stored as a negative amount. `priceAdjustments` is the
+   * only part that can be negative: the signed net of `(listPrice −
+   * unitPrice) × qty` across every item and option line (see
+   * `computeTotals`'s doc comment on why that term is signed on purpose) —
+   * positive when prices were cut below list, negative when raised above it.
+   */
+  parts: {
+    /** The document-level discount amount (`discountAmountCents` in
+     * `computeTotals`) — never negative. */
+    documentDiscount: string;
+    /** Sum of every item's own discount amount — never negative. */
+    itemDiscounts: string;
+    /** Net of `(listPrice − unitPrice) × qty` across every item and option
+     * line — signed; see this field's doc comment above. */
+    priceAdjustments: string;
+    /** Sum of every negative extra line's absolute value (today's
+     * trade-in mechanism — see `computeTotals`'s doc comment) — never
+     * negative. */
+    tradeIns: string;
+  };
 };
 
 export type PricingTotals = {
@@ -453,6 +485,13 @@ export function computeTotals(input: EngineInput): PricingTotals {
   const taxAmountCents = percentOf(taxableBaseCents, input.taxRate);
   const totalCents = taxableBaseCents + taxAmountCents;
 
+  // `concessionCents` at this point holds only the listPrice/unitPrice
+  // price-adjustment term accumulated in the items/lines loop above (see
+  // `DocumentConcession.parts.priceAdjustments`'s doc comment) — captured
+  // here, before the other three sources are folded in below, so `parts`
+  // can report it on its own.
+  const priceAdjustmentsCents = concessionCents;
+
   // Item discounts, the negative-extra-line total, and the document
   // discount all count toward the concession — see the doc comment above.
   concessionCents += itemDiscountTotalCents + negativeExtraLinesAbsCents + discountAmountCents;
@@ -465,6 +504,12 @@ export function computeTotals(input: EngineInput): PricingTotals {
     effectivePct: documentEffectivePct,
     allowedPct: documentAllowedPct,
     exceedsCap: documentEffectivePct > documentAllowedPct,
+    parts: {
+      documentDiscount: fromCents(discountAmountCents).toFixed(2),
+      itemDiscounts: fromCents(itemDiscountTotalCents).toFixed(2),
+      priceAdjustments: fromCents(priceAdjustmentsCents).toFixed(2),
+      tradeIns: fromCents(negativeExtraLinesAbsCents).toFixed(2),
+    },
   };
 
   return {
@@ -487,12 +532,26 @@ export function computeTotals(input: EngineInput): PricingTotals {
  * — `effectivePct`/`DocumentConcession.effectivePct` are floats that can
  * carry rounding noise (e.g. `19.999999999999996`), which would look wrong
  * printed straight into a user-facing message. Shared by
- * `concessionCapMessage` below and by `formatEffectivePct` in
- * src/lib/actions/documents.ts (which predates this export and formats the
- * unrelated per-item/per-document discount-cap message — not merged with
- * this one to avoid an unrelated cross-file behavior change). */
-function formatPct(pct: number): string {
+ * `concessionCapMessage` below, by the builder's persistent over-cap badge
+ * (`ConcessionCapBadge`, via that same message), and by `formatEffectivePct`
+ * in src/lib/actions/documents.ts (which predates this export and formats
+ * the unrelated per-item/per-document discount-cap message — not merged
+ * with this one to avoid an unrelated cross-file behavior change). Exported
+ * for those non-pricing.ts readers. */
+export function formatPct(pct: number): string {
   return (Math.round(pct * 100) / 100).toString();
+}
+
+/** Joins 1+ addition phrases the way plain English lists them: just the one
+ * phrase alone, two phrases joined by "plus", or three-or-more as an
+ * Oxford-comma-free list ending in ", plus <last>". Mirrors the shape of the
+ * owner's own example ("$10,448.20 discount plus a $20,000.00 trade-in")
+ * exactly for the two-part case, and generalizes it rather than hard-coding
+ * just that one combination. */
+function joinParts(phrases: string[]): string {
+  if (phrases.length <= 1) return phrases.join("");
+  if (phrases.length === 2) return `${phrases[0]} plus ${phrases[1]}`;
+  return `${phrases.slice(0, -1).join(", ")}, plus ${phrases[phrases.length - 1]}`;
 }
 
 /**
@@ -501,15 +560,58 @@ function formatPct(pct: number): string {
  * `recalcDocument`) and by `finalizeDocument` (via `validateFinalizable` in
  * src/lib/validation/finalize.ts), so it lives here rather than in either of
  * those (neither imports the other, and this module is the one thing both
- * already depend on). Pulls in `formatMoney` from src/lib/format.ts — a
- * plain, dependency-free formatter, so this stays safe to import from a
- * `@/lib/db`-free unit test the same as the rest of this module — purely for
- * that reason, despite this file's usual "no formatting concerns" framing.
+ * already depend on), and by the builder's Summary panel (see
+ * `ConcessionCapBadge`/`ConcessionCapToast`). Pulls in `formatMoney` from
+ * src/lib/format.ts — a plain, dependency-free formatter, so this stays safe
+ * to import from a `@/lib/db`-free unit test the same as the rest of this
+ * module — purely for that reason, despite this file's usual "no formatting
+ * concerns" framing.
  *
- * Names both figures the owner asked for, e.g. "Total concessions of
- * $34,000.00 are 17.4% of list price — above the 10% limit for Australia." —
- * mirrors `discountCapMessage`'s shape in actions/documents.ts.
+ * A single opaque total ("Total concessions of $30,448.20...") gives the
+ * reader no way to tell a real discount from, say, a trade-in entered as a
+ * negative extra line — the owner saw exactly that next to a Summary panel
+ * reading "Discount −$10,448.20" and reasonably concluded the bigger number
+ * was wrong. It wasn't: the gap was a trade-in, which counts against the cap
+ * by design (see `computeTotals`'s doc comment) but was invisible in the old
+ * message. This names every non-zero part instead, e.g.:
+ *
+ *   "Concessions total $30,448.20 (10.12% of list price) — $10,448.20
+ *   discount plus a $20,000.00 trade-in — above the 10% limit for
+ *   Australia."
+ *
+ * `documentDiscount` and `itemDiscounts` are folded into one "discount"
+ * figure — together they're exactly the number the Summary panel's own
+ * "Discount" line already shows (see `DocumentForBuilder.summaryDiscountAmount`),
+ * so naming them separately here would only reintroduce a second way to
+ * read "discount" that disagrees with the one already on screen.
+ * `priceAdjustments` (manual per-unit prices cut below list, outside the
+ * discount fields entirely) gets its own phrase when positive; when
+ * negative — prices raised above list — it is never described as a
+ * discount (a reader must not be told a price *increase* gave money away):
+ * it's named as a separate reduction instead, e.g. "...trade-in, less
+ * $2,000.00 from a price increase above list — above...". A part that's
+ * exactly zero is omitted entirely, so a document with only a discount (no
+ * trade-in, no manual price cut) still gets a clean one-clause message.
  */
 export function concessionCapMessage(dc: DocumentConcession, regionName: string, currency: string): string {
-  return `Total concessions of ${formatMoney(dc.concession, currency)} are ${formatPct(dc.effectivePct)}% of list price — above the ${dc.allowedPct}% limit for ${regionName}.`;
+  const discountCentsTotal = toCents(dc.parts.documentDiscount) + toCents(dc.parts.itemDiscounts);
+  const priceAdjustmentsCents = toCents(dc.parts.priceAdjustments);
+  const tradeInCents = toCents(dc.parts.tradeIns);
+
+  const money = (cents: number) => formatMoney(fromCents(cents).toFixed(2), currency);
+
+  const additions: string[] = [];
+  if (discountCentsTotal !== 0) additions.push(`${money(discountCentsTotal)} discount`);
+  if (priceAdjustmentsCents > 0) additions.push(`${money(priceAdjustmentsCents)} price cut below list`);
+  if (tradeInCents !== 0) additions.push(`a ${money(tradeInCents)} trade-in`);
+
+  let partsClause = joinParts(additions);
+  if (priceAdjustmentsCents < 0) {
+    const reduction = `${money(-priceAdjustmentsCents)} from a price increase above list`;
+    partsClause = partsClause ? `${partsClause}, less ${reduction}` : `reduced by ${reduction}`;
+  }
+
+  const partsSegment = partsClause ? ` — ${partsClause}` : "";
+
+  return `Concessions total ${formatMoney(dc.concession, currency)} (${formatPct(dc.effectivePct)}% of list price)${partsSegment} — above the ${dc.allowedPct}% limit for ${regionName}.`;
 }

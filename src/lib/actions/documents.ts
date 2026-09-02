@@ -105,13 +105,14 @@ const NO_CONCESSION: DocumentConcession = {
   effectivePct: 0,
   allowedPct: 100,
   exceedsCap: false,
+  parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
 };
 
 export type RecalcResult = {
   violations: EngineViolation[];
   negativeSubtotal: boolean;
   documentConcession: DocumentConcession;
-  /** Pre-formatted "Total concessions of ..." message (see
+  /** Pre-formatted "Concessions total ..." message (see
    * `concessionCapMessage`), present only when `documentConcession.exceedsCap`
    * — built here, not by each caller, since this is the one place that
    * already has the document's region name/currency loaded. */

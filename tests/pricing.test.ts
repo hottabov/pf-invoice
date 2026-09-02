@@ -96,6 +96,7 @@ describe("computeTotals", () => {
         effectivePct: 0,
         allowedPct: 100,
         exceedsCap: false,
+        parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
       },
     });
   });
@@ -344,6 +345,7 @@ describe("computeTotals", () => {
         effectivePct: 0,
         allowedPct: 100,
         exceedsCap: false,
+        parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
       },
     });
   });
@@ -426,6 +428,7 @@ describe("documentConcession", () => {
       effectivePct: 0,
       allowedPct: 100,
       exceedsCap: false,
+      parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
     });
   });
 
@@ -446,6 +449,7 @@ describe("documentConcession", () => {
       effectivePct: 100,
       allowedPct: 100,
       exceedsCap: false,
+      parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "1000.00", tradeIns: "0.00" },
     });
   });
 
@@ -543,6 +547,7 @@ describe("documentConcession", () => {
       effectivePct: 20,
       allowedPct: 100,
       exceedsCap: false,
+      parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "2000.00" },
     });
   });
 
@@ -639,18 +644,167 @@ describe("documentConcession", () => {
 });
 
 describe("concessionCapMessage", () => {
-  it("names the concession amount, its percentage, the cap, and the region", () => {
-    // A non-whole-dollar concession so formatMoney's own "whole amounts
-    // render without decimals" rule (see src/lib/format.ts) doesn't make
-    // this assertion depend on that unrelated formatting choice.
+  // Every fixture below uses non-whole-dollar figures throughout — formatMoney's
+  // own "whole amounts render without decimals" rule (src/lib/format.ts) would
+  // otherwise make these `toBe` assertions depend on that unrelated formatting
+  // choice (e.g. a $20,000.00 part would actually render as "$20,000").
+
+  it("names the concession amount, its percentage, the cap, and the region for a discount-only concession", () => {
     const message = concessionCapMessage(
-      { concession: "34000.55", listValue: "195402.30", effectivePct: 17.402982, allowedPct: 10, exceedsCap: true },
+      {
+        concession: "34000.55",
+        listValue: "195402.30",
+        effectivePct: 17.402982,
+        allowedPct: 10,
+        exceedsCap: true,
+        parts: { documentDiscount: "34000.55", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
+      },
       "Australia",
       "AUD"
     );
     expect(message).toBe(
-      "Total concessions of $34,000.55 are 17.4% of list price — above the 10% limit for Australia."
+      "Concessions total $34,000.55 (17.4% of list price) — $34,000.55 discount — above the 10% limit for Australia."
     );
+  });
+
+  it("reproduces the discount-plus-trade-in report that prompted this change, naming both parts", () => {
+    // The scenario that triggered this whole change: a $30,448.something
+    // concession next to a Summary panel reading "Discount −$10,448.20" —
+    // the owner reasonably concluded the bigger number was wrong. It
+    // wasn't: the gap was a trade-in (a negative extra line), which counts
+    // against the cap by design (see computeTotals's doc comment) but was
+    // invisible in the old single-total message.
+    const message = concessionCapMessage(
+      {
+        concession: "30448.25",
+        listValue: "300870.99",
+        effectivePct: 10.12,
+        allowedPct: 10,
+        exceedsCap: true,
+        parts: {
+          documentDiscount: "10448.20",
+          itemDiscounts: "0.00",
+          priceAdjustments: "0.00",
+          tradeIns: "20000.05",
+        },
+      },
+      "Australia",
+      "AUD"
+    );
+    expect(message).toBe(
+      "Concessions total $30,448.25 (10.12% of list price) — $10,448.20 discount plus a $20,000.05 trade-in — above the 10% limit for Australia."
+    );
+  });
+
+  it("names only the non-zero parts, omitting the zero ones (a trade-in with no discount at all)", () => {
+    const message = concessionCapMessage(
+      {
+        concession: "5000.50",
+        listValue: "50005.00",
+        effectivePct: 10,
+        allowedPct: 10,
+        exceedsCap: false,
+        parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "5000.50" },
+      },
+      "Australia",
+      "AUD"
+    );
+    expect(message).toBe(
+      "Concessions total $5,000.50 (10% of list price) — a $5,000.50 trade-in — above the 10% limit for Australia."
+    );
+  });
+
+  it("words a net price increase as reducing concessions, never as a discount", () => {
+    // priceAdjustments negative (a manual price raised above list) must
+    // read as a reduction alongside the real discount, never get folded
+    // into the "discount" figure itself — a reader must never be told a
+    // price increase gave money away.
+    const message = concessionCapMessage(
+      {
+        concession: "8000.05",
+        listValue: "100000.00",
+        effectivePct: 8,
+        allowedPct: 10,
+        exceedsCap: false,
+        parts: {
+          documentDiscount: "10000.40",
+          itemDiscounts: "0.00",
+          priceAdjustments: "-2000.35",
+          tradeIns: "0.00",
+        },
+      },
+      "Australia",
+      "AUD"
+    );
+    expect(message).toBe(
+      "Concessions total $8,000.05 (8% of list price) — $10,000.40 discount, less $2,000.35 from a price increase above list — above the 10% limit for Australia."
+    );
+    expect(message).not.toContain("$2,000.35 discount");
+  });
+
+  it("still reads cleanly when a price increase is the only concession source", () => {
+    const message = concessionCapMessage(
+      {
+        concession: "-1500.25",
+        listValue: "100000.00",
+        effectivePct: -1.5,
+        allowedPct: 10,
+        exceedsCap: false,
+        parts: {
+          documentDiscount: "0.00",
+          itemDiscounts: "0.00",
+          priceAdjustments: "-1500.25",
+          tradeIns: "0.00",
+        },
+      },
+      "Australia",
+      "AUD"
+    );
+    expect(message).toBe(
+      "Concessions total -$1,500.25 (-1.5% of list price) — reduced by $1,500.25 from a price increase above list — above the 10% limit for Australia."
+    );
+  });
+});
+
+describe("DocumentConcession.parts", () => {
+  it("sums to the concession total, to the cent, for a document combining a document discount, an item discount, a price cut, and a trade-in", () => {
+    // item: list $10,000, manually cut to $9,000 (a $1,000 price-cut
+    // concession), then a 10% item discount on that $9,000 base ($900);
+    // extra line: a $3,000 trade-in; document discount: 5% of the
+    // resulting subtotal.
+    const result = computeTotals({
+      items: [
+        {
+          unitPrice: 9000,
+          listPrice: 10000,
+          discountMode: "PERCENT",
+          discountValue: "10",
+          lines: [],
+        },
+      ],
+      extraLines: [{ qty: 1, unitPrice: -3000 }],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "5",
+      regionMaxDiscountPct: 10,
+      taxRate: 0,
+    });
+
+    // subtotal = 9000 - 900 (item discount) - 3000 (trade-in) = 5100;
+    // document discount = 5% of 5100 = 255.
+    expect(result.documentConcession.parts).toEqual({
+      documentDiscount: "255.00",
+      itemDiscounts: "900.00",
+      priceAdjustments: "1000.00",
+      tradeIns: "3000.00",
+    });
+
+    const partsSum =
+      Number(result.documentConcession.parts.documentDiscount) +
+      Number(result.documentConcession.parts.itemDiscounts) +
+      Number(result.documentConcession.parts.priceAdjustments) +
+      Number(result.documentConcession.parts.tradeIns);
+    expect(partsSum.toFixed(2)).toBe(result.documentConcession.concession);
+    expect(result.documentConcession.concession).toBe("5155.00");
   });
 });
 
