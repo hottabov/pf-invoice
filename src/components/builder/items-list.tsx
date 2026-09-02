@@ -352,6 +352,7 @@ export function ItemsList({
 
                 <ItemOptionsEditor
                   itemId={item.id}
+                  itemName={item.name}
                   currentLines={item.lines
                     .filter((line) => line.kind === "OPTION")
                     .map((line) => ({ code: line.code, qty: line.qty, attributes: line.attributes }))}

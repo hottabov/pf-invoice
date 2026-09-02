@@ -28,3 +28,21 @@ export function compatibilityOrFilter(
   if (productId) or.push({ productId });
   return or.length > 0 ? or : null;
 }
+
+/**
+ * Whether an option in the item options editor should be disabled outright
+ * — the one hard rule "an incompatible pairing warns instead of blocking"
+ * (Change 2) leaves untouched: an option with no usable price for the
+ * document's region (no `Price` row at all, or one flagged `needsReview`)
+ * stays disabled regardless of compatibility. That's a different condition
+ * entirely — the quote literally cannot be priced — not a judgement call a
+ * confirmation dialog can paper over. Deliberately takes only `price`, not
+ * `compatible`, as an input: compatibility can never disable an option
+ * through this function, by construction, not by convention (see
+ * `CompatibleOption.compatible`'s own doc comment in
+ * src/lib/queries/documents.ts for what "incompatible" means instead —
+ * flagged and confirmed, in `ItemOptionsEditor`, not disabled here).
+ */
+export function isOptionDisabled(price: { needsReview: boolean } | null): boolean {
+  return price === null || price.needsReview;
+}

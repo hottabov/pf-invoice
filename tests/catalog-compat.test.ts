@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compatibilityOrFilter } from "../src/lib/catalog-compat";
+import { compatibilityOrFilter, isOptionDisabled } from "../src/lib/catalog-compat";
 
 describe("compatibilityOrFilter", () => {
   it("includes both clauses when both ids are present (product-level compat within a series)", () => {
@@ -27,5 +27,27 @@ describe("compatibilityOrFilter", () => {
 
   it("treats an empty string id as absent", () => {
     expect(compatibilityOrFilter("", "")).toBeNull();
+  });
+});
+
+describe("isOptionDisabled", () => {
+  // Change 2 ("an incompatible pairing warns instead of blocking"): a price
+  // is a different condition from compatibility — the quote literally
+  // cannot be priced without one — and stays a hard disable. Compatibility
+  // itself is advisory only from here down (see `CompatibleOption.compatible`
+  // in src/lib/queries/documents.ts) and is deliberately not even an input
+  // to this function, so an incompatible-but-priced option can never be
+  // disabled through it, by construction.
+
+  it("disables an option with no price row at all", () => {
+    expect(isOptionDisabled(null)).toBe(true);
+  });
+
+  it("disables an option whose only price needs review", () => {
+    expect(isOptionDisabled({ needsReview: true })).toBe(true);
+  });
+
+  it("does not disable a priced, reviewed option", () => {
+    expect(isOptionDisabled({ needsReview: false })).toBe(false);
   });
 });
