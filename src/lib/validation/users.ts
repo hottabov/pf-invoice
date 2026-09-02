@@ -192,3 +192,19 @@ export function canModifyUser(
 
   return null;
 }
+
+// --- avatar authorization ---------------------------------------------------
+
+/**
+ * Whether `actorId` (signed in as `actorRole`) may set `targetId`'s avatar
+ * (`User.image` — see src/lib/actions/users.ts's `setUserAvatar`): an ADMIN
+ * may set anyone's, a MANAGER only their own. Pure and synchronous — same
+ * reasoning as `canModifyUser` above — so both `setUserAvatar` and its unit
+ * tests can exercise every branch without a database. `actorId`/`targetId`
+ * must always be the *session's* user id and the target user id
+ * respectively; a caller must never derive either from client-submitted
+ * form data it doesn't already trust.
+ */
+export function canSetAvatar(actorId: string, actorRole: UserRoleInput, targetId: string): boolean {
+  return actorRole === "ADMIN" || actorId === targetId;
+}

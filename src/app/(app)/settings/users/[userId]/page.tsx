@@ -4,10 +4,11 @@ import { auth } from "@/auth";
 import { getUser } from "@/lib/queries/users";
 import { listActiveRegions } from "@/lib/queries/catalog";
 import { countActiveAdmins } from "@/lib/queries/users";
-import { updateUser, setUserPassword } from "@/lib/actions/users";
+import { updateUser, setUserPassword, setUserAvatar } from "@/lib/actions/users";
 import { EditUserForm } from "@/components/users/edit-user-form";
 import { SetPasswordForm } from "@/components/users/set-password-form";
-import { PageHeader, SectionCard, StatusBadge, STATUS_TONE } from "@/components/ui-kit";
+import { PageHeader, SectionCard, StatusBadge, STATUS_TONE, Avatar } from "@/components/ui-kit";
+import { ImageUpload } from "@/components/catalog/image-upload";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,12 @@ export default async function EditUserPage({ params }: { params: Promise<Params>
       <PageHeader
         backHref="/settings/users"
         backLabel="Users"
-        title={user.email}
+        title={
+          <span className="inline-flex items-center gap-3">
+            <Avatar name={user.name} email={user.email} image={user.image} size={40} />
+            {user.email}
+          </span>
+        }
         description={user.name ?? undefined}
       />
 
@@ -51,6 +57,19 @@ export default async function EditUserPage({ params }: { params: Promise<Params>
         {user.magicLinkOnly ? <StatusBadge tone="brand-outline">Magic link only</StatusBadge> : null}
         {isSelf ? <StatusBadge tone="slate">This is you</StatusBadge> : null}
       </div>
+
+      <SectionCard
+        title="Avatar"
+        description="Shown next to this user's name across the app, and on quotes they prepare."
+      >
+        <ImageUpload
+          currentUrl={user.image}
+          alt={user.name ?? user.email}
+          onSave={setUserAvatar.bind(null, user.id)}
+          purpose="avatar"
+          previewHeightPx={112}
+        />
+      </SectionCard>
 
       <SectionCard title="Details">
         <EditUserForm

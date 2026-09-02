@@ -8,6 +8,7 @@ import {
   assertAllowedType,
   DOCUMENT_LINE_TYPES,
   CATALOG_TYPES,
+  AVATAR_TYPES,
 } from "../src/lib/uploads";
 
 const VALID_NAME = "a1b2c3d4-e5f6-4789-a0b1-c2d3e4f56789.jpg";
@@ -174,5 +175,15 @@ describe("upload purpose type sets", () => {
 
   it("accepts a photo for a document line", () => {
     expect(() => assertAllowedType("jpg", DOCUMENT_LINE_TYPES)).not.toThrow();
+  });
+
+  it("rejects SVG for an avatar", () => {
+    expect(() => assertAllowedType("svg", AVATAR_TYPES)).toThrow(/not allowed/i);
+  });
+
+  it("accepts jpg, png, and webp for an avatar", () => {
+    for (const ext of ["jpg", "png", "webp"]) {
+      expect(() => assertAllowedType(ext, AVATAR_TYPES)).not.toThrow();
+    }
   });
 });

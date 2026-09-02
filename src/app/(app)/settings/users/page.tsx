@@ -14,6 +14,7 @@ import {
   StatusBadge,
   STATUS_TONE,
   EmptyState,
+  Avatar,
 } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 
@@ -98,8 +99,9 @@ function UserRow({ user: u }: { user: UserListItem }) {
         >
           <span className="sr-only">Open {u.email}</span>
         </Link>
-        <span aria-hidden="true" className="relative font-medium text-brand-dark">
-          {u.email}
+        <span aria-hidden="true" className="relative flex items-center gap-3">
+          <Avatar name={u.name} email={u.email} image={u.image} size={32} />
+          <span className="font-medium text-brand-dark">{u.email}</span>
         </span>
         {u.magicLinkOnly ? (
           <span className="relative mt-0.5 block text-xs text-slate-500">Magic link only</span>
@@ -127,9 +129,12 @@ function UserCard({ user: u }: { user: UserListItem }) {
         <span className="sr-only">Open {u.email}</span>
       </Link>
       <div className="flex items-start justify-between gap-3">
-        <div className="relative min-w-0">
-          <p className="truncate font-medium text-brand-dark">{u.email}</p>
-          <p className="truncate text-sm text-slate-500">{u.name ?? "No name set"}</p>
+        <div className="relative flex min-w-0 items-center gap-3">
+          <Avatar name={u.name} email={u.email} image={u.image} size={36} />
+          <div className="min-w-0">
+            <p className="truncate font-medium text-brand-dark">{u.email}</p>
+            <p className="truncate text-sm text-slate-500">{u.name ?? "No name set"}</p>
+          </div>
         </div>
         <StatusBadge tone={u.active ? "green" : "slate"} className="relative shrink-0">
           {u.active ? "Active" : "Inactive"}

@@ -3,10 +3,13 @@ import Link from "next/link";
 import { FileText, MapPin, Users } from "lucide-react";
 import { auth } from "@/auth";
 import { getRegionById } from "@/lib/queries/catalog";
+import { getUser } from "@/lib/queries/users";
 import { getQuoteValidityDays, getShowOptionIcons } from "@/lib/queries/settings";
 import { updateSetting } from "@/lib/actions/settings";
+import { setUserAvatar } from "@/lib/actions/users";
 import { QuoteValidityForm } from "@/components/settings/quote-validity-form";
 import { ShowOptionIconsForm } from "@/components/settings/show-option-icons-form";
+import { ImageUpload } from "@/components/catalog/image-upload";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -19,10 +22,14 @@ export default async function SettingsPage() {
   // redirects unauthenticated requests, so a session is always present here.
   const session = (await auth())!;
   const isAdmin = session.user.role === "ADMIN";
-  const [region, quoteValidityDays, showOptionIcons] = await Promise.all([
+  const [region, quoteValidityDays, showOptionIcons, me] = await Promise.all([
     getRegionById(session.user.regionId),
     getQuoteValidityDays(),
     getShowOptionIcons(),
+    // Own avatar, read fresh from the database rather than off the session
+    // — the session JWT only revalidates every few minutes (see
+    // src/auth.ts), so this shows a just-uploaded avatar immediately.
+    getUser(session.user.id),
   ]);
 
   return (
@@ -48,6 +55,23 @@ export default async function SettingsPage() {
             </dd>
           </div>
         </dl>
+
+        {/* Own avatar — shown on the dashboard greeting, the users list (an
+            ADMIN sees it too, editable from there instead — see
+            /settings/users/[userId]), and on any quote this user prepares.
+            `setUserAvatar` itself enforces "only your own" for a MANAGER;
+            this card is reachable by both roles since /settings has no
+            ADMIN-only guard. */}
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <p className="mb-3 text-sm text-slate-500">Photo</p>
+          <ImageUpload
+            currentUrl={me?.image ?? null}
+            alt={session.user.name ?? session.user.email ?? "Your avatar"}
+            onSave={setUserAvatar.bind(null, session.user.id)}
+            purpose="avatar"
+            previewHeightPx={96}
+          />
+        </div>
       </SectionCard>
 
       <SectionCard

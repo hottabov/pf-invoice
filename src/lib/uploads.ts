@@ -24,7 +24,15 @@ export const CATALOG_TYPES = ["jpg", "png", "webp", "svg"] as const;
  * XML and can carry script, so a non-admin uploader is restricted to raster. */
 export const DOCUMENT_LINE_TYPES = ["jpg", "png", "webp"] as const;
 
-export type UploadPurpose = "catalog" | "document-line";
+/** Extensions a user avatar (`User.image` — see src/lib/queries/documents.ts
+ * for the read-side reuse note) may use. SVG is deliberately excluded here
+ * too, for the same reason as `DOCUMENT_LINE_TYPES`: an avatar is displayed
+ * to *other* users inside the admin UI (the users list/edit pages, the
+ * dashboard greeting), so accepting SVG would let an uploader's script run
+ * in someone else's browser the next time their avatar is rendered. */
+export const AVATAR_TYPES = ["jpg", "png", "webp"] as const;
+
+export type UploadPurpose = "catalog" | "document-line" | "avatar";
 
 /** A validation failure `saveUpload` can throw — wrong type or too large.
  * Callers (the /api/uploads route) turn this into a 400 with `.message`. */

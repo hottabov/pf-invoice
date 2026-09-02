@@ -6,15 +6,17 @@ import { Prisma } from "@prisma/client";
 import { hash } from "@node-rs/argon2";
 import type { z } from "zod";
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/authz";
+import { requireAdmin, requireSession } from "@/lib/authz";
 import { idSchema } from "@/lib/validation/documents";
 import {
   createUserSchema,
   updateUserSchema,
   setUserPasswordSchema,
   canModifyUser,
+  canSetAvatar,
 } from "@/lib/validation/users";
 import { countActiveAdmins } from "@/lib/queries/users";
+import { IMAGE_URL_PATTERN } from "@/lib/uploads";
 
 export type ActionResult = { error?: string };
 
@@ -190,5 +192,57 @@ export async function setUserPassword(userId: string, formData: FormData): Promi
   await db.user.update({ where: { id: userId }, data: { passwordHash } });
 
   revalidateUserPaths(userId);
+  return {};
+}
+
+// --- avatar ------------------------------------------------------------------
+
+/** Same URL-shape check `updateProductImage`/`updateOptionImage` apply in
+ * src/lib/actions/catalog.ts, duplicated rather than imported so this
+ * module doesn't reach into catalog.ts for an unrelated helper — `url` is
+ * either a `/api/files/<name>` path `saveUpload` could have produced, or
+ * `null` to clear the avatar. */
+function parseAvatarUrl(url: string | null): { ok: true; value: string | null } | { ok: false } {
+  if (url === null) return { ok: true, value: null };
+  if (!IMAGE_URL_PATTERN.test(url)) return { ok: false };
+  return { ok: true, value: url };
+}
+
+/**
+ * Sets (or clears, with `url: null`) a user's avatar — `User.image`,
+ * NextAuth's own profile-picture column, reused here (see
+ * src/lib/queries/documents.ts's `author` field for the read-side reuse
+ * note) since this app's credentials/magic-link auth never populates it on
+ * its own. Authorization is the one rule that matters for this action (the
+ * upload route itself just stores a file — see src/app/api/uploads/
+ * route.ts): an ADMIN may set anyone's avatar, a MANAGER only their own,
+ * checked here via `canSetAvatar` against the *session's* user id — never
+ * trusting the client to only ever submit its own id as `userId`.
+ */
+export async function setUserAvatar(userId: string, url: string | null): Promise<ActionResult> {
+  const session = await requireSession();
+
+  if (!canSetAvatar(session.user.id, session.user.role, userId)) {
+    return { error: "You can only change your own avatar" };
+  }
+
+  const idParsed = idSchema.safeParse(userId);
+  if (!idParsed.success) return { error: NOT_FOUND_ERROR };
+
+  const parsed = parseAvatarUrl(url);
+  if (!parsed.ok) return { error: "Invalid image URL" };
+
+  const target = await db.user.findUnique({ where: { id: userId } });
+  if (!target) return { error: NOT_FOUND_ERROR };
+
+  await db.user.update({ where: { id: userId }, data: { image: parsed.value } });
+
+  revalidateUserPaths(userId);
+  // The dashboard greeting and the settings Account card both show the
+  // signed-in user's own avatar — revalidate both so a self-service change
+  // (the MANAGER case `canSetAvatar` allows) shows up immediately rather
+  // than waiting on those pages' own `force-dynamic`/cache lifetimes.
+  revalidatePath("/");
+  revalidatePath("/settings");
   return {};
 }

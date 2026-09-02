@@ -1,4 +1,5 @@
 export { PageHeader } from "./page-header";
+export { Avatar } from "./avatar";
 export { SectionCard } from "./section-card";
 export { TableShell, RowCell, tableClassName, tableHeadRowClassName, tableRowClassName } from "./data-table";
 export { StatusBadge, STATUS_TONE, type StatusTone } from "./status-badge";

@@ -11,6 +11,7 @@ import {
   updateUserSchema,
   setUserPasswordSchema,
   canModifyUser,
+  canSetAvatar,
   type ModifiableUser,
 } from "../src/lib/validation/users";
 
@@ -339,5 +340,23 @@ describe("canModifyUser", () => {
     const target = admin();
     const result = canModifyUser(target.id, target, { active: false }, 1);
     expect(result).toBe("You can't deactivate your own account");
+  });
+});
+
+describe("canSetAvatar", () => {
+  it("allows an ADMIN to set anyone's avatar", () => {
+    expect(canSetAvatar("admin-1", "ADMIN", "other-user")).toBe(true);
+  });
+
+  it("allows an ADMIN to set their own avatar", () => {
+    expect(canSetAvatar("admin-1", "ADMIN", "admin-1")).toBe(true);
+  });
+
+  it("allows a MANAGER to set their own avatar", () => {
+    expect(canSetAvatar("manager-1", "MANAGER", "manager-1")).toBe(true);
+  });
+
+  it("refuses a MANAGER setting someone else's avatar", () => {
+    expect(canSetAvatar("manager-1", "MANAGER", "other-user")).toBe(false);
   });
 });

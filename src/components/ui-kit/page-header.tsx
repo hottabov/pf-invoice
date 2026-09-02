@@ -3,7 +3,10 @@ import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type PageHeaderProps = {
-  title: string;
+  /** Usually the page name, but accepts any node so a caller can compose
+   * something richer in its place — e.g. the dashboard's avatar + "Hi,
+   * <first name>" greeting (see src/app/(app)/page.tsx). */
+  title: React.ReactNode;
   description?: string;
   /** Rendered top-right on desktop, stacked full-width below the title on
    * mobile — typically the page's primary "New X" button(s). */

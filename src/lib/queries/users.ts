@@ -11,6 +11,10 @@ export type UserListItem = {
    * the magic-link (email) flow, not the credentials form. Drives the
    * "Magic link only" indicator in the users list. */
   magicLinkOnly: boolean;
+  /** `User.image` — NextAuth's own profile-picture column, reused as this
+   * user's avatar (see src/lib/queries/documents.ts's `author` field for
+   * the fuller reuse note) — a stored `/api/files/<name>` URL, or `null`. */
+  image: string | null;
 };
 
 /**
@@ -32,6 +36,7 @@ export async function listUsers(): Promise<UserListItem[]> {
     active: u.active,
     regionCode: u.region?.code ?? null,
     magicLinkOnly: !u.passwordHash,
+    image: u.image,
   }));
 }
 
@@ -44,10 +49,18 @@ export type UserDetail = {
   active: boolean;
   regionCode: string | null;
   magicLinkOnly: boolean;
+  /** `User.image` — see `UserListItem.image`'s doc comment for the reuse
+   * note. Feeds both the admin's user-edit avatar control and, for a
+   * caller's own id, the account settings/dashboard avatar. */
+  image: string | null;
 };
 
 /** A single user by id, or `null` if it doesn't exist — feeds the
- * /settings/users/[userId] edit page. */
+ * /settings/users/[userId] edit page, and (called with the signed-in user's
+ * own id) any screen that needs a fresh read of their own avatar — the
+ * session JWT only revalidates every few minutes (see src/auth.ts), so
+ * reading straight from the database here shows an avatar change
+ * immediately rather than after that window. */
 export async function getUser(userId: string): Promise<UserDetail | null> {
   const user = await db.user.findUnique({ where: { id: userId }, include: { region: true } });
   if (!user) return null;
@@ -61,6 +74,7 @@ export async function getUser(userId: string): Promise<UserDetail | null> {
     active: user.active,
     regionCode: user.region?.code ?? null,
     magicLinkOnly: !user.passwordHash,
+    image: user.image,
   };
 }
 

@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { CATALOG_TYPES, DOCUMENT_LINE_TYPES, saveUpload, UploadValidationError } from "@/lib/uploads";
+import { AVATAR_TYPES, CATALOG_TYPES, DOCUMENT_LINE_TYPES, saveUpload, UploadValidationError } from "@/lib/uploads";
 
 // Needs real filesystem access (fs/promises) — not available on the edge
 // runtime.
@@ -10,12 +10,17 @@ export const runtime = "nodejs";
  * returning the `/api/files/<name>` URL the client should then save onto
  * whatever it's attached to — a product/option via
  * `updateProductImage`/`updateOptionImage` (purpose `catalog`, ADMIN-only),
- * or a document's custom extra line via `addCustomLine` (purpose
+ * a document's custom extra line via `addCustomLine` (purpose
  * `document-line`, any authenticated user — a MANAGER may only attach it to
  * a line on a document they can already edit, which the existing document
- * authorization on that action covers). A missing or unrecognised `purpose`
- * defaults to `catalog` — the stricter permission path — rather than
- * silently granting the looser one.
+ * authorization on that action covers), or a user's avatar via
+ * `setUserAvatar` (purpose `avatar`, any authenticated user — this route
+ * only validates and stores the file; the *whose avatar* rule — a MANAGER
+ * may only set their own, an ADMIN may set anyone's — lives in
+ * `setUserAvatar` itself, src/lib/actions/users.ts, since it needs the
+ * target user id this route never sees). A missing or unrecognised
+ * `purpose` defaults to `catalog` — the stricter permission path — rather
+ * than silently granting the looser one.
  */
 export async function POST(request: Request) {
   const session = await auth();
@@ -35,13 +40,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "Missing file" }, { status: 400 });
   }
 
-  const purpose = formData.get("purpose") === "document-line" ? "document-line" : "catalog";
+  const rawPurpose = formData.get("purpose");
+  const purpose =
+    rawPurpose === "document-line" ? "document-line" : rawPurpose === "avatar" ? "avatar" : "catalog";
 
   if (purpose === "catalog" && session.user.role !== "ADMIN") {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const allowed = purpose === "catalog" ? CATALOG_TYPES : DOCUMENT_LINE_TYPES;
+  const allowed =
+    purpose === "catalog" ? CATALOG_TYPES : purpose === "avatar" ? AVATAR_TYPES : DOCUMENT_LINE_TYPES;
 
   try {
     const name = await saveUpload(file, allowed);

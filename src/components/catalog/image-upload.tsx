@@ -27,6 +27,7 @@ export function ImageUpload({
   readOnly = false,
   previewHeightPx,
   removeLabel = "Remove image",
+  purpose,
 }: {
   currentUrl: string | null;
   alt: string;
@@ -42,6 +43,13 @@ export function ImageUpload({
    * since a series' `null` isn't "no image" -- it falls back to a product
    * photo (see updateSeriesImage in src/lib/actions/catalog.ts). */
   removeLabel?: string;
+  /** Sent as the `purpose` field alongside the file to /api/uploads (see
+   * that route's purpose-scoped allow-list) — omitted (the default) means
+   * "catalog" there, which is what every existing product/option/region
+   * caller of this component wants. Pass `"avatar"` for the account/user
+   * avatar editors, which need the raster-only allow-list and non-ADMIN
+   * permission that purpose grants. */
+  purpose?: "avatar";
 }) {
   const [url, setUrl] = useState(currentUrl);
   const [uploading, setUploading] = useState(false);
@@ -63,6 +71,7 @@ export function ImageUpload({
     try {
       const formData = new FormData();
       formData.set("file", file);
+      if (purpose) formData.set("purpose", purpose);
       const response = await fetch("/api/uploads", { method: "POST", body: formData });
       const body = (await response.json().catch(() => null)) as
         | { url?: string; error?: string }
