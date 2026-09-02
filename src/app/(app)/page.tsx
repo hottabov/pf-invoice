@@ -35,15 +35,18 @@ export default async function DashboardPage() {
   const [counts, documents, me] = await Promise.all([
     countsForDashboard(session.user),
     listDocuments(session.user, {}),
-    // Read fresh from the database rather than off the session for the
-    // avatar — the session JWT only revalidates every few minutes (see
-    // src/auth.ts), so this shows a just-uploaded avatar immediately. Name
-    // comes straight from the session — see `firstNameFrom` below — since
-    // that's already fresh enough for a greeting.
+    // Read fresh from the database rather than off the session — the JWT
+    // only revalidates every few minutes (see src/auth.ts), so a session
+    // issued before the user set their name or photo still carries neither.
+    // That is exactly what produced "Hi, hottabov" for a user whose name
+    // was already "Vadym Leonov": the session was simply older than the
+    // name. Session values remain the fallback for the window before the
+    // row loads.
     getUser(session.user.id),
   ]);
   const recentDocuments = documents.slice(0, RECENT_LIMIT);
-  const firstName = firstNameFrom(session.user.name, session.user.email ?? "");
+  const displayName = me?.name ?? session.user.name;
+  const firstName = firstNameFrom(displayName, session.user.email ?? "");
 
   return (
     <div className="flex flex-col gap-6">
@@ -54,7 +57,7 @@ export default async function DashboardPage() {
                 photo, since Settings is the admin's section. An ADMIN
                 changes other people's photos from the users list. */}
             <AvatarEditor
-              name={session.user.name ?? null}
+              name={displayName ?? null}
               email={session.user.email ?? ""}
               image={me?.image ?? null}
               size={40}

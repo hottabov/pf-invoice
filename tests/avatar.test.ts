@@ -56,6 +56,17 @@ describe("firstNameFrom", () => {
     expect(firstNameFrom("Cher", "cher@example.com")).toBe("Cher");
   });
 
+  it("keeps both given names when the full name has three or more words", () => {
+    // Two given names before a surname — greeting "Maria" alone would be
+    // using half of the person's given name.
+    expect(firstNameFrom("Maria Anna Kowalska", "maria@example.com")).toBe("Maria Anna");
+    expect(firstNameFrom("Juan Carlos de la Cruz", "juan@example.com")).toBe("Juan Carlos");
+  });
+
+  it("collapses irregular spacing before deciding how many words there are", () => {
+    expect(firstNameFrom("  Vadym   Leonov  ", "v@example.com")).toBe("Vadym");
+  });
+
   it("falls back to the email's local-part when the name is missing", () => {
     expect(firstNameFrom(null, "jane@example.com")).toBe("jane");
     expect(firstNameFrom(undefined, "jane@example.com")).toBe("jane");

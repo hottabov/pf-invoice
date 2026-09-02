@@ -68,17 +68,26 @@ export function getInitials(name: string | null | undefined, email: string): str
 }
 
 /**
- * First name for a greeting (the dashboard's "Hi, <first name>" — see
- * src/app/(app)/page.tsx), from a session's `user.name` and `user.email`.
- * Falls back to the email's local-part when `name` is missing/blank, or
- * when it looks like an email address itself (never renders an "@" in a
- * greeting) — a magic-link-only user has no display name until they set
- * one.
+ * The given name for a greeting (the dashboard's "Hi, <name>" — see
+ * src/app/(app)/page.tsx), taken from a stored full name.
+ *
+ * One or two words means the first word is the given name: "Vadym Leonov"
+ * greets "Vadym". Three or more words takes the first two, because that
+ * shape is normally two given names before a surname ("Maria Anna
+ * Kowalska" → "Maria Anna") — greeting such a person by one word alone
+ * would be using half of their name.
+ *
+ * Falls back to the email's local-part when `name` is missing or blank, or
+ * when it is itself an email address — a greeting should never contain an
+ * "@", and a magic-link user has no display name until they set one.
  */
 export function firstNameFrom(name: string | null | undefined, email: string): string {
   const trimmed = name?.trim();
   if (trimmed && !trimmed.includes("@")) {
-    return trimmed.split(/\s+/)[0];
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    if (words.length > 0) {
+      return words.slice(0, words.length >= 3 ? 2 : 1).join(" ");
+    }
   }
   const localPart = email.split("@")[0];
   return localPart || email;
