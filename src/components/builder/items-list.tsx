@@ -4,13 +4,11 @@ import { useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import { formatMoney } from "@/lib/format";
-import { buildItemBreakdown } from "@/lib/sheet-data";
 import { RemoveItemButton } from "@/components/builder/remove-item-button";
 import { ItemOptionsEditor } from "@/components/builder/item-options-editor";
 import { ItemDiscountField } from "@/components/builder/item-discount-field";
-import { UnitPriceField } from "@/components/builder/unit-price-field";
+import { ItemBreakdownEditor } from "@/components/builder/item-breakdown-editor";
 import { ItemShowImageToggle } from "@/components/builder/item-show-image-toggle";
-import { ItemBreakdownRows } from "@/components/sheet/item-breakdown";
 import { ProductionSpecEditor } from "@/components/builder/production-spec-editor";
 import { useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
@@ -330,63 +328,26 @@ export function ItemsList({
               )}
             >
               <div className="overflow-hidden">
-                {/* Base price / options / item discount / per-item subtotal
-                    — the same shared presenter the two customer-facing
-                    sheets use (see item-breakdown.tsx), rendered here with
-                    `showPrices` always true: the builder is internal to the
-                    salesperson, who always sees full pricing detail
-                    regardless of what the quote's own price-display toggles
-                    are currently set to for the customer. */}
+                {/* Base price / options / item discount / per-item subtotal,
+                    each price editable in place (pencil-on-hover-or-focus,
+                    same reveal pattern as avatar-editor.tsx) — see
+                    item-breakdown-editor.tsx for why this is the builder's
+                    own copy of the layout rather than a reuse of the shared
+                    (non-interactive) sheet presenter. Replaces what used to
+                    be two separate blocks: a read-only compact breakdown
+                    here, and a second list of `UnitPriceField` rows
+                    repeating the same lines below it with a "Price" input
+                    each. */}
                 <div className="mb-3">
-                  <ItemBreakdownRows
-                    breakdown={buildItemBreakdown(item, true)}
-                    code={item.code}
+                  <ItemBreakdownEditor
+                    item={item}
                     currency={currency}
-                    showPrices={true}
-                    variant="compact"
+                    setItemUnitPriceAction={setItemUnitPriceAction}
+                    resetItemUnitPriceAction={resetItemUnitPriceAction}
+                    setLineUnitPriceAction={setLineUnitPriceAction}
+                    resetLineUnitPriceAction={resetLineUnitPriceAction}
+                    readOnly={readOnly}
                   />
-                </div>
-
-                {/* Manual unit price — the priced-row-by-priced-row control
-                    the P0 spec asks for: the item itself, then each of its
-                    OPTION lines, each independently hand-editable (0
-                    included) with the catalogue price struck through and a
-                    one-click reset whenever it's been changed. Read-only
-                    (FINAL document) still shows the struck-through list
-                    price so a past concession stays visible internally, even
-                    though it never prints on a customer-facing sheet — see
-                    UnitPriceField's own doc comment. */}
-                <div className="mb-3 flex flex-col gap-1.5 rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-slate-500">{item.name}</span>
-                    <UnitPriceField
-                      id={item.id}
-                      unitPrice={item.unitPrice}
-                      listPrice={item.listPrice}
-                      currency={currency}
-                      setUnitPriceAction={setItemUnitPriceAction}
-                      resetUnitPriceAction={resetItemUnitPriceAction}
-                      readOnly={readOnly}
-                    />
-                  </div>
-                  {item.lines
-                    .filter((line) => line.kind === "OPTION")
-                    .map((line) => (
-                      <div key={line.id} className="flex flex-wrap items-center justify-between gap-2 pl-3">
-                        <span className="truncate text-xs text-slate-400">
-                          {line.code ? `${line.code} — ${line.name}` : line.name}
-                        </span>
-                        <UnitPriceField
-                          id={line.id}
-                          unitPrice={line.unitPrice}
-                          listPrice={line.listPrice}
-                          currency={currency}
-                          setUnitPriceAction={setLineUnitPriceAction}
-                          resetUnitPriceAction={resetLineUnitPriceAction}
-                          readOnly={readOnly}
-                        />
-                      </div>
-                    ))}
                 </div>
 
                 <ItemOptionsEditor
