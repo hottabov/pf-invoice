@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { Plus, Puzzle, Search } from "lucide-react";
 import { auth } from "@/auth";
 import { listOptions, listSeriesWithCounts, type OptionListItem } from "@/lib/queries/catalog";
+import { catalogVisibilityRegionId, filterHiddenSeries } from "@/lib/catalog-visibility";
+import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { PriceDisplay, InactiveBadge, CompatBadges } from "@/components/catalog-badges";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -35,6 +37,12 @@ export default async function OptionsPage({
   ]);
 
   const isAdmin = session?.user?.role === "ADMIN";
+  // The series filter chips name a series even though this page never lists
+  // its products/prices — still enough of a "meet it" for a hidden series
+  // (its name/code) to filter out here too, same as every other catalogue
+  // browsing surface.
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+  const visibleSeries = filterHiddenSeries(series, hiddenCatalogIds);
 
   return (
     <div className="flex flex-col gap-6">
@@ -66,7 +74,7 @@ export default async function OptionsPage({
           className="inline-flex w-fit flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1"
         >
           <FilterChip label="All series" href={buildHref(q)} active={!seriesFilter} />
-          {series.map((s) => (
+          {visibleSeries.map((s) => (
             <FilterChip key={s.id} label={s.code} href={buildHref(q, s.code)} active={seriesFilter === s.code} />
           ))}
         </div>

@@ -4,6 +4,11 @@ import { companyWhereForUser, documentWhereForUser, type ScopeUser } from "@/lib
 import { listProductsBySeries, listSeriesWithCounts } from "@/lib/queries/catalog";
 import { computeTotals, type DocumentConcession, type EngineInput } from "@/lib/pricing";
 import { compatibilityOrFilter } from "@/lib/catalog-compat";
+import {
+  isSeriesHidden,
+  NO_HIDDEN_CATALOG_IDS,
+  type HiddenCatalogIds,
+} from "@/lib/catalog-visibility";
 import { getQuoteValidityDays } from "@/lib/queries/settings";
 
 // --- list -------------------------------------------------------------
@@ -724,19 +729,31 @@ export type ItemPickerSeries = {
  * preloads this once so choosing a series/product is instant, and disables
  * unpriced products with a "price required" hint instead of a second round
  * trip.
+ *
+ * `hidden` (the caller's own `CatalogVisibility` set — see
+ * `catalogVisibilityRegionId`/`getHiddenCatalogIds`, defaulting to "nothing
+ * hidden") removes a hidden series entirely and drops a hidden product out
+ * of its series' list, the same way `addItem` (src/lib/actions/documents.ts)
+ * re-checks server-side before actually creating the item — a MANAGER whose
+ * region can't sell a product never sees it here to begin with, an ADMIN
+ * (who always resolves to `NO_HIDDEN_CATALOG_IDS`) sees the full catalogue.
  */
-export async function getItemPickerCatalog(regionCode: string): Promise<ItemPickerSeries[]> {
+export async function getItemPickerCatalog(
+  regionCode: string,
+  hidden: HiddenCatalogIds = NO_HIDDEN_CATALOG_IDS
+): Promise<ItemPickerSeries[]> {
   const seriesList = await listSeriesWithCounts();
+  const visibleSeries = seriesList.filter((series) => !isSeriesHidden(series.id, hidden));
 
   return Promise.all(
-    seriesList.map(async (series) => {
+    visibleSeries.map(async (series) => {
       const detail = await listProductsBySeries(series.code, regionCode);
       return {
         code: series.code,
         name: series.name,
         maxDiscountPct: series.maxDiscountPct,
         products: (detail?.products ?? [])
-          .filter((p) => p.active)
+          .filter((p) => p.active && !hidden.productIds.has(p.id))
           .map((p) => ({
             code: p.code,
             name: p.name,

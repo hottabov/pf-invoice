@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { getOptionDetail, listSeriesWithCounts } from "@/lib/queries/catalog";
+import { catalogVisibilityRegionId, filterHiddenSeries } from "@/lib/catalog-visibility";
+import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import {
   updateOption,
   deleteOption,
@@ -41,6 +43,14 @@ export default async function OptionEditorPage({ params }: { params: Promise<Par
   if (!option) notFound();
 
   const isAdmin = session?.user?.role === "ADMIN";
+  // Same reasoning as the options list's filter chips: the compatibility
+  // editor names every series (as a checkbox row) even though this page
+  // isn't the product catalogue itself — an ADMIN needs the full list to
+  // actually manage compatibility (resolves to no hidden ids, see
+  // `catalogVisibilityRegionId`), a read-only MANAGER doesn't need to see a
+  // series their region can't sell.
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+  const visibleSeries = filterHiddenSeries(series, hiddenCatalogIds);
 
   return (
     <div className="flex flex-col gap-6">
@@ -95,7 +105,7 @@ export default async function OptionEditorPage({ params }: { params: Promise<Par
           >
             <CompatEditor
               optionId={option.id}
-              series={series.map((s) => ({ id: s.id, code: s.code, name: s.name }))}
+              series={visibleSeries.map((s) => ({ id: s.id, code: s.code, name: s.name }))}
               initialSelected={option.compatSeriesCodes}
               action={setOptionCompatibility}
               readOnly={!isAdmin}

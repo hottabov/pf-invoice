@@ -19,6 +19,8 @@ import {
   type EngineViolation,
 } from "@/lib/pricing";
 import { isHtmlContent, sanitizeRichText } from "@/lib/rich-text";
+import { catalogVisibilityRegionId, isProductHidden } from "@/lib/catalog-visibility";
+import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { formatMoney } from "@/lib/format";
 import {
   customLineSchema,
@@ -448,6 +450,18 @@ export async function setDocumentClient(
  * exists and isn't `needsReview`) for the document's own region; otherwise
  * returns an error naming the product and region rather than silently
  * adding a $0 line.
+ *
+ * Also rejects a product hidden from the caller's own region via
+ * `CatalogVisibility` (directly, or because its whole series is hidden) —
+ * the *server-side* half of catalogue visibility: the item picker
+ * (`getItemPickerCatalog`) already never offers a hidden product, but this
+ * is the actual gate, since a crafted request can call this action with any
+ * `productCode` regardless of what the picker rendered. Same "Product not
+ * found" message as a genuinely nonexistent code — a hidden product must
+ * read as *absent*, not as a product that exists but is refused (Ross: "we
+ * don't want him to even see the Excalibur", not "let him see it's there
+ * and blocked"). An ADMIN always resolves to no hidden ids (see
+ * `catalogVisibilityRegionId`) and so is never affected by this check.
  */
 export async function addItem(documentId: string, productCode: string): Promise<ActionResult> {
   const session = await requireSession();
@@ -468,6 +482,9 @@ export async function addItem(documentId: string, productCode: string): Promise<
     include: { prices: { where: { regionId: document.regionId } } },
   });
   if (!product) return { error: "Product not found" };
+
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session.user));
+  if (isProductHidden(product, hiddenCatalogIds)) return { error: "Product not found" };
 
   const price = product.prices[0];
   if (!price || price.needsReview) {

@@ -8,6 +8,8 @@ import {
   getSeriesFallbackImageUrl,
   type ProductListItem,
 } from "@/lib/queries/catalog";
+import { catalogVisibilityRegionId, isSeriesHidden } from "@/lib/catalog-visibility";
+import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { updateSeriesImage } from "@/lib/actions/catalog";
 import { SeriesImageCard } from "@/components/catalog/series-image-card";
 import { PriceDisplay, InactiveBadge } from "@/components/catalog-badges";
@@ -33,8 +35,15 @@ export async function generateMetadata({
   params: Promise<Params>;
 }): Promise<Metadata> {
   const { seriesCode } = await params;
-  const result = await listProductsBySeries(seriesCode);
-  return { title: result ? result.series.name : "Series" };
+  // Metadata runs before the page body — re-check hidden-ness here too
+  // (same reasoning the document builder's own generateMetadata gives) so a
+  // manager browsing to a hidden series' URL never even sees its name in
+  // the tab title.
+  const [result, session] = await Promise.all([listProductsBySeries(seriesCode), auth()]);
+  if (!result) return { title: "Series" };
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+  if (isSeriesHidden(result.series.id, hiddenCatalogIds)) return { title: "Series" };
+  return { title: result.series.name };
 }
 
 export default async function SeriesProductsPage({ params }: { params: Promise<Params> }) {
@@ -43,8 +52,18 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
 
   if (!result) notFound();
 
-  const { series, products } = result;
+  const { series } = result;
   const isAdmin = session?.user?.role === "ADMIN";
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+  // A hidden series is absent, full stop — a MANAGER hitting its URL
+  // directly (bookmark, typed URL) gets the same 404 as a nonexistent
+  // series, same "never distinguish the two" rule `documentWhereForUser`
+  // callers already follow for a foreign document.
+  if (!isAdmin && isSeriesHidden(series.id, hiddenCatalogIds)) notFound();
+  // A visible series can still have individually-hidden products under it.
+  const products = isAdmin
+    ? result.products
+    : result.products.filter((p) => !hiddenCatalogIds.productIds.has(p.id));
   // Only needed for the admin "Series image" panel below -- skip the extra
   // query entirely for a MANAGER, who never sees that panel.
   const fallbackImageUrl = isAdmin ? await getSeriesFallbackImageUrl(series.id) : null;

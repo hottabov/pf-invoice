@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { getProductDetail } from "@/lib/queries/catalog";
+import { catalogVisibilityRegionId, isProductHidden } from "@/lib/catalog-visibility";
+import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { updateProduct, deleteProduct, upsertPrice, updateProductImage } from "@/lib/actions/catalog";
 import { ProductForm } from "@/components/catalog/product-form";
 import { PriceEditor } from "@/components/catalog/price-editor";
@@ -19,8 +21,16 @@ export async function generateMetadata({
   params: Promise<Params>;
 }): Promise<Metadata> {
   const { seriesCode, productCode } = await params;
-  const product = await getProductDetail(seriesCode, productCode);
-  return { title: product ? `${product.code} · ${product.series.name}` : "Product" };
+  // Re-check hidden-ness here too, same reasoning as the series page's own
+  // generateMetadata — a hidden product's name/series shouldn't leak into
+  // the tab title for a manager who hit its URL directly.
+  const [product, session] = await Promise.all([getProductDetail(seriesCode, productCode), auth()]);
+  if (!product) return { title: "Product" };
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+  if (isProductHidden({ id: product.id, seriesId: product.series.id }, hiddenCatalogIds)) {
+    return { title: "Product" };
+  }
+  return { title: `${product.code} · ${product.series.name}` };
 }
 
 export default async function ProductEditorPage({ params }: { params: Promise<Params> }) {
@@ -33,6 +43,17 @@ export default async function ProductEditorPage({ params }: { params: Promise<Pa
   if (!product) notFound();
 
   const isAdmin = session?.user?.role === "ADMIN";
+  // A hidden product (directly, or via a hidden series) is absent for a
+  // MANAGER even at its own direct URL — the picker/series-list filtering
+  // above only stops a MANAGER discovering it by browsing; without this,
+  // a bookmarked or typed URL would still show it. An ADMIN always resolves
+  // to no hidden ids (see `catalogVisibilityRegionId`) and is unaffected.
+  if (!isAdmin) {
+    const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+    if (isProductHidden({ id: product.id, seriesId: product.series.id }, hiddenCatalogIds)) {
+      notFound();
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">

@@ -13,6 +13,8 @@ import {
   type DocumentForBuilder,
 } from "@/lib/queries/documents";
 import { listActiveRegions } from "@/lib/queries/catalog";
+import { catalogVisibilityRegionId } from "@/lib/catalog-visibility";
+import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { getQuoteValidityDays, getShowOptionIcons } from "@/lib/queries/settings";
 import { concessionCapMessage, markupCapMessage } from "@/lib/pricing";
 import {
@@ -108,9 +110,18 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
       : null;
   const capExceeded = document.documentConcession.exceedsCap || document.documentConcession.exceedsMarkupCap;
 
+  // Whose visibility gates the item picker: the current *user's* own region
+  // (an ADMIN always resolves to `null` here and sees everything), not the
+  // document's region — they happen to coincide for a MANAGER's own
+  // document (created from their own region — see `createDraft`), but the
+  // rule this feature specifies is the signed-in user's region. Resolved
+  // before the batch below since `getItemPickerCatalog` needs the actual
+  // set, not a pending promise.
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session.user));
+
   const [companies, catalog, showOptionIcons, regions, orgDefaultValidityDays, formsDocument] = await Promise.all([
     listClientPickerCompanies(session.user),
-    getItemPickerCatalog(document.regionCode),
+    getItemPickerCatalog(document.regionCode, hiddenCatalogIds),
     getShowOptionIcons(),
     listActiveRegions(),
     getQuoteValidityDays(),

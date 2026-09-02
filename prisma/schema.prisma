@@ -45,32 +45,33 @@ enum DeliveryTerms {
 }
 
 model Region {
-  id             String         @id @default(cuid())
-  code           String         @unique // AU, US, UK
-  name           String
-  currency       String // AUD, USD, GBP
-  taxName        String // GST, Sales Tax, VAT
-  taxRate        Decimal        @db.Decimal(5, 2) // 10.00
-  entityName     String // Pathfinder Australia Pty Ltd
-  entityLegalId  String? // ABN 64 072 458 667
-  entityAddress  String?
-  bankDetails    Json?
-  logoUrl        String?
-  footerText     String?
-  maxDiscountPct Decimal?       @db.Decimal(5, 2) // AU: 10, US: 15 -- discount cap enforced against a document's region (see setItemDiscount/setDocumentDiscount in src/lib/actions/documents.ts); not shown in the catalog UI.
+  id                String              @id @default(cuid())
+  code              String              @unique // AU, US, UK
+  name              String
+  currency          String // AUD, USD, GBP
+  taxName           String // GST, Sales Tax, VAT
+  taxRate           Decimal             @db.Decimal(5, 2) // 10.00
+  entityName        String // Pathfinder Australia Pty Ltd
+  entityLegalId     String? // ABN 64 072 458 667
+  entityAddress     String?
+  bankDetails       Json?
+  logoUrl           String?
+  footerText        String?
+  maxDiscountPct    Decimal?            @db.Decimal(5, 2) // AU: 10, US: 15 -- discount cap enforced against a document's region (see setItemDiscount/setDocumentDiscount in src/lib/actions/documents.ts); not shown in the catalog UI.
   // The mirror of maxDiscountPct: how far ABOVE list a distributor may price
   // (Ross: "he's got a minimum selling price. And a maximum selling price.
   // And those rules apply to the LLC as well."). Null means no ceiling, same
   // "unset changes nothing" contract maxDiscountPct already has. Enforced
   // via the same concession machinery as the discount cap -- a negative
   // concession is a markup -- see documentConcession/recalcAndEnforce.
-  maxMarkupPct   Decimal?       @db.Decimal(5, 2)
-  active         Boolean        @default(true)
-  users          User[]
-  companies      Company[]
-  prices         Price[]
-  documents      Document[]
-  contentBlocks  ContentBlock[]
+  maxMarkupPct      Decimal?            @db.Decimal(5, 2)
+  active            Boolean             @default(true)
+  users             User[]
+  companies         Company[]
+  prices            Price[]
+  documents         Document[]
+  contentBlocks     ContentBlock[]
+  catalogVisibility CatalogVisibility[]
 }
 
 model User {
@@ -126,27 +127,28 @@ model VerificationToken {
 }
 
 model Series {
-  id             String                @id @default(cuid())
-  code           String                @unique // M, X, L, P, SW, LNS, EL, EF, FP, SVC
-  name           String // M-Series, X-Calibre...
-  maxDiscountPct Decimal?              @db.Decimal(5, 2) // unused: discount caps moved to Region.maxDiscountPct; column kept, not read anywhere
-  sortOrder      Int                   @default(0)
-  imageUrl       String? // admin override for the /catalog series card image; null falls back to the first active product's imageUrl -- see listSeriesWithCounts in src/lib/queries/catalog.ts
-  products       Product[]
-  compat         OptionCompatibility[]
+  id                String                @id @default(cuid())
+  code              String                @unique // M, X, L, P, SW, LNS, EL, EF, FP, SVC
+  name              String // M-Series, X-Calibre...
+  maxDiscountPct    Decimal?              @db.Decimal(5, 2) // unused: discount caps moved to Region.maxDiscountPct; column kept, not read anywhere
+  sortOrder         Int                   @default(0)
+  imageUrl          String? // admin override for the /catalog series card image; null falls back to the first active product's imageUrl -- see listSeriesWithCounts in src/lib/queries/catalog.ts
+  products          Product[]
+  compat            OptionCompatibility[]
+  catalogVisibility CatalogVisibility[]
 }
 
 model Product {
-  id          String                @id @default(cuid())
-  code        String                @unique // M5180
-  seriesId    String
-  series      Series                @relation(fields: [seriesId], references: [id])
-  name        String
-  description String?
-  specs       Json? // { cutHeightCm, widthCm, ... }
-  imageUrl    String?
-  active      Boolean               @default(true)
-  sortOrder   Int                   @default(0)
+  id                String                @id @default(cuid())
+  code              String                @unique // M5180
+  seriesId          String
+  series            Series                @relation(fields: [seriesId], references: [id])
+  name              String
+  description       String?
+  specs             Json? // { cutHeightCm, widthCm, ... }
+  imageUrl          String?
+  active            Boolean               @default(true)
+  sortOrder         Int                   @default(0)
   // A credit product (today: the TRADE-IN catalogue product -- John: "we
   // should create another product called trade-in, so that way the
   // terminology is correct... it's a line item. It's a product. You're
@@ -161,10 +163,11 @@ model Product {
   // `EngineItem.isCredit` in src/lib/pricing.ts for how this is consumed.
   // Migration z16_product_is_credit adds this column with its default, so
   // every existing product is unaffected.
-  isCredit    Boolean               @default(false)
-  prices      Price[]
-  compat      OptionCompatibility[]
-  docItems    DocumentItem[]
+  isCredit          Boolean               @default(false)
+  prices            Price[]
+  compat            OptionCompatibility[]
+  docItems          DocumentItem[]
+  catalogVisibility CatalogVisibility[]
 }
 
 model Option {
@@ -190,6 +193,46 @@ model OptionCompatibility {
   product   Product? @relation(fields: [productId], references: [id])
 
   @@unique([optionId, seriesId, productId])
+}
+
+// One row per (region x series-or-product) pair that is HIDDEN from that
+// region's salespeople -- Ross, on a reseller not yet cleared to sell the
+// Excalibur X series: "we don't want him to even see the Excalibur." A zero
+// price was rejected for this (Vadym: "just put zero, zero in the
+// price" / Ross: "No, no... he's not -- we're not allowing him to sell it
+// at the moment") -- the product must be absent, not unaffordable, so this
+// is a visibility gate, not a pricing one.
+//
+// Mirrors the series-or-product reference shape `OptionCompatibility`
+// already uses above (exactly one of seriesId/productId set per row) so the
+// codebase has one way of expressing "this catalogue thing, for that scope"
+// rather than two.
+//
+// Deliberately stores what's HIDDEN, not what's visible -- an allow-list
+// would need seeding for every existing product the moment a new region is
+// added, and again for every existing region the moment a new product is
+// added. A region with no rows here sees the *whole* catalogue by default,
+// so (a) onboarding a new distributor never starts with an empty catalogue
+// someone has to rebuild an allow-list for, and (b) a brand-new product is
+// visible everywhere the instant it's created, with no "remember to grant
+// it" step anywhere. This inverse (store what's visible instead) reads as
+// the more obvious shape -- resist "fixing" it back: it would silently hide
+// every product from every region until someone remembers to grant it.
+//
+// Cascades on delete (unlike OptionCompatibility's ON DELETE SET NULL for
+// seriesId/productId): a hidden row means nothing once its region or its
+// series/product is gone, so removing either must never leave an orphaned
+// row behind -- see migration z17_catalog_visibility.
+model CatalogVisibility {
+  id        String   @id @default(cuid())
+  regionId  String
+  region    Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  seriesId  String? // whole series hidden for this region
+  series    Series?  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  productId String? // or a single product hidden for this region
+  product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([regionId, seriesId, productId])
 }
 
 model Price {
