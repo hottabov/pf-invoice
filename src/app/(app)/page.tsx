@@ -6,10 +6,12 @@ import { auth } from "@/auth";
 import { NAV_ITEMS } from "@/lib/nav-items";
 import { countsForDashboard, type DashboardCounts } from "@/lib/queries/dashboard";
 import { listDocuments, type DocumentListItem } from "@/lib/queries/documents";
+import { getUser } from "@/lib/queries/users";
 import { createDraft } from "@/lib/actions/documents";
 import { formatMoney, relativeDate } from "@/lib/format";
+import { firstNameFrom } from "@/lib/avatar";
 import { Button } from "@/components/ui/button";
-import { PageHeader, SectionCard, StatusBadge, STATUS_TONE, EmptyState } from "@/components/ui-kit";
+import { PageHeader, SectionCard, StatusBadge, STATUS_TONE, EmptyState, Avatar } from "@/components/ui-kit";
 
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -28,16 +30,28 @@ export default async function DashboardPage() {
   // redirects unauthenticated requests, so a session is always present here.
   const session = (await auth())!;
 
-  const [counts, documents] = await Promise.all([
+  const [counts, documents, me] = await Promise.all([
     countsForDashboard(session.user),
     listDocuments(session.user, {}),
+    // Read fresh from the database rather than off the session for the
+    // avatar — the session JWT only revalidates every few minutes (see
+    // src/auth.ts), so this shows a just-uploaded avatar immediately. Name
+    // comes straight from the session — see `firstNameFrom` below — since
+    // that's already fresh enough for a greeting.
+    getUser(session.user.id),
   ]);
   const recentDocuments = documents.slice(0, RECENT_LIMIT);
+  const firstName = firstNameFrom(session.user.name, session.user.email ?? "");
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Dashboard"
+        title={
+          <span className="inline-flex items-center gap-3">
+            <Avatar name={session.user.name} email={session.user.email ?? ""} image={me?.image} size={40} />
+            {`Hi, ${firstName}`}
+          </span>
+        }
         description={
           session.user.role === "ADMIN"
             ? "An overview of every quote across the business."
