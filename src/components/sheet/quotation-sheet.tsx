@@ -334,6 +334,7 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                   code={item.code}
                   currency={totals.currency}
                   showPrices={itemPriceVisible}
+                  variant="sheet"
                 />
               </tbody>
             ))}
