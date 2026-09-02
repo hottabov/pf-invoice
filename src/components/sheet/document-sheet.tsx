@@ -194,7 +194,6 @@ export function DocumentSheet({ data }: { data: DocSheetData }) {
                 code={item.code}
                 currency={totals.currency}
                 showPrices={itemPriceVisible}
-                variant="sheet"
               />
             </tbody>
           ))}

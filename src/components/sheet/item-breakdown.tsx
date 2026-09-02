@@ -54,27 +54,22 @@ export function ItemBreakdownRows({
   code,
   currency,
   showPrices,
-  variant,
 }: {
   breakdown: ItemBreakdown;
   code: string;
   currency: string;
   showPrices: boolean;
-  variant: "sheet" | "compact";
 }) {
-  if (variant === "compact") {
-    return <CompactBreakdown breakdown={breakdown} code={code} currency={currency} showPrices={showPrices} />;
-  }
   return <SheetBreakdownRows breakdown={breakdown} code={code} currency={currency} showPrices={showPrices} />;
 }
 
-/** Shared between both variants so the wording ("Discount 5%" / "Discount")
- * never drifts between the print sheets and the builder. */
+/** Kept as a named helper so the wording ("Discount 5%" / "Discount") lives
+ * in one place across the two sheets. */
 function discountLabel(discount: NonNullable<ItemBreakdown["discount"]>): string {
   return discount.mode === "PERCENT" ? `Discount ${discount.value}%` : "Discount";
 }
 
-/** `variant="sheet"` — a run of `<tr>`s meant to sit inside the caller's own
+/** A run of `<tr>`s meant to sit inside the caller's own
  * `<tbody className="pq-item-group">`, right after that item's own name/
  * description header row. Reuses the Investment Summary table's existing
  * `.pq-option-row` / `.pq-option-indent` / `.pq-option-name` /
@@ -135,78 +130,3 @@ function SheetBreakdownRows({
   );
 }
 
-/** `variant="compact"` — the builder's own internal view (`items-list.tsx`),
- * styled with the app's normal Tailwind utilities rather than the sheets'
- * hardcoded print CSS (this markup never gets posted to Gotenberg). Always
- * called with `showPrices={true}` (the builder is internal to the
- * salesperson, who always sees full pricing detail), but the gating logic
- * below still honours whatever it's given rather than assuming that. */
-function CompactBreakdown({
-  breakdown,
-  code,
-  currency,
-  showPrices,
-}: {
-  breakdown: ItemBreakdown;
-  code: string;
-  currency: string;
-  showPrices: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-      <CompactRow
-        label={code}
-        qty={`Qty ${breakdown.qty}`}
-        amount={showPrices ? formatMoney(breakdown.basePrice, currency) : null}
-      />
-      {breakdown.options.map((option, index) => (
-        <CompactRow
-          key={`${option.name}-${index}`}
-          label={option.name}
-          qty={String(option.qty)}
-          amount={showPrices && option.lineTotal !== null ? formatMoney(option.lineTotal, currency) : null}
-        />
-      ))}
-      {breakdown.discount && showPrices ? (
-        <CompactRow
-          label={discountLabel(breakdown.discount)}
-          amount={`-${formatMoney(breakdown.discount.amount, currency)}`}
-          muted
-        />
-      ) : null}
-      {showPrices && breakdown.options.length > 0 ? (
-        <CompactRow label={`${code} subtotal`} amount={formatMoney(breakdown.subtotal, currency)} strong />
-      ) : null}
-    </div>
-  );
-}
-
-function CompactRow({
-  label,
-  qty,
-  amount,
-  muted = false,
-  strong = false,
-}: {
-  label: string;
-  qty?: string;
-  amount: string | null;
-  muted?: boolean;
-  strong?: boolean;
-}) {
-  return (
-    <div
-      className={
-        "flex items-center justify-between gap-2" +
-        (muted ? " italic text-amber-700" : "") +
-        (strong ? " font-semibold text-slate-700" : "")
-      }
-    >
-      <span className="truncate">{label}</span>
-      <span className="flex shrink-0 items-center gap-2 tabular-nums">
-        {qty ? <span className="text-slate-400">{qty}</span> : null}
-        {amount ? <span>{amount}</span> : null}
-      </span>
-    </div>
-  );
-}
