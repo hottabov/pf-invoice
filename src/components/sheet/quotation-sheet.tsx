@@ -85,7 +85,7 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
             </div>
             {data.validityDate ? (
               <div className="pq-meta-row">
-                <span className="pq-meta-label">Valid until</span> {data.validityDate}
+                <span className="pq-meta-label">Price valid until</span> {data.validityDate}
               </div>
             ) : null}
           </div>
@@ -174,11 +174,14 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
           <span className="pq-total-banner-note">
             (incl. {totals.taxName} {totals.taxRate}%)
           </span>
-          {/* Repeats the header's "Valid until" (see pq-title-row above)
-              right next to the price it applies to (owner: "put the
-              valid-to in this total investment line, so it's obvious"). */}
+          {/* Repeats the header's expiry right next to the price it applies
+              to (owner: "put the valid-to in this total investment line, so
+              it's obvious"). Deliberately larger and full white rather than
+              the muted note colour beside it — it is the line that gives the
+              reader a reason to decide now, so it has to survive a glance at
+              a printed page. */}
           {data.validityDate ? (
-            <span className="pq-total-banner-note">Valid until {data.validityDate}</span>
+            <span className="pq-total-banner-validity">Price valid until {data.validityDate}</span>
           ) : null}
         </div>
 
@@ -691,6 +694,16 @@ const SHEET_CSS = `
   .pq-total-banner-note {
     font-size: 10px;
     color: #b9c2e8;
+  }
+  /* The expiry sits on the dark banner beside the muted "(incl. GST)" note,
+     but is not a footnote — it carries the deadline, so it gets full white
+     and its own weight. Pushed to the end of the flex row so it reads as a
+     statement of its own rather than a continuation of the tax note. */
+  .pq-total-banner-validity {
+    margin-left: auto;
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff;
   }
   .pq-section {
     margin-top: 28px;
