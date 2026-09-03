@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildFooterHtml, pdfFilename, renderDocumentHtml, renderQuotationHtml } from "../src/lib/pdf";
+import { buildFooterHtml, quotationPdfFilename, renderQuotationHtml } from "../src/lib/pdf";
 import { buildItemBreakdown } from "../src/lib/sheet-data";
-import type { DocSheetData } from "../src/lib/sheet-data";
 import type { QuotationData } from "../src/lib/quotation-data";
 
 // Pure/rendering bits of the PDF pipeline only — `htmlToPdf` and
@@ -29,309 +28,19 @@ describe("buildFooterHtml", () => {
   });
 });
 
-describe("pdfFilename", () => {
+describe("quotationPdfFilename", () => {
   it("uses the document number when present", () => {
-    expect(pdfFilename("Q-AU-2026-001", "doc-1")).toBe("Q-AU-2026-001.pdf");
+    expect(quotationPdfFilename("Q-AU-2026-001")).toBe("Q-AU-2026-001-quotation.pdf");
   });
 
-  it("falls back to draft-<id> when there is no number yet", () => {
-    expect(pdfFilename(null, "doc-1")).toBe("draft-doc-1.pdf");
+  it("falls back to draft-quotation when there is no number yet", () => {
+    expect(quotationPdfFilename(null)).toBe("draft-quotation.pdf");
   });
 
   it("sanitizes characters that could break a Content-Disposition header", () => {
-    expect(pdfFilename('evil"; x=1\r\nSet-Cookie: y', "doc-1")).toBe(
-      "evil_x_1_Set-Cookie_y.pdf"
+    expect(quotationPdfFilename('evil"; x=1\r\nSet-Cookie: y')).toBe(
+      "evil_x_1_Set-Cookie_y-quotation.pdf"
     );
-  });
-});
-
-function baseSheetData(overrides: Partial<DocSheetData> = {}): DocSheetData {
-  return {
-    title: "QUOTATION",
-    isDraft: false,
-    number: "Q-AU-2026-001",
-    issueDate: "30/08/2026",
-    validityDate: null,
-    logo: null,
-    entity: {
-      name: "Pathfinder Cutting Systems",
-      legalId: "ABN 123",
-      address: "1 Example St",
-      bankDetails: [],
-      footerText: null,
-    },
-    client: null,
-    delivery: null,
-    items: [],
-    extraLines: [],
-    totals: {
-      currency: "AUD",
-      subtotal: "1000.00",
-      discountMode: "PERCENT",
-      discountValue: null,
-      discountAmount: "0.00",
-      taxName: "GST",
-      taxRate: "10",
-      taxAmount: "100.00",
-      total: "1100.00",
-      deliveryTerms: "DELIVERED",
-    },
-    showSignature: false,
-    preparedBy: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: null },
-    notes: null,
-    showItemPrices: true,
-    showOptionPrices: true,
-    ...overrides,
-  };
-}
-
-describe("renderDocumentHtml", () => {
-  it("wraps the sheet in a full standalone HTML document", async () => {
-    const html = await renderDocumentHtml(baseSheetData());
-
-    expect(html).toContain("<!doctype html>");
-    expect(html).toContain('<meta charSet="utf-8">');
-    expect(html).toContain("@page{size:A4;margin:15mm}");
-    expect(html).toContain("Pathfinder Cutting Systems");
-    expect(html).toContain("Q-AU-2026-001");
-    expect(html).toContain("1,100");
-  });
-
-  it("renders a multi-line entity address as one pq-entity-line div per line, not a literal newline", async () => {
-    const html = await renderDocumentHtml(
-      baseSheetData({
-        entity: {
-          name: "Pathfinder Cutting Systems",
-          legalId: "ABN 123",
-          address: "12 Dib Court\nTullamarine, VIC 3043, Australia\nWeb: pathfindercut.com",
-          bankDetails: [],
-          footerText: null,
-        },
-      })
-    );
-
-    // Each address line lands in its own element rather than a single block
-    // with an embedded "\n" (which HTML would collapse to a single space).
-    expect(html).toContain('<div class="pq-entity-line">12 Dib Court</div>');
-    expect(html).toContain('<div class="pq-entity-line">Tullamarine, VIC 3043, Australia</div>');
-    expect(html).toContain('<div class="pq-entity-line">Web: pathfindercut.com</div>');
-    expect(html).not.toContain("Dib Court\\n");
-  });
-
-  it("renders a compact 'Prepared by' line and, when present, notes before bank details", async () => {
-    const html = await renderDocumentHtml(
-      baseSheetData({
-        preparedBy: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: null },
-        notes: "Please deliver to the loading dock.",
-        entity: {
-          name: "Pathfinder Cutting Systems",
-          legalId: "ABN 123",
-          address: "1 Example St",
-          bankDetails: [{ label: "Bank", value: "ANZ" }],
-          footerText: null,
-        },
-      })
-    );
-
-    expect(html).toContain("Prepared by: Jane Author");
-    expect(html).toContain("jane@example.com");
-    expect(html).toContain("Please deliver to the loading dock.");
-    // Notes appear before the bank details block in document order.
-    expect(html.indexOf("Please deliver to the loading dock.")).toBeLessThan(html.indexOf("Bank Details"));
-  });
-
-  it("falls back to the author's email when no name is set, and omits notes entirely when unset", async () => {
-    const html = await renderDocumentHtml(
-      baseSheetData({ preparedBy: { name: null, email: "noname@example.com", phone: null, avatar: null }, notes: null })
-    );
-    expect(html).toContain("Prepared by: noname@example.com");
-    // No trailing " · email" when there's no name to pair it with.
-    expect(html).not.toContain("Prepared by: noname@example.com ·");
-    // The rendered notes *element* is absent (the embedded <style> block
-    // always defines the .pq-notes-title selector regardless, so this
-    // checks for the element's opening tag, not the bare class name).
-    expect(html).not.toContain('class="pq-notes-title"');
-  });
-
-  it("renders the author's avatar under Prepared by when present", async () => {
-    const html = await renderDocumentHtml(
-      baseSheetData({
-        preparedBy: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: "data:image/jpeg;base64,AAAA" },
-      })
-    );
-    expect(html).toContain('<img src="data:image/jpeg;base64,AAAA"');
-    expect(html).toContain('class="pq-prepared-by-avatar"');
-  });
-
-  it("renders no <img> for Prepared by when the author has no avatar", async () => {
-    const html = await renderDocumentHtml(
-      baseSheetData({ preparedBy: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: null } })
-    );
-    // The embedded <style> block always defines the .pq-prepared-by-avatar
-    // selector regardless (same pattern as the .pq-notes-title check
-    // above) — check for the element's opening tag, not the bare class name.
-    expect(html).not.toContain('<img class="pq-prepared-by-avatar"');
-    expect(html).not.toContain("<img");
-  });
-});
-
-describe("renderDocumentHtml — item breakdown honours the price-display flags", () => {
-  it("shows the base price separately from the combined total, gated by showItemPrices/showOptionPrices", async () => {
-    const html = await renderDocumentHtml(
-      baseSheetData({
-        showItemPrices: true,
-        showOptionPrices: true,
-        items: [
-          baseDocSheetItem({
-            code: "X-5180",
-            unitPrice: "175000.00",
-            total: "215425.00",
-            lines: [{ id: "line-1", code: "MTS", name: "MTS", description: null, qty: 1, unitPrice: "40425.00", lineTotal: "40425.00", image: null }],
-          }),
-        ],
-      })
-    );
-    // Base price and per-item subtotal both appear as their own figures —
-    // this sheet used to print `item.total` only, leaving the base machine
-    // price invisible (the bug this task fixes).
-    expect(html).toContain("$175,000");
-    expect(html).toContain('class="pq-item-subtotal-row"');
-    expect(html).toContain("X-5180 subtotal");
-    expect(html).toContain("$215,425");
-  });
-
-  it("still shows each option's code and description, same as the old hand-rolled OptionRow — the presenter dropped this, DocumentSheet has no Equipment Detail section to fall back on", async () => {
-    const html = await renderDocumentHtml(
-      baseSheetData({
-        showItemPrices: true,
-        showOptionPrices: true,
-        items: [
-          baseDocSheetItem({
-            code: "X-5180",
-            unitPrice: "175000.00",
-            total: "215425.00",
-            lines: [
-              {
-                id: "line-1",
-                code: "MTS",
-                name: "Machine Transfer System",
-                description: "Automated transfer of cut fabric off the table",
-                qty: 1,
-                unitPrice: "40425.00",
-                lineTotal: "40425.00",
-                image: null,
-              },
-            ],
-          }),
-        ],
-      })
-    );
-    expect(html).toContain("MTS — Machine Transfer System");
-    expect(html).toContain("Automated transfer of cut fabric off the table");
-  });
-
-  it("used to ignore the price-display flags entirely — now renders no item money when both are off", async () => {
-    const html = await renderDocumentHtml(
-      baseSheetData({
-        showItemPrices: false,
-        showOptionPrices: false,
-        items: [
-          baseDocSheetItem({
-            code: "X-5180",
-            unitPrice: "175000.00",
-            total: "215425.00",
-            lines: [{ id: "line-1", code: "MTS", name: "MTS", description: null, qty: 1, unitPrice: "40425.00", lineTotal: "40425.00", image: null }],
-          }),
-        ],
-      })
-    );
-    expect(html).not.toContain("$175,000");
-    expect(html).not.toContain("$215,425");
-    expect(html).not.toContain("$40,425");
-    expect(html).not.toContain('class="pq-item-subtotal-row"');
-    // The document grand total is still shown regardless of the item-level
-    // flags — those only gate the itemized per-item detail.
-    expect(html).toContain("1,100");
-  });
-
-  it("prints a credit item's (TRADE-IN) base price with an explicit minus and the negative-extra-line muted styling", async () => {
-    const creditItem = baseDocSheetItem({
-      code: "TRADE-IN",
-      name: "Trade-in",
-      unitPrice: "20000.00", // typed positive -- see Product.isCredit
-      total: "-20000.00", // already signed by the pricing engine
-      isCredit: true,
-      lines: [],
-    });
-    const html = await renderDocumentHtml(
-      baseSheetData({
-        showItemPrices: true,
-        showOptionPrices: true,
-        items: [creditItem],
-      })
-    );
-    expect(html).toContain("-$20,000");
-    // Same muted treatment a negative extra line already gets (isNegativeAmount
-    // / .pq-negative) -- reused, not a second mechanism (see item-breakdown.tsx).
-    expect(html).toContain('class="pq-col-amount pq-amount pq-negative"');
-  });
-
-  it("an ordinary (isCredit: false) item's base price prints with no minus and no muted styling", async () => {
-    const ordinaryItem = baseDocSheetItem({
-      code: "X-5180",
-      unitPrice: "175000.00",
-      total: "175000.00",
-      isCredit: false,
-      lines: [],
-    });
-    const html = await renderDocumentHtml(
-      baseSheetData({
-        showItemPrices: true,
-        showOptionPrices: true,
-        items: [ordinaryItem],
-      })
-    );
-    expect(html).toContain("$175,000");
-    expect(html).not.toContain("-$175,000");
-    // The embedded <style> block always defines .pq-negative regardless (same
-    // caveat as the price-display-flags tests above) -- assert on the actual
-    // class *attribute* an element would carry, not the bare class name.
-    expect(html).not.toContain('class="pq-col-amount pq-amount pq-negative"');
-    expect(html).not.toContain('class="pq-col-qty pq-negative"');
-  });
-});
-
-describe("renderDocumentHtml — Ex Works delivery terms", () => {
-  it("prints the terms instead of a GST rate line when EX_WORKS, and never a '0%' tax line", async () => {
-    const html = await renderDocumentHtml(
-      baseSheetData({
-        totals: {
-          currency: "AUD",
-          subtotal: "1000.00",
-          discountMode: "PERCENT",
-          discountValue: null,
-          discountAmount: "0.00",
-          taxName: "GST",
-          taxRate: "10",
-          // Already zeroed by recalcDocument (src/lib/actions/documents.ts)
-          // for an EX_WORKS document — this fixture represents what the
-          // document row actually holds by the time it reaches the sheet.
-          taxAmount: "0.00",
-          total: "1000.00",
-          deliveryTerms: "EX_WORKS",
-        },
-      })
-    );
-    expect(html).toContain("Ex Works — no GST applicable");
-    expect(html).not.toContain("GST 0%");
-    expect(html).not.toContain("GST 10%");
-  });
-
-  it("still prints the ordinary tax-rate line when DELIVERED — unchanged from before this feature", async () => {
-    const html = await renderDocumentHtml(baseSheetData());
-    expect(html).toContain("GST");
-    expect(html).toContain("10%");
-    expect(html).not.toContain("Ex Works");
   });
 });
 
@@ -429,6 +138,39 @@ function baseDocSheetItem(
   };
 }
 
+describe("renderQuotationHtml — page wrapping", () => {
+  it("wraps the sheet in a full standalone HTML document", async () => {
+    const html = await renderQuotationHtml(baseQuotationData());
+
+    expect(html).toContain("<!doctype html>");
+    expect(html).toContain('<meta charSet="utf-8">');
+    expect(html).toContain("@page{size:A4;margin:15mm}");
+    expect(html).toContain("Pathfinder Cutting Systems");
+    expect(html).toContain("Q-AU-2026-001");
+  });
+
+  it("renders a multi-line entity address as one pq-entity-line div per line, not a literal newline", async () => {
+    const html = await renderQuotationHtml(
+      baseQuotationData({
+        entity: {
+          name: "Pathfinder Cutting Systems",
+          legalId: "ABN 123",
+          address: "12 Dib Court\nTullamarine, VIC 3043, Australia\nWeb: pathfindercut.com",
+          bankDetails: [],
+          footerText: null,
+        },
+      })
+    );
+
+    // Each address line lands in its own element rather than a single block
+    // with an embedded "\n" (which HTML would collapse to a single space).
+    expect(html).toContain('<div class="pq-entity-line">12 Dib Court</div>');
+    expect(html).toContain('<div class="pq-entity-line">Tullamarine, VIC 3043, Australia</div>');
+    expect(html).toContain('<div class="pq-entity-line">Web: pathfindercut.com</div>');
+    expect(html).not.toContain("Dib Court\\n");
+  });
+});
+
 describe("renderQuotationHtml — header prepared for/by", () => {
   it("renders 'Prepared for' and 'Prepared by' as two columns", async () => {
     const data = baseQuotationData({
@@ -470,10 +212,22 @@ describe("renderQuotationHtml — header prepared for/by", () => {
       preparedBy: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000", avatar: null },
     });
     const html = await renderQuotationHtml(data);
-    // See the equivalent renderDocumentHtml test above — the embedded
-    // <style> block always defines the class selector regardless.
+    // The embedded <style> block always defines the .pq-prepared-by-avatar
+    // selector regardless — check for the element's opening tag, not the
+    // bare class name.
     expect(html).not.toContain('<img class="pq-prepared-by-avatar"');
     expect(html).not.toContain("<img");
+  });
+
+  it("falls back to the author's email when no name is set", async () => {
+    const data = baseQuotationData({
+      preparedBy: { name: null, email: "noname@example.com", phone: null, avatar: null },
+    });
+    const html = await renderQuotationHtml(data);
+    expect(html).toContain('<div class="pq-client-name">noname@example.com</div>');
+    // The email doesn't also print a second time as its own line — that
+    // second line only appears when there's a name for it to sit alongside.
+    expect((html.match(/noname@example\.com/g) ?? []).length).toBe(1);
   });
 });
 
@@ -613,6 +367,27 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
     expect(summaryHtml).toContain('class="pq-col-amount pq-amount pq-negative"');
   });
 
+  it("an ordinary (isCredit: false) item's base price prints with no minus and no muted styling", async () => {
+    const ordinaryItem = baseDocSheetItem({
+      code: "X-5180",
+      unitPrice: "175000.00",
+      total: "175000.00",
+      isCredit: false,
+      lines: [],
+    });
+    const html = await renderQuotationHtml(baseQuotationData({ items: [ordinaryItem] }));
+    const summaryStart = html.indexOf('class="pq-section pq-summary-section"');
+    const summaryHtml = html.slice(summaryStart);
+
+    expect(summaryHtml).toContain("$175,000");
+    expect(summaryHtml).not.toContain("-$175,000");
+    // The embedded <style> block always defines .pq-negative regardless (same
+    // caveat as the credit-item test above) -- assert on the actual class
+    // *attribute* an element would carry, not the bare class name.
+    expect(summaryHtml).not.toContain('class="pq-col-amount pq-amount pq-negative"');
+    expect(summaryHtml).not.toContain('class="pq-col-qty pq-negative"');
+  });
+
   it("hides the per-item subtotal row when price display is off, even with options", async () => {
     const html = await renderQuotationHtml(
       baseQuotationData({
@@ -627,6 +402,30 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
       })
     );
     expect(html).not.toContain('class="pq-item-subtotal-row"');
+  });
+
+  it("used to ignore the price-display flags entirely — now renders no item money when both are off, while the document grand total still shows", async () => {
+    const html = await renderQuotationHtml(
+      baseQuotationData({
+        showItemPrices: false,
+        showOptionPrices: false,
+        items: [
+          baseDocSheetItem({
+            code: "X-5180",
+            unitPrice: "175000.00",
+            total: "215425.00",
+            lines: [{ id: "line-1", code: "MTS", name: "MTS", description: null, qty: 1, unitPrice: "40425.00", lineTotal: "40425.00", image: null }],
+          }),
+        ],
+      })
+    );
+    expect(html).not.toContain("$175,000");
+    expect(html).not.toContain("$215,425");
+    expect(html).not.toContain("$40,425");
+    expect(html).not.toContain('class="pq-item-subtotal-row"');
+    // The grand total is still shown regardless of the item-level flags —
+    // those only gate the itemized per-item detail.
+    expect(html).toContain("1,100");
   });
 
   it("still shows the per-item subtotal when option prices are hidden but item prices are on", async () => {

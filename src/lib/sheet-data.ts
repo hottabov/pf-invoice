@@ -1,13 +1,18 @@
 // Pure mapper from a loaded document (as `getDocumentForBuilder` returns it,
 // or anything structurally compatible) to `DocSheetData` — the flat,
-// JSON-serializable shape `DocumentSheet` (src/components/sheet/
-// document-sheet.tsx) renders. Deliberately has zero `@/lib/db` or `next/*`
-// imports (same reasoning as src/lib/validation/finalize.ts: a plain
-// `vitest run` of this file must never need `DATABASE_URL` set) — its only
-// dependencies are the equally dependency-free pricing engine and date/money
-// formatters. The input type below is defined from scratch rather than
-// imported from src/lib/queries/documents.ts so this module can never
-// accidentally pull in that file's `@/lib/db` import — TypeScript's
+// JSON-serializable shape the quotation renderer builds on. NOT specific to
+// the old plain "Summary" sheet (removed — the quotation is the only
+// customer-facing rendering now): `buildQuotationData` in
+// src/lib/quotation-data.ts calls `toSheetData` below for everything the
+// quotation shares with what the summary used to (entity/client header,
+// investment-summary items+totals), so this module stays even though its
+// former other consumer is gone. Deliberately has zero `@/lib/db` or
+// `next/*` imports (same reasoning as src/lib/validation/finalize.ts: a
+// plain `vitest run` of this file must never need `DATABASE_URL` set) — its
+// only dependencies are the equally dependency-free pricing engine and
+// date/money formatters. The input type below is defined from scratch
+// rather than imported from src/lib/queries/documents.ts so this module can
+// never accidentally pull in that file's `@/lib/db` import — TypeScript's
 // structural typing means the real `DocumentForBuilder` satisfies
 // `ToSheetDataDoc` without either file importing the other.
 //
@@ -176,20 +181,18 @@ export type ToSheetDataDoc = {
   /** `Document.notes` exactly as stored — free-text, admin-authored rich
    * text (HTML from the WYSIWYG editor, or legacy markdown for a
    * pre-migration row — see src/lib/rich-text.ts's `isHtmlContent`),
-   * rendered by both the quotation sheet and the plain document sheet via
-   * `renderStoredRichText` (src/lib/quotation-data.ts's `notesHtml` /
-   * `DocumentSheet`'s own call — see its doc comment on why the rendering
-   * happens there rather than in this dependency-light mapper). `null` when
-   * the author hasn't written any. */
+   * rendered by the quotation sheet via `renderStoredRichText`
+   * (src/lib/quotation-data.ts's `notesHtml` — see its doc comment on why
+   * the rendering happens there rather than in this dependency-light
+   * mapper). `null` when the author hasn't written any. */
   notes: string | null;
   /** Quotation-first pricing display toggles (see `setPriceDisplay` in
    * src/lib/actions/documents.ts) — carried through so `toSheetData` can
    * gate `DocSheetItem.breakdown.options[].lineTotal` (hidden whenever
    * `showOptionPrices` is off) without the presenter component ever having
    * to know about either flag itself (see `ItemBreakdown`'s doc comment).
-   * Also surfaced on `DocSheetData` so `DocumentSheet` — which used to
-   * ignore both flags entirely — can compute its own `itemPriceVisible`
-   * the same way `QuotationSheet` already does. */
+   * Also surfaced on `DocSheetData` so `QuotationSheet` can compute its own
+   * `itemPriceVisible = showItemPrices || showOptionPrices`. */
   showItemPrices: boolean;
   showOptionPrices: boolean;
 };
@@ -229,12 +232,12 @@ export type DocSheetLine = {
 
 /**
  * The three-part idea every product-line renderer needs — base price, then
- * options, then a subtotal — expressed once so `quotation-sheet.tsx`,
- * `document-sheet.tsx`, and `builder/items-list.tsx` render it through one
- * shared component (`src/components/sheet/item-breakdown.tsx`) instead of
+ * options, then a subtotal — expressed once so `quotation-sheet.tsx` and
+ * `builder/item-breakdown-editor.tsx` render it through one shared shape
+ * (the former via `src/components/sheet/item-breakdown.tsx`) instead of
  * each deciding for itself how to show the money (the bug this type fixes:
- * two of those three surfaces used to print only the combined `total`,
- * leaving the base machine price invisible to the customer).
+ * a renderer used to print only the combined `total`, leaving the base
+ * machine price invisible to the customer).
  */
 export type ItemBreakdown = {
   /** Always `1` today — a product line is always one machine; more machines
@@ -337,8 +340,8 @@ export type DocSheetPreparedBy = {
    * `ImageResolver`), or `null` when the author has no avatar. `null` here
    * means "print no image" — an initials circle is a UI affordance for
    * screens with no photo, not something that belongs on a customer-facing
-   * quote (see `quotation-sheet.tsx`/`document-sheet.tsx`, neither of which
-   * ever falls back to initials for this field). */
+   * quote (see `quotation-sheet.tsx`, which never falls back to initials
+   * for this field). */
   avatar: string | null;
 };
 
@@ -357,10 +360,10 @@ export type DocSheetTotals = {
   taxRate: string;
   taxAmount: string;
   total: string;
-  /** See `ToSheetDataDoc.deliveryTerms` — carried through so the two sheet
-   * renderers (`document-sheet.tsx`/`quotation-sheet.tsx`) can print "Ex
-   * Works — no GST applicable" in place of a `{taxName} 0%` line, which
-   * would otherwise read as a mistake rather than a deliberate choice. */
+  /** See `ToSheetDataDoc.deliveryTerms` — carried through so
+   * `quotation-sheet.tsx` can print "Ex Works — no GST applicable" in place
+   * of a `{taxName} 0%` line, which would otherwise read as a mistake
+   * rather than a deliberate choice. */
   deliveryTerms: "DELIVERED" | "EX_WORKS";
 };
 
@@ -400,9 +403,8 @@ export type DocSheetData = {
   /** `Document.notes` passthrough — see `ToSheetDataDoc.notes`. */
   notes: string | null;
   /** Passthrough of `ToSheetDataDoc.showItemPrices`/`showOptionPrices` — see
-   * that field's doc comment. `document-sheet.tsx` computes its own
-   * `itemPriceVisible = showItemPrices || showOptionPrices` from these, the
-   * same rule `quotation-sheet.tsx` already applies. */
+   * that field's doc comment. `quotation-sheet.tsx` computes its own
+   * `itemPriceVisible = showItemPrices || showOptionPrices` from these. */
   showItemPrices: boolean;
   showOptionPrices: boolean;
 };
@@ -487,7 +489,7 @@ function toBankRows(bankDetails: unknown): BankDetailRow[] {
  * Formats already-resolved bank detail rows (see `DocSheetEntity.bankDetails`
  * / `toBankRows`) into a single newline-joined "Label: value" text block —
  * for a caller that needs bank details as plain multi-line text rather than
- * `document-sheet.tsx`'s own `.pq-bank-row` markup, e.g. quotation-data.ts's
+ * `quotation-sheet.tsx`'s own `.pq-bank-row` markup, e.g. quotation-data.ts's
  * `{{bankDetails}}` placeholder substitution. Takes the already-resolved
  * `BankDetailRow[]` (not the raw `Json` column) rather than re-deriving from
  * scratch, so it can never disagree with `toSheetData`'s FINAL-vs-DRAFT
@@ -628,7 +630,8 @@ function addDays(date: Date, days: number): Date {
 
 /**
  * Maps a fully-loaded document into the flat `DocSheetData` shape
- * `DocumentSheet` renders. `resolveImage` lets the caller decide how a
+ * `buildQuotationData` (src/lib/quotation-data.ts) builds the quotation
+ * renderer's data on top of. `resolveImage` lets the caller decide how a
  * stored `/api/files/<name>` URL becomes whatever the render target needs
  * (see `ImageResolver`'s doc comment) — defaults to identity, which is
  * exactly right for the in-app preview route (already-authenticated

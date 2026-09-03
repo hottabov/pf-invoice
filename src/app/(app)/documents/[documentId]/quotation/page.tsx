@@ -74,12 +74,6 @@ export default async function QuotationPreviewPage({ params }: { params: Promise
           </StatusBadge>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <Link
-            href={`/documents/${document.id}/preview`}
-            className="focus-ring inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-brand-dark transition-colors hover:bg-slate-50 sm:flex-none"
-          >
-            View summary
-          </Link>
           <a
             href={`/api/documents/${document.id}/quotation-pdf`}
             className={cn(buttonVariants(), "h-11 flex-1 bg-brand text-white hover:bg-brand/90 sm:flex-none")}

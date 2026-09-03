@@ -4,21 +4,23 @@ import type { ItemBreakdown } from "@/lib/sheet-data";
 /**
  * The one place the base/options/discount/subtotal idea is expressed (see
  * `ItemBreakdown`'s doc comment in src/lib/sheet-data.ts for the bug this
- * fixes) — used by `quotation-sheet.tsx` and `document-sheet.tsx`, rendering
- * a run of `<tr>`s inside the caller's own `.pq-item-group` `<tbody>`. Only
- * `code` is taken as a label — the item's own name/description/thumbnail
- * stay hand-rolled in each caller's own header row, since those aren't part
- * of the money breakdown this component owns.
+ * fixes) — used by `quotation-sheet.tsx` (the only customer-facing
+ * document renderer left — the plain "Summary" sheet this component used
+ * to also serve was removed), rendering a run of `<tr>`s inside the
+ * caller's own `.pq-item-group` `<tbody>`. Only `code` is taken as a label
+ * — the item's own name/description/thumbnail stay hand-rolled in the
+ * caller's own header row, since those aren't part of the money breakdown
+ * this component owns.
  *
  * This component's whole markup is posted to Gotenberg as a raw HTML string
- * for both sheets (see quotation-sheet.tsx's/document-sheet.tsx's own doc
- * comments), so it — and everything it imports — must stay free of
- * `"use client"`, Tailwind, and event handlers. The builder used to reuse
- * this same component (a now-removed `"compact"` variant) to show the same
- * base/options/discount/subtotal list on its item cards; it now has its own
- * copy instead (`src/components/builder/item-breakdown-editor.tsx`), because
- * that copy needs exactly the things this file may never have — client-side
- * state and click handlers, to make each price editable in place.
+ * (see quotation-sheet.tsx's own doc comment), so it — and everything it
+ * imports — must stay free of `"use client"`, Tailwind, and event handlers.
+ * The builder used to reuse this same component (a now-removed `"compact"`
+ * variant) to show the same base/options/discount/subtotal list on its item
+ * cards; it now has its own copy instead
+ * (`src/components/builder/item-breakdown-editor.tsx`), because that copy
+ * needs exactly the things this file may never have — client-side state and
+ * click handlers, to make each price editable in place.
  *
  * Rules:
  * - The base price row always renders, labelled with `code`, with a bare

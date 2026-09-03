@@ -10,9 +10,11 @@ import { ItemBreakdownRows } from "@/components/sheet/item-breakdown";
  * general conditions, the RSP agreement + coverage table, and signatures.
  * Used by both the `/documents/[documentId]/quotation` preview route and,
  * via src/lib/pdf.ts's `renderQuotationHtml`, the quotation PDF pipeline —
- * see src/components/sheet/document-sheet.tsx's header comment for why that
- * split (no Tailwind, no data fetching, one embedded `<style>` block) is
- * mandatory for anything Gotenberg's headless Chromium renders.
+ * that second consumer is why this file is deliberately NOT a normal app
+ * component: no Tailwind classes (Gotenberg's headless Chromium never sees
+ * this app's compiled stylesheet — only whatever HTML string is actually
+ * posted to it), no data fetching, no `async`, everything this markup needs
+ * lives in the one embedded `<style>` block below.
  *
  * It receives an already-fully-assembled `QuotationData` — see
  * `buildQuotationData` in src/lib/quotation-data.ts, the pure assembler that
@@ -61,9 +63,11 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
             {data.entity.legalId ? <div className="pq-entity-line">{data.entity.legalId}</div> : null}
             {data.entity.address
               ? data.entity.address.split("\n").map((line, i) => (
-                  // See document-sheet.tsx's identical block: entityAddress
-                  // may carry embedded newlines, so split into one line per
-                  // <div> rather than rendering "\n" as a literal character.
+                  // entityAddress is a single free-text Region field that may
+                  // carry embedded newlines (street / city+postcode / phone /
+                  // email / web, one per line) -- split rather than a single
+                  // <div> so each line actually breaks instead of the "\n"
+                  // rendering as a literal character.
                   <div className="pq-entity-line" key={i}>
                     {line}
                   </div>
@@ -541,10 +545,11 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
   );
 }
 
-// Brand colors/typography match src/components/sheet/document-sheet.tsx's
-// SHEET_CSS exactly (same hardcoded reasoning: this markup never has the
-// app's compiled Tailwind stylesheet available), plus the extra rules this
-// sheet's content-block sections/tables need.
+// Brand colors per the PathQuote style guide: #243478 (primary/header rule),
+// #00B8E2 (accent), #2B304F (dark text/headings) — matching
+// --color-brand/--color-brand-accent/--color-brand-dark in
+// src/app/globals.css, but hardcoded here since this markup never has that
+// stylesheet available (see the component doc comment above).
 const SHEET_CSS = `
   .pq-sheet {
     position: relative;
@@ -736,10 +741,10 @@ const SHEET_CSS = `
     break-after: avoid;
   }
   /* Each machine/equipment item's whole write-up (title block + its option
-     blocks) is the page-break-avoidance unit, mirroring .pq-item-group in
-     document-sheet.tsx — "where reasonable" per the plan, since a very long
-     write-up can still legitimately span a page in Chromium's printed
-     output. */
+     blocks) is the page-break-avoidance unit, same idea as .pq-item-group
+     below for the investment summary table — "where reasonable" per the
+     plan, since a very long write-up can still legitimately span a page in
+     Chromium's printed output. */
   .pq-machine-section {
     page-break-inside: avoid;
     break-inside: avoid;

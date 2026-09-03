@@ -108,7 +108,7 @@ export function sanitizeRichText(html: string): string {
 }
 
 /**
- * The one function every sheet/renderer (quotation-data.ts, document-sheet)
+ * The one function every sheet/renderer (quotation-data.ts, quotation-sheet)
  * should call on a stored body/notes value: sanitizes already-HTML content,
  * or runs legacy markdown through `renderMarkdown` exactly as before —
  * `renderMarkdown` HTML-escapes its input up front, so that branch is safe

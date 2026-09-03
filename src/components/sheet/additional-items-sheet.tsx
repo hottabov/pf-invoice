@@ -3,11 +3,11 @@
  * a machine form: document-level lines (services, training, custom entries)
  * and any option whose form has no box for it (see `unmatchedOptionCodes`).
  *
- * Same no-Tailwind, self-contained-`<style>` discipline as `DocumentSheet`
- * (src/components/sheet/document-sheet.tsx): this markup is posted to
+ * Same no-Tailwind, self-contained-`<style>` discipline as `QuotationSheet`
+ * (src/components/sheet/quotation-sheet.tsx): this markup is posted to
  * Gotenberg's Chromium as a raw HTML string with no app stylesheet attached,
  * so every rule it needs has to live in the one embedded block below. Colors
- * are the same brand values `DocumentSheet` hardcodes for the same reason.
+ * are the same brand values `QuotationSheet` hardcodes for the same reason.
  */
 export type AdditionalItem = {
   name: string;
@@ -58,7 +58,7 @@ export function AdditionalItemsSheet({ documentNumber, companyName, items }: Pro
   );
 }
 
-// Same brand palette as SHEET_CSS in document-sheet.tsx: #243478 (primary
+// Same brand palette as SHEET_CSS in quotation-sheet.tsx: #243478 (primary
 // rule/heading), #2b304f (dark text), #777777/#444444 (muted text) --
 // hardcoded for the same reason: this markup never has the app's compiled
 // stylesheet available.

@@ -1,7 +1,7 @@
-// Server-only: HTML rendering + Gotenberg conversion for the document PDF
-// pipeline (src/app/api/documents/[documentId]/pdf/route.ts). Kept separate
-// from that route so `renderDocumentHtml`/`fileImageResolver` stay reachable
-// from tests without spinning up a route handler.
+// Server-only: HTML rendering + Gotenberg conversion for the quotation PDF
+// pipeline (src/app/api/documents/[documentId]/quotation-pdf/route.ts).
+// Kept separate from that route so `renderQuotationHtml`/`fileImageResolver`
+// stay reachable from tests without spinning up a route handler.
 //
 // `renderToStaticMarkup` comes from "react-dom/server". Next's bundler
 // statically forbids importing that module from anything reachable through
@@ -14,35 +14,22 @@
 // static-analysis check, and Node only ever resolves it once, on first
 // call, from this route's own server bundle.
 import { readFileSync } from "fs";
-import { DocumentSheet } from "@/components/sheet/document-sheet";
 import { QuotationSheet } from "@/components/sheet/quotation-sheet";
 import { resolveUploadPath } from "@/lib/uploads";
-import type { DocSheetData, ImageResolver } from "@/lib/sheet-data";
+import type { ImageResolver } from "@/lib/sheet-data";
 import type { QuotationData } from "@/lib/quotation-data";
 
 // --- HTML rendering -----------------------------------------------------
 
 /**
- * Renders `DocumentSheet` to a full standalone HTML document — doctype,
+ * Renders `QuotationSheet` to a full standalone HTML document — doctype,
  * charset, and an `@page` rule that fixes Gotenberg's headless Chromium to
- * A4 with 15mm margins (the same margins `DocumentSheet`'s own `.pq-content`
- * padding assumes visually, so the printed page and the in-app preview
- * match). `data` must already have every image resolved to something
- * Chromium can load with no further network/auth context — see
+ * A4 with 15mm margins (the same margins `QuotationSheet`'s own
+ * `.pq-content` padding assumes visually, so the printed page and the
+ * in-app preview match). `data` must already have every image resolved to
+ * something Chromium can load with no further network/auth context — see
  * `fileImageResolver` below — since Gotenberg's Chromium never has this
  * app's session cookie.
- */
-export async function renderDocumentHtml(data: DocSheetData): Promise<string> {
-  const { renderToStaticMarkup } = await import("react-dom/server");
-  const body = renderToStaticMarkup(DocumentSheet({ data }));
-  return `<!doctype html><html><head><meta charSet="utf-8"><style>@page{size:A4;margin:15mm} body{margin:0}</style></head><body>${body}</body></html>`;
-}
-
-/**
- * Same contract as `renderDocumentHtml` but for the extended quotation sheet
- * (`QuotationSheet` — Phase 6's content-block-driven QUOTE renderer) used by
- * `/api/documents/[documentId]/quotation-pdf`. `data` must already have
- * every image resolved the same way (see `fileImageResolver`).
  */
 export async function renderQuotationHtml(data: QuotationData): Promise<string> {
   const { renderToStaticMarkup } = await import("react-dom/server");
@@ -86,7 +73,7 @@ const GOTENBERG_TIMEOUT_MS = 30_000;
 /**
  * Posts `html` to Gotenberg's Chromium-HTML endpoint and returns the
  * resulting PDF bytes. Margins are pinned to 0 here because `@page` inside
- * the HTML itself (see `renderDocumentHtml`) already reserves the 15mm
+ * the HTML itself (see `renderQuotationHtml`) already reserves the 15mm
  * margin as part of the page content — doubling it up via Gotenberg's own
  * margin options would push the sheet's own padding further in than
  * intended.
@@ -184,28 +171,15 @@ export const fileImageResolver: ImageResolver = (url) => {
 // --- filename ---------------------------------------------------------------
 
 /**
- * The PDF's downloaded filename: the document's number when it has one
- * (a FINAL document), or `draft-<id>` for a DRAFT. Strips everything except
- * word characters/dot/dash/underscore so a value can never break out of the
+ * The quotation PDF's downloaded filename: `<number>-quotation.pdf` for a
+ * finalized quote, `draft-quotation.pdf` for one still in draft — always
+ * downloaded from a single already-open document, so there's no need to
+ * disambiguate between drafts by id. Strips everything except word
+ * characters/dot/dash/underscore so a value can never break out of the
  * `Content-Disposition` header's quoted-string (e.g. embedded `"`, CR/LF, or
  * other header-splitting characters) — document numbers are server-
  * generated (see formatDocNumber) and never contain such characters, but
- * this stays defensive since the header value is otherwise attacker-
- * adjacent (id is a route param).
- */
-export function pdfFilename(number: string | null, id: string): string {
-  const raw = number ?? `draft-${id}`;
-  const sanitized = raw.replace(/[^\w.-]+/g, "_");
-  return `${sanitized}.pdf`;
-}
-
-/**
- * The quotation PDF's downloaded filename: `<number>-quotation.pdf` for a
- * finalized quote, `draft-quotation.pdf` for one still in draft — distinct
- * from `pdfFilename` (which uses `draft-<id>` for a draft) since this name
- * doesn't need to disambiguate between drafts the way the plain summary PDF
- * does; it's always downloaded from a single already-open document. Same
- * defensive character stripping as `pdfFilename`.
+ * this stays defensive regardless.
  */
 export function quotationPdfFilename(number: string | null): string {
   const raw = `${number ?? "draft"}-quotation`;

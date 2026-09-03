@@ -366,8 +366,10 @@ function DocumentActions({
   isDraft: boolean;
   isAdmin: boolean;
 }) {
-  // Every document gets both the plain line-item sheet ("Summary") and the
-  // content-block-driven "Quotation" renderer (Phase 6).
+  // The quotation (content-block-driven, Phase 6) is the only customer-
+  // facing rendering of a document now — the older plain line-item
+  // "Summary" sheet/PDF was removed (owner: "нам не потрібно мати Summary.
+  // Тільки повний quotation.").
   return (
     <div className="flex flex-col gap-2">
       {isDraft ? (
@@ -375,19 +377,6 @@ function DocumentActions({
       ) : isAdmin ? (
         <UnfinalizeButton documentId={document.id} />
       ) : null}
-
-      <Link href={`/documents/${document.id}/preview`} className={actionLinkClass}>
-        <Eye className="size-4" aria-hidden="true" />
-        Summary preview
-      </Link>
-
-      {/* Available for DRAFT too — /api/documents/[id]/pdf renders a
-          watermarked PDF for drafts (see that route), it's not
-          FINAL-only. */}
-      <a href={`/api/documents/${document.id}/pdf`} className={actionLinkClass}>
-        <Download className="size-4" aria-hidden="true" />
-        Summary PDF
-      </a>
 
       <Link href={`/documents/${document.id}/quotation`} className={actionLinkClass}>
         <Eye className="size-4" aria-hidden="true" />

@@ -24,8 +24,8 @@ const LABELS: Record<DeliveryTerms, string> = {
  *
  * Unlike `ValidityDaysField`, this one changes what's owed — flipping to
  * EX_WORKS zeroes the document's tax (see `recalcDocument` in
- * src/lib/actions/documents.ts) — so the sheets (see `document-sheet.tsx`/
- * `quotation-sheet.tsx`) print the terms next to the totals instead of a
+ * src/lib/actions/documents.ts) — so the quotation sheet (see
+ * `quotation-sheet.tsx`) prints the terms next to the totals instead of a
  * `{taxName} 0%` line once this is set.
  */
 export function DeliveryTermsField({
@@ -79,8 +79,8 @@ export function DeliveryTermsField({
       </div>
       {/* Explains *why* there's no tax, so an Ex Works quote reads as
           deliberate rather than a rate someone forgot to set — same reason
-          the sheets print this instead of a "GST 0%" line (see
-          document-sheet.tsx/quotation-sheet.tsx). */}
+          the sheet prints this instead of a "GST 0%" line (see
+          quotation-sheet.tsx). */}
       {value === "EX_WORKS" ? (
         <p className="text-xs text-slate-500">
           An export sale collected at the factory door isn&rsquo;t a domestic taxable supply — no GST is charged

@@ -13,12 +13,11 @@ type Params = { documentId: string };
 /**
  * Streams a document (DRAFT or FINAL) back as a downloadable extended
  * quotation PDF — the content-block-driven equipment write-up, terms,
- * general conditions and RSP detail, as opposed to `/api/documents/
- * [documentId]/pdf`'s plain line-item summary. Loads and scopes the
- * document exactly like that route, 404ing for a foreign/nonexistent
- * document. Every image is inlined as a base64 data URI via
- * `fileImageResolver` — Gotenberg's headless Chromium has no session cookie
- * to hit the auth-gated `/api/files/...` route with.
+ * general conditions and RSP detail; the only customer-facing PDF the app
+ * produces now (the older plain line-item "Summary" PDF was removed). 404s
+ * for a foreign/nonexistent document. Every image is inlined as a base64
+ * data URI via `fileImageResolver` — Gotenberg's headless Chromium has no
+ * session cookie to hit the auth-gated `/api/files/...` route with.
  */
 export async function GET(_request: Request, { params }: { params: Promise<Params> }) {
   const session = await auth();
