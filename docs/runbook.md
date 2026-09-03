@@ -264,6 +264,70 @@ editing the crontab directly via `crontab -e` the same escaping applies.)
    curl -fsS http://127.0.0.1:3010/api/health
    ```
 
+## 4b. Replacing production with your local database
+
+Used while the tool is still being built and production holds nothing worth
+keeping: it makes production an exact copy of a local machine — catalogue,
+users, clients, quotes and uploaded files.
+
+**This deletes everything currently on production**, including the accounts
+people sign in with. Afterwards the only logins that exist are the ones from
+the local database. If production ever holds a real quote or a real user,
+stop and copy only what is needed instead — `npm run db:seed` on the VPS
+already brings the catalogue across from the repository without touching a
+single user.
+
+Two things live in different places on the two machines, which is why this is
+not a single command:
+
+- **Postgres** is a container on both, so it dumps and restores the same way.
+- **Uploaded files** are a Docker volume on the VPS (`pathquote_uploads`,
+  mounted at `/data/uploads`), but on a development machine the app runs on
+  the host and `UPLOADS_DIR` is unset, so they sit in `data/uploads` inside
+  the repository.
+
+On the local machine:
+
+```bash
+cd "/path/to/PF Invoice"
+docker compose exec -T postgres pg_dump -U pathquote pathquote | gzip > /tmp/pq-local.sql.gz
+tar czf /tmp/uploads-local.tar.gz -C data/uploads .
+scp /tmp/pq-local.sql.gz /tmp/uploads-local.tar.gz USER@VPS:/tmp/
+```
+
+On the VPS:
+
+```bash
+sudo /usr/local/bin/pq-backup.sh          # back up what is about to be replaced
+cd /opt/pathquote
+docker compose stop app                   # nothing may hold a connection
+
+# WITH (FORCE) drops the database even though other sessions are attached;
+# without it the DROP simply blocks.
+docker compose exec -T postgres psql -U pathquote -d postgres \
+  -c "DROP DATABASE pathquote WITH (FORCE);" \
+  -c "CREATE DATABASE pathquote OWNER pathquote;"
+gunzip -c /tmp/pq-local.sql.gz | docker compose exec -T postgres psql -U pathquote -d pathquote
+
+# Confirm the volume name first — it follows the Compose project directory.
+docker volume ls | grep uploads
+docker run --rm -v pathquote_uploads:/data -v /tmp:/backup alpine \
+  sh -c "rm -rf /data/* && tar xzf /backup/uploads-local.tar.gz -C /data"
+
+docker compose up -d app
+curl -fsS http://127.0.0.1:3010/api/health
+```
+
+`.env` never leaves the VPS, so production keeps its own secrets and database
+password — only data is copied. The dump carries `_prisma_migrations` with it,
+so a `migrate deploy` afterwards is a no-op as long as both machines are on the
+same commit; if the local machine is behind, deploy the branch first and
+migrate there, then copy.
+
+Sign in immediately afterwards and confirm an account works. The only
+credentials that now exist are the local ones, and finding that out later
+means being locked out of production.
+
 ## 5. Troubleshooting
 
 **App won't respond / health check failing**
