@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { getOptionDetailById, listSeriesWithCounts } from "@/lib/queries/catalog";
-import { catalogVisibilityRegionId, filterHiddenSeries } from "@/lib/catalog-visibility";
+import { catalogVisibilityUserId, filterHiddenSeries } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import {
   updateOption,
@@ -60,9 +60,9 @@ export default async function OptionEditorPage({ params }: { params: Promise<Par
   // editor names every series (as a checkbox row) even though this page
   // isn't the product catalogue itself — an ADMIN needs the full list to
   // actually manage compatibility (resolves to no hidden ids, see
-  // `catalogVisibilityRegionId`), a read-only MANAGER doesn't need to see a
-  // series their region can't sell.
-  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+  // `catalogVisibilityUserId`), a read-only MANAGER doesn't need to see a
+  // series they can't sell.
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityUserId(session?.user));
   const visibleSeries = filterHiddenSeries(series, hiddenCatalogIds);
 
   return (

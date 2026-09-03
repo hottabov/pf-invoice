@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import type { VisibilitySeriesRow } from "@/lib/queries/catalog-visibility-admin";
 
 /**
- * Series/product checkbox tree for one region's `CatalogVisibility`.
+ * Series/product checkbox tree for one user's `CatalogVisibility`.
  * Checking hides. Mirrors `CompatEditor`'s (src/components/catalog/compat-editor.tsx)
  * "send the full desired set, let the action diff it" interaction — the
  * admin toggles freely client-side, then one Save call reconciles both the
@@ -22,14 +22,14 @@ import type { VisibilitySeriesRow } from "@/lib/queries/catalog-visibility-admin
  * sync, only to explain the overlap.
  */
 export function CatalogVisibilityEditor({
-  regionId,
+  userId,
   series,
   action,
 }: {
-  regionId: string;
+  userId: string;
   series: VisibilitySeriesRow[];
   action: (
-    regionId: string,
+    userId: string,
     hiddenSeriesCodes: string[],
     hiddenProductCodes: string[]
   ) => Promise<{ error?: string }>;
@@ -66,7 +66,7 @@ export function CatalogVisibilityEditor({
 
   function save() {
     startTransition(async () => {
-      const res = await action(regionId, Array.from(hiddenSeries), Array.from(hiddenProducts));
+      const res = await action(userId, Array.from(hiddenSeries), Array.from(hiddenProducts));
       if (res.error) {
         setError(res.error);
         return;

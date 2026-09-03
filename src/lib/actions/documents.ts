@@ -24,7 +24,7 @@ import {
   type EngineViolation,
 } from "@/lib/pricing";
 import { isHtmlContent, sanitizeRichText } from "@/lib/rich-text";
-import { catalogVisibilityRegionId, isProductHidden } from "@/lib/catalog-visibility";
+import { catalogVisibilityUserId, isProductHidden } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { formatMoney } from "@/lib/format";
 import {
@@ -456,7 +456,7 @@ export async function setDocumentClient(
  * returns an error naming the product and region rather than silently
  * adding a $0 line.
  *
- * Also rejects a product hidden from the caller's own region via
+ * Also rejects a product hidden from the caller's own user id via
  * `CatalogVisibility` (directly, or because its whole series is hidden) —
  * the *server-side* half of catalogue visibility: the item picker
  * (`getItemPickerCatalog`) already never offers a hidden product, but this
@@ -466,7 +466,7 @@ export async function setDocumentClient(
  * read as *absent*, not as a product that exists but is refused (Ross: "we
  * don't want him to even see the Excalibur", not "let him see it's there
  * and blocked"). An ADMIN always resolves to no hidden ids (see
- * `catalogVisibilityRegionId`) and so is never affected by this check.
+ * `catalogVisibilityUserId`) and so is never affected by this check.
  */
 export async function addItem(documentId: string, productCode: string): Promise<ActionResult> {
   const session = await requireSession();
@@ -488,7 +488,7 @@ export async function addItem(documentId: string, productCode: string): Promise<
   });
   if (!product) return { error: "Product not found" };
 
-  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session.user));
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityUserId(session.user));
   if (isProductHidden(product, hiddenCatalogIds)) return { error: "Product not found" };
 
   const price = product.prices[0];

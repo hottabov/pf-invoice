@@ -5,18 +5,20 @@ import {
 } from "@/lib/catalog-visibility";
 
 /**
- * Every hidden series/product id for `regionId` — the one DB round trip
- * every filtered catalogue query/page needs, resolved once per request and
+ * Every hidden series/product id for `userId` — the one DB round trip every
+ * filtered catalogue query/page needs, resolved once per request and
  * threaded through to the pure filtering helpers in
- * src/lib/catalog-visibility.ts. `regionId === null` (an ADMIN, or a user
- * with no region — see `catalogVisibilityRegionId`) short-circuits to
- * `NO_HIDDEN_CATALOG_IDS` without a query.
+ * src/lib/catalog-visibility.ts. `userId === null` (an ADMIN — see
+ * `catalogVisibilityUserId`) short-circuits to `NO_HIDDEN_CATALOG_IDS`
+ * without a query; a real user with no rows of their own gets back the same
+ * empty sets from the query itself, which is the feature's actual default
+ * (see the CatalogVisibility model's own doc comment).
  */
-export async function getHiddenCatalogIds(regionId: string | null): Promise<HiddenCatalogIds> {
-  if (!regionId) return NO_HIDDEN_CATALOG_IDS;
+export async function getHiddenCatalogIds(userId: string | null): Promise<HiddenCatalogIds> {
+  if (!userId) return NO_HIDDEN_CATALOG_IDS;
 
   const rows = await db.catalogVisibility.findMany({
-    where: { regionId },
+    where: { userId },
     select: { seriesId: true, productId: true },
   });
 

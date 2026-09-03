@@ -731,12 +731,12 @@ export type ItemPickerSeries = {
  * trip.
  *
  * `hidden` (the caller's own `CatalogVisibility` set — see
- * `catalogVisibilityRegionId`/`getHiddenCatalogIds`, defaulting to "nothing
+ * `catalogVisibilityUserId`/`getHiddenCatalogIds`, defaulting to "nothing
  * hidden") removes a hidden series entirely and drops a hidden product out
  * of its series' list, the same way `addItem` (src/lib/actions/documents.ts)
- * re-checks server-side before actually creating the item — a MANAGER whose
- * region can't sell a product never sees it here to begin with, an ADMIN
- * (who always resolves to `NO_HIDDEN_CATALOG_IDS`) sees the full catalogue.
+ * re-checks server-side before actually creating the item — a MANAGER who
+ * can't sell a product never sees it here to begin with, an ADMIN (who
+ * always resolves to `NO_HIDDEN_CATALOG_IDS`) sees the full catalogue.
  */
 export async function getItemPickerCatalog(
   regionCode: string,

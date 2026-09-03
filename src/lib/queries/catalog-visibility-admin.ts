@@ -2,39 +2,43 @@ import { db } from "@/lib/db";
 
 // Admin-only reads for the /settings/catalog-visibility editor — unfiltered,
 // unlike everything in src/lib/queries/catalog-visibility.ts: an ADMIN
-// managing visibility needs to see the *whole* catalogue and every region
+// managing visibility needs to see the *whole* catalogue and every user
 // regardless of what's currently hidden, not the filtered view a MANAGER
 // gets. Kept as its own module so the query-filtering half of this feature
 // (commit 1) never has to depend on admin-UI-only reads.
 
-export type RegionVisibilitySummary = {
+export type UserVisibilitySummary = {
   id: string;
-  code: string;
-  name: string;
+  email: string;
+  name: string | null;
   active: boolean;
   hiddenCount: number;
 };
 
 /**
- * Every region (active and inactive, like `listRegionsAdmin` in
- * src/lib/queries/regions.ts — an admin might as well set up visibility for
- * a region before activating it), each with how many `CatalogVisibility`
- * rows it has — feeds the /settings/catalog-visibility index list so an
- * admin can see at a glance which regions have anything hidden at all
- * before opening one.
+ * Every user in the system (active and inactive, like `listUsers` in
+ * src/lib/queries/users.ts — an admin might as well set up visibility for a
+ * user before reactivating them), each with how many `CatalogVisibility`
+ * rows they have — feeds the /settings/catalog-visibility index list so an
+ * admin can see at a glance which users have anything hidden at all before
+ * opening one. Lists every role, ADMIN included, even though an ADMIN's own
+ * hidden rows are never actually read (`catalogVisibilityUserId` always
+ * resolves an ADMIN to "see everything") — same unfiltered "every X in the
+ * system" shape `listUsers`/`listRegionsAdmin` already use, not a new rule
+ * about who's excluded.
  */
-export async function listRegionsWithHiddenCounts(): Promise<RegionVisibilitySummary[]> {
-  const regions = await db.region.findMany({
-    orderBy: { code: "asc" },
+export async function listUsersWithHiddenCounts(): Promise<UserVisibilitySummary[]> {
+  const users = await db.user.findMany({
+    orderBy: { email: "asc" },
     include: { _count: { select: { catalogVisibility: true } } },
   });
 
-  return regions.map((r) => ({
-    id: r.id,
-    code: r.code,
-    name: r.name,
-    active: r.active,
-    hiddenCount: r._count.catalogVisibility,
+  return users.map((u) => ({
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    active: u.active,
+    hiddenCount: u._count.catalogVisibility,
   }));
 }
 
@@ -50,7 +54,7 @@ export type VisibilitySeriesRow = {
 
 /**
  * The whole catalogue tree (every series, each with its products, in
- * display order) flagged with `regionId`'s own hidden rows — unfiltered,
+ * display order) flagged with `userId`'s own hidden rows — unfiltered,
  * unlike every other query in this file: the admin editor needs to show and
  * toggle *every* series/product regardless of current visibility, not just
  * what's visible. `hidden` on a product reflects only that product's own
@@ -61,13 +65,13 @@ export type VisibilitySeriesRow = {
  * `isProductHidden` in src/lib/catalog-visibility.ts, which is what every
  * non-admin query actually reads).
  */
-export async function getCatalogVisibilityTree(regionId: string): Promise<VisibilitySeriesRow[]> {
+export async function getCatalogVisibilityTree(userId: string): Promise<VisibilitySeriesRow[]> {
   const [seriesList, hiddenRows] = await Promise.all([
     db.series.findMany({
       orderBy: { sortOrder: "asc" },
       include: { products: { orderBy: { sortOrder: "asc" } } },
     }),
-    db.catalogVisibility.findMany({ where: { regionId } }),
+    db.catalogVisibility.findMany({ where: { userId } }),
   ]);
 
   const hiddenSeriesIds = new Set(

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  catalogVisibilityRegionId,
+  catalogVisibilityUserId,
   isProductHidden,
   isSeriesHidden,
   filterHiddenSeries,
@@ -8,34 +8,40 @@ import {
   NO_HIDDEN_CATALOG_IDS,
   type HiddenCatalogIds,
 } from "../src/lib/catalog-visibility";
+import { toSheetData, type ToSheetDataDoc, type ToSheetItemInput } from "../src/lib/sheet-data";
 
 const hidden: HiddenCatalogIds = {
   seriesIds: new Set(["series_X"]),
   productIds: new Set(["prod_M5180"]),
 };
 
-describe("catalogVisibilityRegionId", () => {
-  it("returns null for an ADMIN, regardless of their own regionId", () => {
-    expect(catalogVisibilityRegionId({ role: "ADMIN", regionId: "region_AU" })).toBeNull();
-    expect(catalogVisibilityRegionId({ role: "ADMIN", regionId: null })).toBeNull();
+describe("catalogVisibilityUserId", () => {
+  it("returns null for an ADMIN, regardless of their own id", () => {
+    expect(catalogVisibilityUserId({ role: "ADMIN", id: "user_A" })).toBeNull();
+    expect(catalogVisibilityUserId({ role: "ADMIN", id: "user_B" })).toBeNull();
   });
 
-  it("returns the user's own regionId for a non-ADMIN", () => {
-    expect(catalogVisibilityRegionId({ role: "MANAGER", regionId: "region_AU" })).toBe("region_AU");
+  it("returns the user's own id for a non-ADMIN", () => {
+    expect(catalogVisibilityUserId({ role: "MANAGER", id: "user_A" })).toBe("user_A");
   });
 
-  it("returns null for a non-ADMIN with no region assigned (nothing to scope by)", () => {
-    expect(catalogVisibilityRegionId({ role: "MANAGER", regionId: null })).toBeNull();
+  it("scopes by the individual user, not anything shared like a region -- two MANAGERs resolve to their own, different ids", () => {
+    // `catalogVisibilityUserId` doesn't even accept a regionId -- there is no
+    // region input it could key off of. This is the point of the rescope:
+    // "два менеджера в одному регіоні" (two managers in one region) still
+    // resolve to two different scoping ids.
+    expect(catalogVisibilityUserId({ role: "MANAGER", id: "user_A" })).toBe("user_A");
+    expect(catalogVisibilityUserId({ role: "MANAGER", id: "user_B" })).toBe("user_B");
   });
 
   it("treats a missing session the same as no user (sees everything)", () => {
-    expect(catalogVisibilityRegionId(null)).toBeNull();
-    expect(catalogVisibilityRegionId(undefined)).toBeNull();
+    expect(catalogVisibilityUserId(null)).toBeNull();
+    expect(catalogVisibilityUserId(undefined)).toBeNull();
   });
 });
 
 describe("isSeriesHidden / isProductHidden", () => {
-  it("a region with no rows (NO_HIDDEN_CATALOG_IDS) sees the whole catalogue", () => {
+  it("a user with no rows (NO_HIDDEN_CATALOG_IDS) sees the whole catalogue", () => {
     expect(isSeriesHidden("series_X", NO_HIDDEN_CATALOG_IDS)).toBe(false);
     expect(isProductHidden({ id: "prod_M5180", seriesId: "series_M" }, NO_HIDDEN_CATALOG_IDS)).toBe(false);
   });
@@ -88,5 +94,155 @@ describe("filterHiddenProducts", () => {
   it("keeps every product when nothing is hidden", () => {
     const products = [{ id: "prod_M5180", seriesId: "series_M" }];
     expect(filterHiddenProducts(products, NO_HIDDEN_CATALOG_IDS)).toEqual(products);
+  });
+});
+
+describe("per-user scoping (the case this rescope exists for)", () => {
+  // Two salespeople in the same region, per the owner's own example ("є
+  // менеджер А і менеджер Б в USA... регіон тут ні до чого") -- модеled here
+  // as two independent `HiddenCatalogIds` values, one per user, resolved
+  // from that user's *own* rows only (see `getHiddenCatalogIds`,
+  // src/lib/queries/catalog-visibility.ts, which queries
+  // `where: { userId }`). Nothing about either set is derived from a shared
+  // region -- these two fixtures could belong to users in the same region
+  // or different ones; it makes no difference to this module at all.
+  const hiddenForManagerA: HiddenCatalogIds = {
+    seriesIds: new Set(["series_X"]), // A can't sell X-Calibre
+    productIds: new Set(),
+  };
+  const hiddenForManagerB: HiddenCatalogIds = NO_HIDDEN_CATALOG_IDS; // B has no rows of their own
+
+  it("hiding a series for manager A hides its products for A only -- manager B, same region, is unaffected", () => {
+    const xCalibreProduct = { id: "prod_X100", seriesId: "series_X" };
+
+    expect(isProductHidden(xCalibreProduct, hiddenForManagerA)).toBe(true);
+    expect(isProductHidden(xCalibreProduct, hiddenForManagerB)).toBe(false);
+  });
+
+  it("an ADMIN sees hidden items regardless of what any manager has hidden", () => {
+    // `catalogVisibilityUserId` resolves an ADMIN straight to `null`
+    // (see above), which every caller wires to `NO_HIDDEN_CATALOG_IDS`
+    // (getHiddenCatalogIds(null) short-circuits without a query) -- so an
+    // ADMIN's *own* effective `hidden` set is always empty, independent of
+    // hiddenForManagerA/B above.
+    const adminHidden = NO_HIDDEN_CATALOG_IDS;
+    const xCalibreProduct = { id: "prod_X100", seriesId: "series_X" };
+    expect(isProductHidden(xCalibreProduct, adminHidden)).toBe(false);
+  });
+});
+
+describe("adding a hidden product is rejected server-side, not merely absent from the UI", () => {
+  // `addItem` (src/lib/actions/documents.ts) calls exactly this check --
+  // `isProductHidden(product, hiddenCatalogIds)` -- after loading the
+  // product by its submitted code, and returns the same "Product not
+  // found" error a genuinely nonexistent code would, regardless of what
+  // the item picker rendered. This is the actual gate a crafted request
+  // (any productCode, bypassing the UI entirely) still hits.
+  it("the gate addItem calls returns true for a product hidden via its series", () => {
+    const submittedProduct = { id: "prod_X100", seriesId: "series_X" };
+    expect(isProductHidden(submittedProduct, hidden)).toBe(true);
+  });
+
+  it("the gate addItem calls returns true for a directly-hidden product", () => {
+    const submittedProduct = { id: "prod_M5180", seriesId: "series_M" };
+    expect(isProductHidden(submittedProduct, hidden)).toBe(true);
+  });
+
+  it("the same product resolves to visible (false) for a user with nothing hidden", () => {
+    const submittedProduct = { id: "prod_X100", seriesId: "series_X" };
+    expect(isProductHidden(submittedProduct, NO_HIDDEN_CATALOG_IDS)).toBe(false);
+  });
+});
+
+describe("a hidden product already on a document still renders and totals identically", () => {
+  // `DocumentItem` snapshots a product's code/name/description/price at the
+  // moment it's added (see the schema comment on DocumentItem, and
+  // `addItem`'s own doc comment) -- it does keep an optional `productId`
+  // (the builder uses it, alongside seriesId, to look up compatible
+  // options), but `ToSheetItemInput` (the shape `toSheetData`,
+  // src/lib/sheet-data.ts, actually renders from) drops it: no
+  // productId/seriesId field survives into what's rendered, so there is no
+  // id left for a `HiddenCatalogIds` check to key off even in principle.
+  // Confirmed by grep: neither `toSheetData` nor `computeTotals`
+  // (src/lib/pricing.ts) imports src/lib/catalog-visibility.ts, and the
+  // only two call sites that ever invoke `isProductHidden`/
+  // `filterHiddenProducts` anywhere in src/ are the item *picker*'s own
+  // catalogue tree (choosing a NEW item to add) and `addItem`'s own gate on
+  // a submitted code -- neither one ever runs against an item already on a
+  // document. So hiding "X100" today cannot change how an existing document
+  // that already contains it renders or totals.
+  function baseItem(overrides: Partial<ToSheetItemInput> = {}): ToSheetItemInput {
+    return {
+      id: "item-1",
+      code: "X100",
+      name: "X-Calibre 100",
+      description: null,
+      unitPrice: "50000.00",
+      discountMode: "PERCENT",
+      discountValue: null,
+      discountAmount: "0.00",
+      total: "50000.00",
+      imageUrl: null,
+      showImage: false,
+      lines: [],
+      isCredit: false,
+      ...overrides,
+    };
+  }
+
+  function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
+    return {
+      status: "FINAL",
+      number: "Q-1",
+      issueDate: new Date("2026-08-30T00:00:00.000Z"),
+      validityDays: null,
+      defaultValidityDays: 7,
+      currency: "AUD",
+      taxName: "GST",
+      taxRate: "10",
+      deliveryTerms: "DELIVERED",
+      entitySnapshot: null,
+      entityName: "Live Region Entity",
+      entityLegalId: "ABN 111",
+      entityAddress: "1 Live St",
+      bankDetails: { bank: "Live Bank", bsb: "000 000", accountNo: "111 111" },
+      logoUrl: null,
+      footerText: "Live footer",
+      discountMode: "PERCENT",
+      discountValue: null,
+      subtotal: "50000.00",
+      discountAmount: "0.00",
+      taxAmount: "5000.00",
+      total: "55000.00",
+      company: null,
+      contact: null,
+      items: [],
+      extraLines: [],
+      author: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: null },
+      notes: null,
+      showItemPrices: true,
+      showOptionPrices: true,
+      ...overrides,
+    };
+  }
+
+  it("renders the item and the document totals exactly the same whether or not its series is hidden elsewhere", () => {
+    // This item's code, "X100", belongs to "series_X" -- the exact series
+    // `hidden` (defined at the top of this file) marks hidden for whichever
+    // user that fixture represents.
+    expect(hidden.seriesIds.has("series_X")).toBe(true);
+
+    const doc = baseDoc({ items: [baseItem()] });
+    const sheet = toSheetData(doc);
+
+    // `toSheetData` never consulted `hidden` -- there's no productId/seriesId
+    // on `ToSheetItemInput` for it to check, and no import of
+    // src/lib/catalog-visibility.ts in src/lib/sheet-data.ts at all. The
+    // item renders, and the document totals, exactly as if nothing were
+    // hidden anywhere.
+    expect(sheet.items[0].code).toBe("X100");
+    expect(sheet.items[0].breakdown.subtotal).toBe("50000.00");
+    expect(sheet.totals.subtotal).toBe("50000.00");
+    expect(sheet.totals.total).toBe("55000.00");
   });
 });

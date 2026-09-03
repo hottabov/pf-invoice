@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { getProductDetailById } from "@/lib/queries/catalog";
-import { catalogVisibilityRegionId, isProductHidden } from "@/lib/catalog-visibility";
+import { catalogVisibilityUserId, isProductHidden } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { updateProduct, deleteProduct, upsertPrice, updateProductImage } from "@/lib/actions/catalog";
 import { ProductForm } from "@/components/catalog/product-form";
@@ -34,7 +34,7 @@ export async function generateMetadata({
   // the tab title for a manager who hit its URL directly.
   const [product, session] = await Promise.all([getProductDetailById(productId), auth()]);
   if (!product) return { title: "Product" };
-  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityUserId(session?.user));
   if (isProductHidden({ id: product.id, seriesId: product.series.id }, hiddenCatalogIds)) {
     return { title: "Product" };
   }
@@ -55,9 +55,9 @@ export default async function ProductEditorPage({ params }: { params: Promise<Pa
   // MANAGER even at its own direct URL — the picker/series-list filtering
   // above only stops a MANAGER discovering it by browsing; without this,
   // a bookmarked or typed URL would still show it. An ADMIN always resolves
-  // to no hidden ids (see `catalogVisibilityRegionId`) and is unaffected.
+  // to no hidden ids (see `catalogVisibilityUserId`) and is unaffected.
   if (!isAdmin) {
-    const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+    const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityUserId(session?.user));
     if (isProductHidden({ id: product.id, seriesId: product.series.id }, hiddenCatalogIds)) {
       notFound();
     }

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ChevronRight, Package, Puzzle } from "lucide-react";
 import { auth } from "@/auth";
 import { listSeriesWithCounts, countOptions, type SeriesWithCounts } from "@/lib/queries/catalog";
-import { catalogVisibilityRegionId, filterHiddenSeries } from "@/lib/catalog-visibility";
+import { catalogVisibilityUserId, filterHiddenSeries } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { PageHeader } from "@/components/ui-kit";
 
@@ -19,9 +19,9 @@ export default async function CatalogPage() {
   // A hidden series is absent from browsing too, not just the item picker —
   // this page isn't ADMIN-gated (a MANAGER browses it every day), so
   // filtering only the picker would leave a hidden series one click away.
-  // See `catalogVisibilityRegionId` for why an ADMIN always sees every
+  // See `catalogVisibilityUserId` for why an ADMIN always sees every
   // series regardless.
-  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityUserId(session?.user));
   const visibleSeries = filterHiddenSeries(series, hiddenCatalogIds);
 
   return (

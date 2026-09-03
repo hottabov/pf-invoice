@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Plus, Puzzle, Search } from "lucide-react";
 import { auth } from "@/auth";
 import { listOptions, listSeriesWithCounts, type OptionListItem } from "@/lib/queries/catalog";
-import { catalogVisibilityRegionId, filterHiddenSeries } from "@/lib/catalog-visibility";
+import { catalogVisibilityUserId, filterHiddenSeries } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { PriceDisplay, InactiveBadge, CompatBadges } from "@/components/catalog-badges";
 import { buttonVariants } from "@/components/ui/button";
@@ -41,7 +41,7 @@ export default async function OptionsPage({
   // its products/prices — still enough of a "meet it" for a hidden series
   // (its name/code) to filter out here too, same as every other catalogue
   // browsing surface.
-  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityUserId(session?.user));
   const visibleSeries = filterHiddenSeries(series, hiddenCatalogIds);
 
   return (

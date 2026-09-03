@@ -8,7 +8,7 @@ import {
   getSeriesFallbackImageUrl,
   type ProductListItem,
 } from "@/lib/queries/catalog";
-import { catalogVisibilityRegionId, isSeriesHidden } from "@/lib/catalog-visibility";
+import { catalogVisibilityUserId, isSeriesHidden } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { updateSeriesImage } from "@/lib/actions/catalog";
 import { SeriesImageCard } from "@/components/catalog/series-image-card";
@@ -48,7 +48,7 @@ export async function generateMetadata({
   // the tab title.
   const [result, session] = await Promise.all([listProductsBySeriesById(seriesId), auth()]);
   if (!result) return { title: "Series" };
-  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityUserId(session?.user));
   if (isSeriesHidden(result.series.id, hiddenCatalogIds)) return { title: "Series" };
   return { title: result.series.name };
 }
@@ -61,7 +61,7 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
 
   const { series } = result;
   const isAdmin = session?.user?.role === "ADMIN";
-  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
+  const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityUserId(session?.user));
   // A hidden series is absent, full stop — a MANAGER hitting its URL
   // directly (bookmark, typed URL) gets the same 404 as a nonexistent
   // series, same "never distinguish the two" rule `documentWhereForUser`

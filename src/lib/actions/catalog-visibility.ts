@@ -8,13 +8,13 @@ import { compatDiff } from "@/lib/validation/catalog";
 export type ActionResult = { error?: string };
 
 /**
- * Sets a region's `CatalogVisibility` to exactly `hiddenSeriesCodes` +
+ * Sets a user's `CatalogVisibility` to exactly `hiddenSeriesCodes` +
  * `hiddenProductCodes`, diffing each set against what's currently stored
  * and only writing the delta — the same "send the full desired set, let the
  * action diff it" shape `setOptionCompatibility` (src/lib/actions/catalog.ts)
  * already uses for `OptionCompatibility`, reusing its `compatDiff` helper
  * directly (series and products are two independent diffs against the same
- * region, not one combined one — a series code and a product code never
+ * user, not one combined one — a series code and a product code never
  * collide, but keeping them separate avoids relying on that).
  *
  * Unknown codes in either array are silently ignored (mirrors
@@ -22,18 +22,18 @@ export type ActionResult = { error?: string };
  * never added.
  */
 export async function setCatalogVisibility(
-  regionId: string,
+  userId: string,
   hiddenSeriesCodes: string[],
   hiddenProductCodes: string[]
 ): Promise<ActionResult> {
   await requireAdmin();
 
-  const region = await db.region.findUnique({ where: { id: regionId } });
-  if (!region) return { error: "Region not found" };
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) return { error: "User not found" };
 
   const [existingRows, matchedSeries, matchedProducts] = await Promise.all([
     db.catalogVisibility.findMany({
-      where: { regionId },
+      where: { userId },
       include: { series: true, product: true },
     }),
     db.series.findMany({ where: { code: { in: hiddenSeriesCodes } } }),
@@ -69,14 +69,14 @@ export async function setCatalogVisibility(
       ? [db.catalogVisibility.deleteMany({ where: { id: { in: removeIds } } })]
       : []),
     ...seriesDiff.toAdd.map((code) =>
-      db.catalogVisibility.create({ data: { regionId, seriesId: seriesIdByCode.get(code) } })
+      db.catalogVisibility.create({ data: { userId, seriesId: seriesIdByCode.get(code) } })
     ),
     ...productDiff.toAdd.map((code) =>
-      db.catalogVisibility.create({ data: { regionId, productId: productIdByCode.get(code) } })
+      db.catalogVisibility.create({ data: { userId, productId: productIdByCode.get(code) } })
     ),
   ]);
 
-  revalidatePath(`/settings/catalog-visibility/${region.id}`);
+  revalidatePath(`/settings/catalog-visibility/${user.id}`);
   revalidatePath("/settings/catalog-visibility");
   return {};
 }

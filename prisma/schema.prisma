@@ -71,25 +71,25 @@ model Region {
   prices            Price[]
   documents         Document[]
   contentBlocks     ContentBlock[]
-  catalogVisibility CatalogVisibility[]
 }
 
 model User {
-  id             String     @id @default(cuid())
-  email          String     @unique
-  emailVerified  DateTime?
-  name           String?
-  phone          String?
-  image          String?
-  passwordHash   String?
-  role           Role       @default(MANAGER)
-  regionId       String?
-  region         Region?    @relation(fields: [regionId], references: [id])
-  active         Boolean    @default(true)
-  documents      Document[]
-  accounts       Account[]
-  sessions       Session[]
-  companiesOwned Company[]  @relation("CompanyOwner")
+  id                String              @id @default(cuid())
+  email             String              @unique
+  emailVerified     DateTime?
+  name              String?
+  phone             String?
+  image             String?
+  passwordHash      String?
+  role              Role                @default(MANAGER)
+  regionId          String?
+  region            Region?             @relation(fields: [regionId], references: [id])
+  active            Boolean             @default(true)
+  documents         Document[]
+  accounts          Account[]
+  sessions          Session[]
+  companiesOwned    Company[]           @relation("CompanyOwner")
+  catalogVisibility CatalogVisibility[]
 }
 
 model Account {
@@ -257,13 +257,26 @@ model OptionCompatibility {
   @@unique([optionId, seriesId, productId])
 }
 
-// One row per (region x series-or-product) pair that is HIDDEN from that
-// region's salespeople -- Ross, on a reseller not yet cleared to sell the
+// One row per (user x series-or-product) pair that is HIDDEN from that
+// user's catalogue -- Ross, on a reseller not yet cleared to sell the
 // Excalibur X series: "we don't want him to even see the Excalibur." A zero
 // price was rejected for this (Vadym: "just put zero, zero in the
 // price" / Ross: "No, no... he's not -- we're not allowing him to sell it
 // at the moment") -- the product must be absent, not unaffordable, so this
 // is a visibility gate, not a pricing one.
+//
+// Scoped to an individual user, not a region -- shipped region-scoped
+// (z17_catalog_visibility) but the owner corrected the requirement: two
+// salespeople in the same region can need different catalogues ("є менеджер
+// А і менеджер Б в USA... А не може продавати X-Calibre... Наразі
+// візабіліті налаштовано на регіон, а потрібно на менеджера. Регіон тут ні
+// до чого" -- there's manager A and manager B in the USA, A can't sell the
+// X-Calibre, visibility is currently set up per region but needs to be per
+// manager, region has nothing to do with it). Region-as-default-with-
+// per-user-exceptions was considered and rejected by the owner in favour of
+// per-user only, so there is no region layer here at all -- see migration
+// z22_catalog_visibility_per_user, which replaced the regionId column with
+// this userId one outright.
 //
 // Mirrors the series-or-product reference shape `OptionCompatibility`
 // already uses above (exactly one of seriesId/productId set per row) so the
@@ -271,30 +284,30 @@ model OptionCompatibility {
 // rather than two.
 //
 // Deliberately stores what's HIDDEN, not what's visible -- an allow-list
-// would need seeding for every existing product the moment a new region is
-// added, and again for every existing region the moment a new product is
-// added. A region with no rows here sees the *whole* catalogue by default,
-// so (a) onboarding a new distributor never starts with an empty catalogue
+// would need seeding for every existing product the moment a new user is
+// added, and again for every existing user the moment a new product is
+// added. A user with no rows here sees the *whole* catalogue by default, so
+// (a) onboarding a new salesperson never starts with an empty catalogue
 // someone has to rebuild an allow-list for, and (b) a brand-new product is
-// visible everywhere the instant it's created, with no "remember to grant
+// visible to everyone the instant it's created, with no "remember to grant
 // it" step anywhere. This inverse (store what's visible instead) reads as
 // the more obvious shape -- resist "fixing" it back: it would silently hide
-// every product from every region until someone remembers to grant it.
+// every product from every user until someone remembers to grant it.
 //
 // Cascades on delete (unlike OptionCompatibility's ON DELETE SET NULL for
-// seriesId/productId): a hidden row means nothing once its region or its
+// seriesId/productId): a hidden row means nothing once its user or its
 // series/product is gone, so removing either must never leave an orphaned
-// row behind -- see migration z17_catalog_visibility.
+// row behind -- see migration z22_catalog_visibility_per_user.
 model CatalogVisibility {
   id        String   @id @default(cuid())
-  regionId  String
-  region    Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
-  seriesId  String? // whole series hidden for this region
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seriesId  String? // whole series hidden for this user
   series    Series?  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
-  productId String? // or a single product hidden for this region
+  productId String? // or a single product hidden for this user
   product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@unique([regionId, seriesId, productId])
+  @@unique([userId, seriesId, productId])
 }
 
 model Price {
