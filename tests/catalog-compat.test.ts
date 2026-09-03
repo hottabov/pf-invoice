@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { compatibilityOrFilter, isOptionDisabled } from "../src/lib/catalog-compat";
+import {
+  compatibilityOrFilter,
+  isOptionDisabled,
+  findConflictingSelection,
+} from "../src/lib/catalog-compat";
 
 describe("compatibilityOrFilter", () => {
   it("includes both clauses when both ids are present (product-level compat within a series)", () => {
@@ -32,20 +36,74 @@ describe("compatibilityOrFilter", () => {
 
 describe("isOptionDisabled", () => {
   // A missing/needsReview price is a different condition from compatibility
-  // — the quote literally cannot be priced without one. `isOptionDisabled`
-  // deliberately takes only `price`, not compatibility, as an input: an
+  // — `isOptionDisabled` never takes compatibility as an input: an
   // incompatible-but-priced option is never disabled through it, only kept
-  // out of the list entirely by `listCompatibleOptions`.
+  // out of the list entirely by `listCompatibleOptions`. It does take a
+  // conflict (a legitimate, distinct reason to disable) as an explicit
+  // second parameter — see the doc comment in catalog-compat.ts for why
+  // that's a deliberate extension rather than smuggling compatibility back
+  // in through the side door.
 
   it("disables an option with no price row at all", () => {
-    expect(isOptionDisabled(null)).toBe(true);
+    expect(isOptionDisabled(null)).toEqual({ type: "unpriced" });
   });
 
   it("disables an option whose only price needs review", () => {
-    expect(isOptionDisabled({ needsReview: true })).toBe(true);
+    expect(isOptionDisabled({ needsReview: true })).toEqual({ type: "unpriced" });
   });
 
-  it("does not disable a priced, reviewed option", () => {
-    expect(isOptionDisabled({ needsReview: false })).toBe(false);
+  it("does not disable a priced, reviewed option with no conflict", () => {
+    expect(isOptionDisabled({ needsReview: false })).toBeNull();
+    expect(isOptionDisabled({ needsReview: false }, null)).toBeNull();
+  });
+
+  it("disables a priced option that conflicts with an already-selected option, naming it", () => {
+    expect(
+      isOptionDisabled({ needsReview: false }, { code: "MTS", name: "Additional travel" })
+    ).toEqual({
+      type: "conflict",
+      conflictingOptionCode: "MTS",
+      conflictingOptionName: "Additional travel",
+    });
+  });
+
+  it("disables an unpriced option for its own reason, distinct from a conflict, even when both apply", () => {
+    expect(isOptionDisabled(null, { code: "MTS", name: "Additional travel" })).toEqual({
+      type: "unpriced",
+    });
+    expect(
+      isOptionDisabled({ needsReview: true }, { code: "MTS", name: "Additional travel" })
+    ).toEqual({ type: "unpriced" });
+  });
+});
+
+describe("findConflictingSelection", () => {
+  it("returns null when no option in the selection has any conflicts", () => {
+    const conflictsByCode = new Map<string, Set<string>>();
+    expect(findConflictingSelection(["A", "B", "C"], conflictsByCode)).toBeNull();
+  });
+
+  it("returns null when an option's conflicts don't overlap the current selection", () => {
+    const conflictsByCode = new Map([["A", new Set(["Z"])]]);
+    expect(findConflictingSelection(["A", "B"], conflictsByCode)).toBeNull();
+  });
+
+  it("finds a conflicting pair regardless of which side carries the conflict entry", () => {
+    const conflictsByCode = new Map([["A", new Set(["B"])]]);
+    expect(findConflictingSelection(["A", "B"], conflictsByCode)).toEqual(["A", "B"]);
+  });
+
+  it("finds a conflicting pair among a larger selection", () => {
+    const conflictsByCode = new Map([["MTS", new Set(["VRB-180"])]]);
+    expect(findConflictingSelection(["HFV", "MTS", "VRB-180"], conflictsByCode)).toEqual([
+      "MTS",
+      "VRB-180",
+    ]);
+  });
+
+  it("leaves an option with no conflicts entirely unaffected by others' conflicts", () => {
+    const conflictsByCode = new Map([["A", new Set(["B"])]]);
+    // C has no entry at all -- selecting it alongside A/B never trips it up.
+    expect(findConflictingSelection(["C"], conflictsByCode)).toBeNull();
   });
 });

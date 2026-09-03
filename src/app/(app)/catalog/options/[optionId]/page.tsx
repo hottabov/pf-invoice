@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
-import { getOptionDetailById, listSeriesWithCounts } from "@/lib/queries/catalog";
+import { getOptionDetailById, listSeriesWithCounts, listOtherOptions } from "@/lib/queries/catalog";
 import { catalogVisibilityRegionId, filterHiddenSeries } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import {
@@ -9,11 +9,13 @@ import {
   deleteOption,
   upsertPrice,
   setOptionCompatibility,
+  setOptionConflicts,
   updateOptionImage,
 } from "@/lib/actions/catalog";
 import { OptionForm } from "@/components/catalog/option-form";
 import { PriceEditor } from "@/components/catalog/price-editor";
 import { CompatEditor } from "@/components/catalog/compat-editor";
+import { ConflictEditor } from "@/components/catalog/conflict-editor";
 import { ImageUpload } from "@/components/catalog/image-upload";
 import { DeleteButton } from "@/components/catalog/delete-button";
 import { PageHeader, SectionCard } from "@/components/ui-kit";
@@ -44,9 +46,10 @@ export async function generateMetadata({
 
 export default async function OptionEditorPage({ params }: { params: Promise<Params> }) {
   const { optionId } = await params;
-  const [option, series, session] = await Promise.all([
+  const [option, series, otherOptions, session] = await Promise.all([
     getOptionDetailById(optionId),
     listSeriesWithCounts(),
+    listOtherOptions(optionId),
     auth(),
   ]);
 
@@ -121,6 +124,19 @@ export default async function OptionEditorPage({ params }: { params: Promise<Par
               readOnly={!isAdmin}
             />
           </SectionCard>
+
+          <SectionCard
+            title="Conflicts with"
+            description="Options that can't be selected together with this one on the same item — e.g. a knife too long for a machine's cut height. Adding a conflict from either option's editor applies to both."
+          >
+            <ConflictEditor
+              optionId={option.id}
+              options={otherOptions}
+              initialSelected={option.conflicts.map((c) => c.id)}
+              action={setOptionConflicts}
+              readOnly={!isAdmin}
+            />
+          </SectionCard>
         </div>
       </div>
 
@@ -128,12 +144,12 @@ export default async function OptionEditorPage({ params }: { params: Promise<Par
         <SectionCard
           tone="danger"
           title="Danger zone"
-          description="Deleting an option removes its prices and compatibility too. Options used on a document can't be deleted."
+          description="Deleting an option removes its prices, compatibility and conflicts too. Options used on a document can't be deleted."
         >
           <DeleteButton
             action={deleteOption.bind(null, option.id)}
             confirmTitle={`Delete ${option.code} — ${option.name}?`}
-            confirmDescription="This removes its prices and compatibility too. This can't be undone."
+            confirmDescription="This removes its prices, compatibility and conflicts too. This can't be undone."
             label="Delete option"
           />
         </SectionCard>

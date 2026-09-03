@@ -338,6 +338,8 @@ export async function getProductDetail(
   };
 }
 
+export type ConflictingOption = { id: string; code: string; name: string };
+
 export type OptionDetail = {
   id: string;
   code: string;
@@ -351,15 +353,22 @@ export type OptionDetail = {
   /** Series this option is compatible with at the series level (phase-3
    * scope excludes product-level compatibility). */
   compatSeriesCodes: string[];
+  /** Options this one conflicts with (`OptionConflict`, either side of the
+   * normalised pair — see the model comment in schema.prisma), sorted by
+   * code. Since a conflict is stored once for the whole pair and read from
+   * both directions, this list is the same whichever of the two options'
+   * editors you're looking at — adding a conflict from either side shows up
+   * on both. */
+  conflicts: ConflictingOption[];
 };
 
-/** A single option (by id) with every active region's price row and its
- * series-level compatibility, for the option editor. Looked up by id rather
- * than code: the route it backs (`/catalog/options/[optionId]`) needs a key
- * that never changes, since a code is free text an admin can edit and may
- * contain characters (like `/`) that don't survive as a URL path segment.
- * `getOptionDetail`-by-code has no other callers, so it was replaced here
- * rather than kept alongside this. */
+/** A single option (by id) with every active region's price row, its
+ * series-level compatibility, and its conflicts, for the option editor.
+ * Looked up by id rather than code: the route it backs
+ * (`/catalog/options/[optionId]`) needs a key that never changes, since a
+ * code is free text an admin can edit and may contain characters (like `/`)
+ * that don't survive as a URL path segment. `getOptionDetail`-by-code has no
+ * other callers, so it was replaced here rather than kept alongside this. */
 export async function getOptionDetailById(optionId: string): Promise<OptionDetail | null> {
   const [option, regions] = await Promise.all([
     db.option.findUnique({
@@ -367,11 +376,21 @@ export async function getOptionDetailById(optionId: string): Promise<OptionDetai
       include: {
         prices: { include: { region: true } },
         compat: { include: { series: true } },
+        // Both sides of the normalised pair -- this option can be stored as
+        // either optionAId or optionBId depending on which id sorted lower,
+        // so both relations must be read to see every conflict it's part of.
+        conflictsAsA: { include: { optionB: { select: { id: true, code: true, name: true } } } },
+        conflictsAsB: { include: { optionA: { select: { id: true, code: true, name: true } } } },
       },
     }),
     listActiveRegions(),
   ]);
   if (!option) return null;
+
+  const conflicts: ConflictingOption[] = [
+    ...option.conflictsAsA.map((c) => c.optionB),
+    ...option.conflictsAsB.map((c) => c.optionA),
+  ].sort((a, b) => a.code.localeCompare(b.code));
 
   return {
     id: option.id,
@@ -388,5 +407,20 @@ export async function getOptionDetailById(optionId: string): Promise<OptionDetai
       .map((c) => c.series?.code)
       .filter((code): code is string => Boolean(code))
       .sort(),
+    conflicts,
   };
+}
+
+/** Every other active-or-not option (id/code/name only), ordered by code,
+ * for the conflict picker on the option editor page — the analogue of
+ * `listSeriesWithCounts` feeding `CompatEditor`'s series checkboxes, but for
+ * options instead of series. Excludes `excludeOptionId` itself: an option
+ * can never conflict with itself (see `normalizeConflictPair`). */
+export async function listOtherOptions(excludeOptionId: string): Promise<ConflictingOption[]> {
+  const options = await db.option.findMany({
+    where: { id: { not: excludeOptionId } },
+    orderBy: { code: "asc" },
+    select: { id: true, code: true, name: true },
+  });
+  return options;
 }

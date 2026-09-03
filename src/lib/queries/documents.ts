@@ -782,6 +782,15 @@ export type CompatibleOption = {
    * setting is on (see `getShowOptionIcons`, src/lib/queries/settings.ts) —
    * `null` (most options today) shows no icon and no placeholder. */
   imageUrl: string | null;
+  /** Every option this one conflicts with (`OptionConflict`, read from both
+   * sides of the normalised pair — see the model comment in schema.prisma),
+   * by code/name — not just the ones also compatible with this item, since
+   * an incompatible partner can never be selected anyway and so can never
+   * trip the conflict. The builder (`ItemOptionsEditor`) checks this
+   * against the *other* currently-selected codes to decide whether to
+   * disable this option (see `isOptionDisabled`'s `conflictingWith`
+   * parameter) — never against itself. */
+  conflictsWith: { code: string; name: string }[];
 };
 
 /**
@@ -807,7 +816,11 @@ export async function listCompatibleOptions(
   const options = await db.option.findMany({
     where: { active: true, compat: { some: { OR: or } } },
     orderBy: { sortOrder: "asc" },
-    include: { prices: { where: { regionId } } },
+    include: {
+      prices: { where: { regionId } },
+      conflictsAsA: { include: { optionB: { select: { code: true, name: true } } } },
+      conflictsAsB: { include: { optionA: { select: { code: true, name: true } } } },
+    },
   });
 
   return options.map((o) => {
@@ -820,6 +833,10 @@ export async function listCompatibleOptions(
       attributeSchema: o.attributeSchema,
       price: price ? { amount: price.amount.toString(), needsReview: price.needsReview } : null,
       imageUrl: o.imageUrl,
+      conflictsWith: [
+        ...o.conflictsAsA.map((c) => c.optionB),
+        ...o.conflictsAsB.map((c) => c.optionA),
+      ],
     };
   });
 }

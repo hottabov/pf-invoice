@@ -6,7 +6,13 @@ import { Prisma } from "@prisma/client";
 import type { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/authz";
-import { productSchema, optionSchema, priceInputSchema, compatDiff } from "@/lib/validation/catalog";
+import {
+  productSchema,
+  optionSchema,
+  priceInputSchema,
+  compatDiff,
+  normalizeConflictPair,
+} from "@/lib/validation/catalog";
 import { IMAGE_URL_PATTERN } from "@/lib/uploads";
 
 export type ActionResult = { error?: string };
@@ -242,8 +248,9 @@ export async function deleteOption(optionId: string): Promise<ActionResult> {
     return { error: "This option is used on one or more documents and can't be deleted." };
   }
 
-  // Price and OptionCompatibility rows cascade (both onDelete: Cascade on
-  // their optionId relation in the schema).
+  // Price, OptionCompatibility and OptionConflict rows all cascade (each
+  // onDelete: Cascade on its optionId/optionAId/optionBId relation in the
+  // schema), so no orphaned conflict half-pair is left behind either.
   await db.option.delete({ where: { id: optionId } });
 
   revalidatePath("/catalog/options");
@@ -437,6 +444,78 @@ export async function setOptionCompatibility(
   ]);
 
   revalidatePath(`/catalog/options/${optionId}`);
+  revalidatePath("/catalog/options");
+  return {};
+}
+
+// --- option conflicts --------------------------------------------------
+
+/**
+ * Sets an option's conflicts to exactly `conflictingOptionIds`, diffing
+ * against what's currently stored -- read from both sides of the
+ * normalised pair, since this option can be stored as either optionAId or
+ * optionBId depending on which id sorted lower (see the `OptionConflict`
+ * model comment in schema.prisma) -- and only writing the delta. Every
+ * added row goes through `normalizeConflictPair`, so it doesn't matter
+ * which of the two options' editors this action is called from: the same
+ * pair always ends up as the same single row, and both options' editors see
+ * it afterwards (`getOptionDetailById`'s `conflicts` reads both sides too).
+ *
+ * Unknown ids in `conflictingOptionIds` are silently ignored (mirrors
+ * `setOptionCompatibility`'s handling of unknown series codes) and the
+ * option's own id is dropped before the diff even if somehow submitted --
+ * `normalizeConflictPair` would refuse it as a self-pair anyway, but
+ * filtering it out first keeps `toAdd`/`toRemove` accurate.
+ */
+export async function setOptionConflicts(
+  optionId: string,
+  conflictingOptionIds: string[]
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const option = await db.option.findUnique({ where: { id: optionId } });
+  if (!option) return { error: "Option not found" };
+
+  const [existingConflicts, matchedOptions] = await Promise.all([
+    db.optionConflict.findMany({
+      where: { OR: [{ optionAId: optionId }, { optionBId: optionId }] },
+    }),
+    db.option.findMany({
+      where: { id: { in: conflictingOptionIds.filter((id) => id !== optionId) } },
+      select: { id: true },
+    }),
+  ]);
+
+  const currentIds = existingConflicts.map((c) =>
+    c.optionAId === optionId ? c.optionBId : c.optionAId
+  );
+  const submittedIds = matchedOptions.map((o) => o.id);
+  const { toAdd, toRemove } = compatDiff(currentIds, submittedIds);
+
+  const removeRowIds = existingConflicts
+    .filter((c) => {
+      const otherId = c.optionAId === optionId ? c.optionBId : c.optionAId;
+      return toRemove.includes(otherId);
+    })
+    .map((c) => c.id);
+
+  const addRows = toAdd
+    .map((otherId) => normalizeConflictPair(optionId, otherId))
+    .filter((pair): pair is { optionAId: string; optionBId: string } => pair !== null);
+
+  await db.$transaction([
+    ...(removeRowIds.length > 0
+      ? [db.optionConflict.deleteMany({ where: { id: { in: removeRowIds } } })]
+      : []),
+    ...addRows.map((pair) => db.optionConflict.create({ data: pair })),
+  ]);
+
+  // Symmetric: the pair shows up on both options' editors, so both need
+  // revalidating -- not just the option this action was called for.
+  revalidatePath(`/catalog/options/${optionId}`);
+  for (const otherId of [...toAdd, ...toRemove]) {
+    revalidatePath(`/catalog/options/${otherId}`);
+  }
   revalidatePath("/catalog/options");
   return {};
 }

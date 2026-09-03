@@ -5,6 +5,7 @@ import {
   priceInputSchema,
   compatDiff,
   maxDiscountPctSchema,
+  normalizeConflictPair,
 } from "../src/lib/validation/catalog";
 
 describe("productSchema", () => {
@@ -307,6 +308,27 @@ describe("compatDiff", () => {
 
   it("handles adding to an empty current list", () => {
     expect(compatDiff([], ["M", "L"])).toEqual({ toAdd: ["M", "L"], toRemove: [] });
+  });
+});
+
+describe("normalizeConflictPair", () => {
+  it("puts the lexicographically lower id in optionAId", () => {
+    expect(normalizeConflictPair("opt_b", "opt_a")).toEqual({
+      optionAId: "opt_a",
+      optionBId: "opt_b",
+    });
+  });
+
+  it("stores a conflict pair once regardless of which side it's entered from", () => {
+    // The MTS editor adding VRB-180 as a conflict, and the VRB-180 editor
+    // adding MTS, must normalise to the exact same row.
+    const fromA = normalizeConflictPair("opt_mts", "opt_vrb180");
+    const fromB = normalizeConflictPair("opt_vrb180", "opt_mts");
+    expect(fromA).toEqual(fromB);
+  });
+
+  it("refuses to pair an option with itself", () => {
+    expect(normalizeConflictPair("opt_a", "opt_a")).toBeNull();
   });
 });
 

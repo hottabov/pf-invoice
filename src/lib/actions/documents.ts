@@ -7,7 +7,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
 import { companyWhereForUser, documentWhereForUser } from "@/lib/scope";
-import { compatibilityOrFilter } from "@/lib/catalog-compat";
+import { compatibilityOrFilter, findConflictingSelection } from "@/lib/catalog-compat";
 import {
   capPct,
   computeTotals,
@@ -643,11 +643,23 @@ const MAX_OPTION_SELECTIONS = 100;
  * `needsReview`) in the *document's* region — otherwise
  * nothing is written at all and the offending codes are named in the
  * returned error, checked in that order (unknown, then incompatible, then
- * unpriced) so the caller always gets one actionable message. Delete+create
- * happens in a single transaction so a failed create can never leave an
- * item with no options where it had some a moment ago. Scoped through
- * item -> document -> author chain and DRAFT-only, like every other item
- * mutation in this file.
+ * unpriced, then conflicting — see `findConflictingSelection`) so the caller
+ * always gets one actionable message. Delete+create happens in a single
+ * transaction so a failed create can never leave an item with no options
+ * where it had some a moment ago. Scoped through item -> document -> author
+ * chain and DRAFT-only, like every other item mutation in this file.
+ *
+ * The conflict check only governs what this call is about to *write* — an
+ * item that already carries two now-conflicting OPTION lines (saved before
+ * the conflict existed, or before this rejection existed) keeps those lines
+ * and its totals exactly as they are until the next `setItemOptions` call
+ * for that item; nothing here re-validates existing `DocumentLine` rows on
+ * read (recalc/totals work purely off what's already stored — see
+ * `recalcAndEnforce`/`computeTotals`, neither of which touches
+ * `OptionConflict` at all). A save that resubmits the same two conflicting
+ * codes unchanged is still a save, though, and is rejected exactly like a
+ * brand-new one — the rule is "no new writes with a conflicting pair", not
+ * "grandfather whatever was already there".
  */
 export async function setItemOptions(
   itemId: string,
@@ -704,6 +716,15 @@ export async function setItemOptions(
     include: {
       prices: { where: { regionId: item.document.regionId } },
       compat: { where: { OR: compatOr } },
+      // Both sides of the normalised pair -- see the `OptionConflict` model
+      // comment in schema.prisma. Only fetched for the *submitted* options
+      // (this `where: { code: { in: codes } }` above), but each conflict
+      // partner's own code is read via the relation regardless of whether
+      // that partner is itself one of the submitted codes -- irrelevant
+      // here anyway, since `findConflictingSelection` only ever looks for a
+      // partner among `codes`.
+      conflictsAsA: { include: { optionB: { select: { code: true } } } },
+      conflictsAsB: { include: { optionA: { select: { code: true } } } },
     },
   });
   const optionByCode = new Map(options.map((o) => [o.code, o]));
@@ -736,6 +757,19 @@ export async function setItemOptions(
   }
   if (unpricedCodes.length > 0) {
     return { error: `Price required for: ${unpricedCodes.join(", ")}` };
+  }
+
+  const conflictsByCode = new Map<string, Set<string>>();
+  for (const option of options) {
+    const conflictCodes = new Set<string>();
+    for (const c of option.conflictsAsA) conflictCodes.add(c.optionB.code);
+    for (const c of option.conflictsAsB) conflictCodes.add(c.optionA.code);
+    conflictsByCode.set(option.code, conflictCodes);
+  }
+  const conflictingPair = findConflictingSelection(codes, conflictsByCode);
+  if (conflictingPair) {
+    const [a, b] = conflictingPair;
+    return { error: `${a} conflicts with ${b} — remove one before saving` };
   }
 
   // Delete+create+recalc all in one interactive transaction (previously

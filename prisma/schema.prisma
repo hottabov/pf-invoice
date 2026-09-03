@@ -181,6 +181,61 @@ model Option {
   sortOrder        Int                   @default(0)
   prices           Price[]
   compat           OptionCompatibility[]
+  // Two relations to the same self-referencing join table -- see
+  // OptionConflict below for why the pair is always stored with the lower
+  // id in optionAId, and never in both directions.
+  conflictsAsA     OptionConflict[]      @relation("OptionConflictA")
+  conflictsAsB     OptionConflict[]      @relation("OptionConflictB")
+}
+
+// Two options that must never both appear on the same item (John: a knife
+// long enough to jam a shorter-cut-height machine -- "that would just break
+// the machine"). One row per UNORDERED pair -- physical incompatibility has
+// no direction, a knife that doesn't fit a machine doesn't fit it "the other
+// way" either, so this is deliberately NOT modelled as two directional rows
+// or as a seriesId/productId-style single-owner row like OptionCompatibility
+// above.
+//
+// Stored symmetrically: every row is normalised so the lower option id
+// (plain string comparison) is always optionAId and the higher is always
+// optionBId -- see normalizeConflictPair in src/lib/validation/catalog.ts,
+// which every writer (setOptionConflicts) goes through. This is the
+// deliberate choice here: a directional model (say, only ever writing from
+// the option currently being edited) would let an admin add a conflict from
+// option A's editor and get a catalogue where A blocks B but B doesn't block
+// A -- exactly the kind of half-entered rule this table exists to prevent.
+// Normalising means the same pair, entered from either option's editor,
+// always resolves to the same single row, so @@unique below can actually
+// catch a duplicate, and every reader (isOptionDisabled's caller,
+// setItemOptions) checks both optionAId and optionBId rather than assuming
+// "the current option" is always column A.
+//
+// No seed data ships with this table -- the owner has the mechanism ready
+// but no concrete conflicting pairs yet ("наразі в мене конкретних даних
+// немає що блокує що, але механізм має бути готовий"). An empty table
+// changes nothing: every existing catalogue and every existing quote is
+// unaffected until an admin adds a row.
+model OptionConflict {
+  id        String @id @default(cuid())
+  optionAId String
+  optionA   Option @relation("OptionConflictA", fields: [optionAId], references: [id], onDelete: Cascade)
+  optionBId String
+  optionB   Option @relation("OptionConflictB", fields: [optionBId], references: [id], onDelete: Cascade)
+
+  // Normalised-pair uniqueness -- see the model comment above. Both FKs
+  // cascade on delete (like CatalogVisibility, unlike OptionCompatibility's
+  // ON DELETE SET NULL): a conflict row means nothing once either option in
+  // the pair is gone, so deleting an option must never leave an orphaned
+  // half-conflict behind.
+  // `@@check` isn't available in this Prisma version (7.10.0 has no
+  // `checkConstraints` preview feature -- validated directly, don't
+  // reintroduce it without re-checking) so the self-pair guard can't be
+  // declared here. The migration adds the equivalent `CHECK` constraint as
+  // raw SQL instead; Prisma just won't know about it. The primary guard is
+  // still the application layer -- see normalizeConflictPair, which every
+  // writer goes through and which refuses a self-pair before it ever
+  // reaches the database.
+  @@unique([optionAId, optionBId])
 }
 
 model OptionCompatibility {

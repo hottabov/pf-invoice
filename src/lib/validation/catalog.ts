@@ -228,3 +228,29 @@ export function compatDiff(current: string[], submitted: string[]): CompatDiff {
     toRemove: current.filter((code) => !submittedSet.has(code)),
   };
 }
+
+// --- option conflicts --------------------------------------------------
+
+/**
+ * Normalises an unordered pair of option ids into the `{optionAId,
+ * optionBId}` shape `OptionConflict` stores -- the lower id (plain string
+ * comparison) always goes in `optionAId`. Every writer (`setOptionConflicts`)
+ * goes through this, so a conflict entered from either option's editor
+ * (A's editor adding B, or B's editor adding A) always resolves to the
+ * exact same row -- see the `OptionConflict` model comment in
+ * schema.prisma for why that matters: a directional table would let an
+ * admin enter half a conflict and get a catalogue where A blocks B but B
+ * doesn't block A.
+ *
+ * Returns `null` for a self-pair (`idA === idB`) -- an option can never
+ * conflict with itself. This is the primary guard for that rule (the
+ * migration's `CHECK` constraint is a second line of defence in the
+ * database, not the first).
+ */
+export function normalizeConflictPair(
+  idA: string,
+  idB: string
+): { optionAId: string; optionBId: string } | null {
+  if (idA === idB) return null;
+  return idA < idB ? { optionAId: idA, optionBId: idB } : { optionAId: idB, optionBId: idA };
+}

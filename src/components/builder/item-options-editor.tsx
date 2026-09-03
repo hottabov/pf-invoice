@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { fieldInputClass } from "@/components/ui-kit";
 import { formatMoney } from "@/lib/format";
 import { formatMetres, unitLengthMetres } from "@/lib/option-length";
+import { isOptionDisabled } from "@/lib/catalog-compat";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
 import type { CompatibleOption } from "@/lib/queries/documents";
@@ -62,10 +63,17 @@ function selectionsFromLines(lines: CurrentLine[]): Map<string, SelectionState> 
  * product-level `OptionCompatibility` — preloaded via
  * `listCompatibleOptions`). Checking an option reveals its qty stepper and
  * (when it carries an `attributeSchema`) its attribute inputs; an unpriced
- * option is shown but its checkbox is disabled. "Save options" sends the
+ * option is shown but its checkbox is disabled, and so is one that
+ * conflicts (`OptionConflict`) with another option already checked in this
+ * same panel — its reason names the specific option responsible (see
+ * `isOptionDisabled`, src/lib/catalog-compat.ts). Deselecting the option
+ * that caused the conflict re-enables the others on the very next render —
+ * disabled-ness is derived fresh from `selected` on every render, not
+ * tracked separately, so there's nothing to resync. "Save options" sends the
  * *entire* selection set to `setItemOptions`, which replaces the item's
  * OPTION lines as a whole (see actions/documents.ts) — there's no partial
- * add/remove here.
+ * add/remove here, and `setItemOptions` re-checks compatibility, pricing
+ * *and* conflicts server-side rather than trusting this component.
  *
  * The panel also has a search box (client-side filter on code + name),
  * "Select all" / "Clear" buttons, and a "N of M selected" count badge.
@@ -144,8 +152,13 @@ export function ItemOptionsEditor({
       const next = new Map(prev);
       for (const option of filteredOptions) {
         if (next.has(option.code)) continue;
-        const priced = Boolean(option.price && !option.price.needsReview);
-        if (!priced) continue;
+        // Only the price reason applies here — conflicts aren't checked
+        // against the batch being built up by this same click (that would
+        // mean "select all" secretly picks a winner between two conflicting
+        // options), so a resulting conflicting pair surfaces as the normal
+        // save-time error instead, same as if the user had checked both by
+        // hand.
+        if (isOptionDisabled(option.price) !== null) continue;
         next.set(option.code, { qty: 1, attributes: {} });
       }
       return next;
@@ -298,7 +311,18 @@ export function ItemOptionsEditor({
                     {displayOptions.map((option) => {
                       const state = selected.get(option.code);
                       const checked = Boolean(state);
-                      const priced = Boolean(option.price && !option.price.needsReview);
+                      // Never treat an already-checked option as conflicting
+                      // with itself: the options that get disabled are the
+                      // *other* ones this one conflicts with, not this one.
+                      // That's what lets the user immediately deselect the
+                      // option that caused a conflict — its own checkbox
+                      // stays clickable the whole time — instead of both
+                      // sides of the pair locking each other out.
+                      const conflictingWith = checked
+                        ? null
+                        : (option.conflictsWith.find((c) => selected.has(c.code)) ?? null);
+                      const disabledReason = isOptionDisabled(option.price, conflictingWith);
+                      const priced = disabledReason === null || disabledReason.type !== "unpriced";
                       const attributeFields = parseAttributeFields(option.attributeSchema);
                       const unitLength = unitLengthMetres(option.name);
 
@@ -311,7 +335,7 @@ export function ItemOptionsEditor({
                             <input
                               type="checkbox"
                               checked={checked}
-                              disabled={!priced}
+                              disabled={disabledReason !== null}
                               onChange={() => toggle(option.code)}
                               className="mt-0.5 size-5 shrink-0 rounded border-slate-300 accent-brand"
                             />
@@ -328,7 +352,12 @@ export function ItemOptionsEditor({
                                 <span className="font-mono text-xs text-brand-dark">{option.code}</span>
                                 <span className="text-sm text-slate-700">{option.name}</span>
                               </span>
-                              {priced ? (
+                              {disabledReason?.type === "conflict" ? (
+                                <span className="mt-0.5 w-fit rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">
+                                  Conflicts with {disabledReason.conflictingOptionCode} —{" "}
+                                  {disabledReason.conflictingOptionName}
+                                </span>
+                              ) : priced ? (
                                 <span className="text-xs text-slate-500">
                                   {formatMoney(option.price!.amount, currency)}
                                 </span>
