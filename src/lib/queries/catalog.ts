@@ -353,12 +353,17 @@ export type OptionDetail = {
   compatSeriesCodes: string[];
 };
 
-/** A single option (by code) with every active region's price row and its
- * series-level compatibility, for the option editor. */
-export async function getOptionDetail(optionCode: string): Promise<OptionDetail | null> {
+/** A single option (by id) with every active region's price row and its
+ * series-level compatibility, for the option editor. Looked up by id rather
+ * than code: the route it backs (`/catalog/options/[optionId]`) needs a key
+ * that never changes, since a code is free text an admin can edit and may
+ * contain characters (like `/`) that don't survive as a URL path segment.
+ * `getOptionDetail`-by-code has no other callers, so it was replaced here
+ * rather than kept alongside this. */
+export async function getOptionDetailById(optionId: string): Promise<OptionDetail | null> {
   const [option, regions] = await Promise.all([
     db.option.findUnique({
-      where: { code: optionCode },
+      where: { id: optionId },
       include: {
         prices: { include: { region: true } },
         compat: { include: { series: true } },

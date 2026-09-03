@@ -168,7 +168,7 @@ function FilterChip({ label, href, active }: { label: string; href: string; acti
 }
 
 function OptionRow({ option: o }: { option: OptionListItem }) {
-  const href = `/catalog/options/${encodeURIComponent(o.code)}`;
+  const href = `/catalog/options/${o.id}`;
   return (
     <tr className={cn(tableRowClassName, o.active ? "" : "opacity-60")}>
       <RowCell href={href} primary={`Open ${o.name}`}>
@@ -195,7 +195,7 @@ function OptionRow({ option: o }: { option: OptionListItem }) {
 function OptionCard({ option: o }: { option: OptionListItem }) {
   return (
     <Link
-      href={`/catalog/options/${encodeURIComponent(o.code)}`}
+      href={`/catalog/options/${o.id}`}
       className={cn(
         "focus-ring flex min-h-12 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-colors active:bg-slate-100",
         o.active ? "" : "opacity-60"

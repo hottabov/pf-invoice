@@ -187,7 +187,7 @@ export async function createOption(formData: FormData): Promise<ActionResult> {
   }
 
   revalidatePath("/catalog/options");
-  redirect(`/catalog/options/${encodeURIComponent(created.code)}`);
+  redirect(`/catalog/options/${created.id}`);
 }
 
 export async function updateOption(optionId: string, formData: FormData): Promise<ActionResult> {
@@ -223,12 +223,12 @@ export async function updateOption(optionId: string, formData: FormData): Promis
     throw error;
   }
 
+  // The route is keyed by id, which never changes on an update, so unlike
+  // the product route above there's no "old code path" / "new code path"
+  // pair to revalidate here — just the one URL.
   revalidatePath("/catalog/options");
-  revalidatePath(`/catalog/options/${encodeURIComponent(existing.code)}`);
-  if (parsed.data.code !== existing.code) {
-    revalidatePath(`/catalog/options/${encodeURIComponent(parsed.data.code)}`);
-  }
-  redirect(`/catalog/options/${encodeURIComponent(parsed.data.code)}`);
+  revalidatePath(`/catalog/options/${optionId}`);
+  redirect(`/catalog/options/${optionId}`);
 }
 
 export async function deleteOption(optionId: string): Promise<ActionResult> {
@@ -292,7 +292,7 @@ export async function updateOptionImage(optionId: string, url: string | null): P
 
   await db.option.update({ where: { id: optionId }, data: { imageUrl: parsed.value } });
 
-  revalidatePath(`/catalog/options/${encodeURIComponent(existing.code)}`);
+  revalidatePath(`/catalog/options/${optionId}`);
   revalidatePath("/catalog/options");
   return {};
 }
@@ -379,11 +379,10 @@ export async function upsertPrice(target: PriceTarget, formData: FormData): Prom
       revalidatePath(`/catalog/${encodeURIComponent(product.series.code)}`);
     }
   } else {
-    const option = await db.option.findUnique({ where: { id: target.optionId } });
-    if (option) {
-      revalidatePath(`/catalog/options/${encodeURIComponent(option.code)}`);
-      revalidatePath("/catalog/options");
-    }
+    // Option route is keyed by id, so no lookup is needed to build its path
+    // (unlike the product branch above, which still needs the series code).
+    revalidatePath(`/catalog/options/${target.optionId}`);
+    revalidatePath("/catalog/options");
   }
 
   return {};
@@ -437,7 +436,7 @@ export async function setOptionCompatibility(
     ),
   ]);
 
-  revalidatePath(`/catalog/options/${encodeURIComponent(option.code)}`);
+  revalidatePath(`/catalog/options/${optionId}`);
   revalidatePath("/catalog/options");
   return {};
 }

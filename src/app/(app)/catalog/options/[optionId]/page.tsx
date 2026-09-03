@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
-import { getOptionDetail, listSeriesWithCounts } from "@/lib/queries/catalog";
+import { getOptionDetailById, listSeriesWithCounts } from "@/lib/queries/catalog";
 import { catalogVisibilityRegionId, filterHiddenSeries } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import {
@@ -20,22 +20,32 @@ import { PageHeader, SectionCard } from "@/components/ui-kit";
 
 export const dynamic = "force-dynamic";
 
-type Params = { optionCode: string };
+// Routed by Option.id, not Option.code. A code is free text an admin can
+// edit at any time, and `encodeURIComponent` can't make it a safe single
+// path segment either way — a `/` in the code encodes to `%2F`, which
+// Node/Next normalise back into a path separator before route matching, so
+// the dynamic segment never matches and the page 404s (two options in this
+// catalogue already have a `/` in their code). The id never changes, so
+// this also means renaming an option's code no longer breaks its URL. The
+// trade-off is a less readable URL (a cuid instead of a code) — accepted
+// deliberately: an opaque URL that always works beats a readable one that
+// 404s on real data. Don't "simplify" this back to the code.
+type Params = { optionId: string };
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<Params>;
 }): Promise<Metadata> {
-  const { optionCode } = await params;
-  const option = await getOptionDetail(optionCode);
+  const { optionId } = await params;
+  const option = await getOptionDetailById(optionId);
   return { title: option ? option.code : "Option" };
 }
 
 export default async function OptionEditorPage({ params }: { params: Promise<Params> }) {
-  const { optionCode } = await params;
+  const { optionId } = await params;
   const [option, series, session] = await Promise.all([
-    getOptionDetail(optionCode),
+    getOptionDetailById(optionId),
     listSeriesWithCounts(),
     auth(),
   ]);
