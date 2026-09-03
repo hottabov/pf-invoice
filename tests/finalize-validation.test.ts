@@ -11,6 +11,7 @@ import type { DocumentConcession, EngineViolation } from "../src/lib/pricing";
 const noViolations: EngineViolation[] = [];
 const MANAGER: FinalizerRole = "MANAGER";
 const ADMIN: FinalizerRole = "ADMIN";
+const DEVELOPER: FinalizerRole = "DEVELOPER";
 const REGION_NAME = "Australia";
 const CURRENCY = "AUD";
 
@@ -100,6 +101,12 @@ describe("validateFinalizable", () => {
     const doc = baseDoc();
     const violations: EngineViolation[] = [{ itemIndex: 0, allowedPct: 10 }];
     expect(validateFinalizable(doc, violations, noConcession, ADMIN, REGION_NAME, CURRENCY)).toBeNull();
+  });
+
+  it("allows a DEVELOPER to finalize a document with discount-cap violations, same as an ADMIN", () => {
+    const doc = baseDoc();
+    const violations: EngineViolation[] = [{ itemIndex: 0, allowedPct: 10 }];
+    expect(validateFinalizable(doc, violations, noConcession, DEVELOPER, REGION_NAME, CURRENCY)).toBeNull();
   });
 
   it("returns null for a valid, finalizable document regardless of role", () => {

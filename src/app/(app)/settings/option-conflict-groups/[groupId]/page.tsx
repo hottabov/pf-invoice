@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { getConflictGroupDetail } from "@/lib/queries/conflict-groups";
 import { listOptionsForConflictGroups } from "@/lib/queries/catalog";
 import {
@@ -26,7 +27,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 export default async function ConflictGroupPage({ params }: { params: Promise<Params> }) {
   const { groupId } = await params;
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") notFound();
+  if (!isAdminRole(session?.user?.role)) notFound();
 
   const [group, options] = await Promise.all([
     getConflictGroupDetail(groupId),

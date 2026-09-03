@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { FileText, Plus, Search } from "lucide-react";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { listDocuments, type DocumentListItem } from "@/lib/queries/documents";
 import { createDraft, deleteDocument } from "@/lib/actions/documents";
 import { formatMoney, relativeDate } from "@/lib/format";
@@ -42,7 +43,7 @@ export default async function DocumentsPage({
       <PageHeader
         title="Documents"
         description={
-          session.user.role === "ADMIN" ? "Every quote across the business." : "Quotes you've created."
+          isAdminRole(session.user.role) ? "Every quote across the business." : "Quotes you've created."
         }
         actions={
           <form action={createDraft}>
@@ -113,7 +114,7 @@ export default async function DocumentsPage({
                   <DocumentRow
                     key={d.id}
                     document={d}
-                    canDelete={session.user.role === "ADMIN" || d.status === "DRAFT"}
+                    canDelete={isAdminRole(session.user.role) || d.status === "DRAFT"}
                   />
                 ))}
               </tbody>
@@ -123,7 +124,7 @@ export default async function DocumentsPage({
             <DocumentCard
               key={d.id}
               document={d}
-              canDelete={session.user.role === "ADMIN" || d.status === "DRAFT"}
+              canDelete={isAdminRole(session.user.role) || d.status === "DRAFT"}
             />
           ))}
         />

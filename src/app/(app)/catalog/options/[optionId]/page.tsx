@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { getOptionDetailById, listSeriesWithCounts } from "@/lib/queries/catalog";
 import { catalogVisibilityUserId, filterHiddenSeries } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
@@ -55,7 +56,7 @@ export default async function OptionEditorPage({ params }: { params: Promise<Par
 
   if (!option) notFound();
 
-  const isAdmin = session?.user?.role === "ADMIN";
+  const isAdmin = isAdminRole(session?.user?.role);
   // Same reasoning as the options list's filter chips: the compatibility
   // editor names every series (as a checkbox row) even though this page
   // isn't the product catalogue itself — an ADMIN needs the full list to

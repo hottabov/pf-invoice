@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { createConflictGroup } from "@/lib/actions/catalog";
 import { ConflictGroupForm } from "@/components/settings/conflict-group-form";
 import { PageHeader, SectionCard } from "@/components/ui-kit";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewConflictGroupPage() {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") notFound();
+  if (!isAdminRole(session?.user?.role)) notFound();
 
   return (
     <div className="flex flex-col gap-6">

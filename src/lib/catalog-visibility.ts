@@ -9,6 +9,8 @@
 // same split `compatibilityOrFilter`/`isOptionDisabled` (src/lib/catalog-compat.ts)
 // already use for `OptionCompatibility`.
 
+import { isAdminRole } from "@/lib/roles";
+
 /** Every hidden series id and hidden product id for one user, resolved once
  * per request (see `getHiddenCatalogIds`, src/lib/queries/catalog-visibility.ts)
  * and threaded through to every filtering call below — a `Set` lookup per
@@ -45,7 +47,7 @@ export const NO_HIDDEN_CATALOG_IDS: HiddenCatalogIds = {
 export function catalogVisibilityUserId(
   user: { id: string; role: string } | null | undefined
 ): string | null {
-  if (!user || user.role === "ADMIN") return null;
+  if (!user || isAdminRole(user.role)) return null;
   return user.id;
 }
 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { listActiveRegions } from "@/lib/queries/catalog";
 import { createUser } from "@/lib/actions/users";
 import { UserForm } from "@/components/users/user-form";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewUserPage() {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") notFound();
+  if (!isAdminRole(session?.user?.role)) notFound();
 
   const regions = await listActiveRegions();
 

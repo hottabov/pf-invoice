@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { getUser } from "@/lib/queries/users";
 import { getCatalogVisibilityTree } from "@/lib/queries/catalog-visibility-admin";
 import { setCatalogVisibility } from "@/lib/actions/catalog-visibility";
@@ -20,7 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 export default async function CatalogVisibilityUserPage({ params }: { params: Promise<Params> }) {
   const { userId } = await params;
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") notFound();
+  if (!isAdminRole(session?.user?.role)) notFound();
 
   const user = await getUser(userId);
   if (!user) notFound();

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { AppNav } from "@/components/app-nav";
 import { cn } from "@/lib/utils";
+import { isAdminRole } from "@/lib/roles";
 
 type AppShellProps = {
   user: {
@@ -28,7 +29,7 @@ type AppShellProps = {
  * per variant) so it can highlight the active route via usePathname().
  */
 export function AppShell({ user, children }: AppShellProps) {
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = isAdminRole(user.role);
   const roleTone = STATUS_TONE[user.role] ?? "slate";
 
   return (

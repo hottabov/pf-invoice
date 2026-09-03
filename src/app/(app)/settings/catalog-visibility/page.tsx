@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { EyeOff } from "lucide-react";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { listUsersWithHiddenCounts, type UserVisibilitySummary } from "@/lib/queries/catalog-visibility-admin";
 import {
   PageHeader,
@@ -24,7 +25,7 @@ export default async function CatalogVisibilityPage() {
   // rather than a redirect: a Manager hitting a stale bookmark shouldn't be
   // told the page exists at all.
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") notFound();
+  if (!isAdminRole(session?.user?.role)) notFound();
 
   const users = await listUsersWithHiddenCounts();
 

@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
+import { isAdminRole } from "@/lib/roles";
 import { companyWhereForUser, documentWhereForUser } from "@/lib/scope";
 import {
   compatibilityOrFilter,
@@ -273,7 +274,7 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
 async function recalcAndEnforce(
   documentId: string,
   tx: RecalcClient,
-  role: "ADMIN" | "MANAGER"
+  role: string
 ): Promise<{ warning?: string }> {
   const { negativeSubtotal, documentConcession, concessionMessage, markupMessage } = await recalcDocument(
     documentId,
@@ -281,11 +282,11 @@ async function recalcAndEnforce(
   );
   if (negativeSubtotal) throw new NegativeSubtotalError();
   if (documentConcession.exceedsCap) {
-    if (role !== "ADMIN") throw new ConcessionCapError(concessionMessage!);
+    if (!isAdminRole(role)) throw new ConcessionCapError(concessionMessage!);
     return { warning: concessionMessage! };
   }
   if (documentConcession.exceedsMarkupCap) {
-    if (role !== "ADMIN") throw new ConcessionCapError(markupMessage!);
+    if (!isAdminRole(role)) throw new ConcessionCapError(markupMessage!);
     return { warning: markupMessage! };
   }
   return {};
@@ -369,7 +370,7 @@ export async function deleteDocument(documentId: string): Promise<ActionResult> 
   });
   if (!document) return { error: NOT_FOUND_ERROR };
 
-  if (document.status === "FINAL" && session.user.role !== "ADMIN") {
+  if (document.status === "FINAL" && !isAdminRole(session.user.role)) {
     return { error: "Only an admin can delete a finalized document" };
   }
 
@@ -1058,7 +1059,7 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
         item.document.currency,
         "item"
       );
-      if (session.user.role !== "ADMIN") {
+      if (!isAdminRole(session.user.role)) {
         return { error: message };
       }
       warning = message;
@@ -1441,7 +1442,7 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
         document.currency,
         "quote"
       );
-      if (session.user.role !== "ADMIN") {
+      if (!isAdminRole(session.user.role)) {
         return { error: message };
       }
       warning = message;

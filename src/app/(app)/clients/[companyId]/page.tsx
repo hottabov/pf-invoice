@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ExternalLink } from "lucide-react";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { getCompanyDetail } from "@/lib/queries/clients";
 import { listActiveRegions } from "@/lib/queries/catalog";
 import { listIndustries, countCompaniesUsingIndustry } from "@/lib/queries/industries";
@@ -52,7 +53,7 @@ export default async function CompanyEditorPage({ params }: { params: Promise<Pa
   const industryUsageCount = company.industryId
     ? await countCompaniesUsingIndustry(company.industryId)
     : 0;
-  const canRenameIndustry = session.user.role === "ADMIN";
+  const canRenameIndustry = isAdminRole(session.user.role);
 
   return (
     <div className="flex flex-col gap-6">

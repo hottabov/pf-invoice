@@ -18,6 +18,7 @@ import {
   Avatar,
 } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
+import { isAdminRole } from "@/lib/roles";
 
 export const metadata: Metadata = { title: "Users" };
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export default async function UsersPage() {
   // rather than a redirect: a Manager hitting a stale bookmark shouldn't be
   // told the page exists at all.
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") notFound();
+  if (!isAdminRole(session?.user?.role)) notFound();
 
   const users = await listUsers();
 

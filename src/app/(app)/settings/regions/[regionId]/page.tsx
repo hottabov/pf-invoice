@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { getRegionAdmin } from "@/lib/queries/regions";
 import { updateRegion, updateRegionLogo } from "@/lib/actions/regions";
 import { RegionForm } from "@/components/regions/region-form";
@@ -20,7 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 export default async function EditRegionPage({ params }: { params: Promise<Params> }) {
   const { regionId } = await params;
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") notFound();
+  if (!isAdminRole(session?.user?.role)) notFound();
 
   const region = await getRegionAdmin(regionId);
   if (!region) notFound();

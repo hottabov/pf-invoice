@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { getSeriesById } from "@/lib/queries/catalog";
 import { createProduct } from "@/lib/actions/catalog";
 import { ProductForm } from "@/components/catalog/product-form";
@@ -28,7 +29,7 @@ export default async function NewProductPage({ params }: { params: Promise<Param
   const [series, session] = await Promise.all([getSeriesById(seriesId), auth()]);
 
   if (!series) notFound();
-  if (session?.user?.role !== "ADMIN") redirect("/catalog");
+  if (!isAdminRole(session?.user?.role)) redirect("/catalog");
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">

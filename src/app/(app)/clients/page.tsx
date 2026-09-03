@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Plus, Search, Building2, ExternalLink } from "lucide-react";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { listCompanies, type CompanyListItem } from "@/lib/queries/clients";
 import { displayCountry } from "@/lib/countries";
 import { buttonVariants } from "@/components/ui/button";
@@ -40,7 +41,7 @@ export default async function ClientsPage({
       <PageHeader
         title="Clients"
         description={
-          session.user.role === "ADMIN"
+          isAdminRole(session.user.role)
             ? "Every company across the business."
             : "Companies you've added."
         }

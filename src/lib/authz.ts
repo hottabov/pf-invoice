@@ -1,6 +1,7 @@
 import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import { isAdminRole } from "@/lib/roles";
 
 /**
  * Require an authenticated session for a server component/action. Redirects
@@ -19,13 +20,13 @@ export async function requireSession(): Promise<Session & { user: NonNullable<Se
 }
 
 /**
- * Require an authenticated ADMIN session. Managers may view the catalog but
- * only admins may mutate it — call this at the top of every catalog
- * server action.
+ * Require an authenticated ADMIN (or DEVELOPER — see isAdminRole) session.
+ * Managers may view the catalog but only admins may mutate it — call this
+ * at the top of every catalog server action.
  */
 export async function requireAdmin(): Promise<Session & { user: NonNullable<Session["user"]> }> {
   const session = await requireSession();
-  if (session.user.role !== "ADMIN") {
+  if (!isAdminRole(session.user.role)) {
     throw new Error("Forbidden: admin only");
   }
   return session;

@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Download, Eye } from "lucide-react";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import {
   getDocumentForBuilder,
   getDocumentForForms,
@@ -89,7 +90,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
   if (!document) notFound();
 
   const isDraft = document.status === "DRAFT";
-  const isAdmin = session.user.role === "ADMIN";
+  const isAdmin = isAdminRole(session.user.role);
 
   // Same message every mutating server action already builds (see
   // recalcDocument's own concessionMessage) — reused here for both the

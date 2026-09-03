@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-export type StatusTone = "amber" | "green" | "brand" | "brand-outline" | "rose" | "slate";
+export type StatusTone = "amber" | "green" | "brand" | "brand-outline" | "rose" | "slate" | "violet";
 
 const TONE_CLASSES: Record<StatusTone, string> = {
   amber: "border-amber-300 bg-amber-50 text-amber-800",
@@ -9,6 +9,7 @@ const TONE_CLASSES: Record<StatusTone, string> = {
   "brand-outline": "border-brand text-brand",
   rose: "border-rose-300 bg-rose-50 text-rose-800",
   slate: "border-slate-300 bg-slate-50 text-slate-700",
+  violet: "border-violet-300 bg-violet-50 text-violet-800",
 };
 
 /**
@@ -22,6 +23,10 @@ export const STATUS_TONE: Record<string, StatusTone> = {
   FINAL: "green",
   ADMIN: "brand",
   MANAGER: "brand-outline",
+  // Same admin rights as ADMIN (see isAdminRole) but its own tone so a
+  // glance at a badge still tells the two apart — the support form (Settings
+  // → PathQuote Support) addresses its message to whoever holds this role.
+  DEVELOPER: "violet",
   PRICE_REQUIRED: "rose",
   ACTIVE: "green",
   INACTIVE: "slate",

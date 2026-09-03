@@ -9,6 +9,7 @@ import { EditUserForm } from "@/components/users/edit-user-form";
 import { SetPasswordForm } from "@/components/users/set-password-form";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE, Avatar } from "@/components/ui-kit";
 import { ImageUpload } from "@/components/catalog/image-upload";
+import { isAdminRole } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export default async function EditUserPage({ params }: { params: Promise<Params>
   // AppLayout (src/app/(app)/layout.tsx) already calls requireSession and
   // redirects unauthenticated requests, so a session is always present here.
   const session = (await auth())!;
-  if (session.user.role !== "ADMIN") notFound();
+  if (!isAdminRole(session.user.role)) notFound();
 
   const [user, regions, activeAdminCount] = await Promise.all([
     getUser(userId),
@@ -35,7 +36,7 @@ export default async function EditUserPage({ params }: { params: Promise<Params>
   if (!user) notFound();
 
   const isSelf = session.user.id === user.id;
-  const isLastActiveAdmin = user.role === "ADMIN" && user.active && activeAdminCount <= 1;
+  const isLastActiveAdmin = isAdminRole(user.role) && user.active && activeAdminCount <= 1;
 
   return (
     <div className="flex flex-col gap-6">

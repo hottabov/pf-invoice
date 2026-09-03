@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { AVATAR_TYPES, CATALOG_TYPES, DOCUMENT_LINE_TYPES, saveUpload, UploadValidationError } from "@/lib/uploads";
+import { isAdminRole } from "@/lib/roles";
 
 // Needs real filesystem access (fs/promises) — not available on the edge
 // runtime.
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
   const purpose =
     rawPurpose === "document-line" ? "document-line" : rawPurpose === "avatar" ? "avatar" : "catalog";
 
-  if (purpose === "catalog" && session.user.role !== "ADMIN") {
+  if (purpose === "catalog" && !isAdminRole(session.user.role)) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 

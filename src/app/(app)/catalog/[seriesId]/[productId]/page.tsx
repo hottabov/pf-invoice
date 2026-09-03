@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { getProductDetailById } from "@/lib/queries/catalog";
 import { catalogVisibilityUserId, isProductHidden } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
@@ -50,7 +51,7 @@ export default async function ProductEditorPage({ params }: { params: Promise<Pa
 
   if (!product) notFound();
 
-  const isAdmin = session?.user?.role === "ADMIN";
+  const isAdmin = isAdminRole(session?.user?.role);
   // A hidden product (directly, or via a hidden series) is absent for a
   // MANAGER even at its own direct URL — the picker/series-list filtering
   // above only stops a MANAGER discovering it by browsing; without this,

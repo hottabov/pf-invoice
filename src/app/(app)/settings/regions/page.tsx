@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Plus, MapPin } from "lucide-react";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { listRegionsAdmin, type RegionAdminListItem } from "@/lib/queries/regions";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -24,7 +25,7 @@ export default async function RegionsPage() {
   // rather than a redirect: a Manager hitting a stale bookmark shouldn't be
   // told the page exists at all.
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") notFound();
+  if (!isAdminRole(session?.user?.role)) notFound();
 
   const regions = await listRegionsAdmin();
 

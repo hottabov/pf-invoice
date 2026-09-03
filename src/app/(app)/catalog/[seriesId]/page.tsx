@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Package, Plus } from "lucide-react";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import {
   listProductsBySeriesById,
   getSeriesFallbackImageUrl,
@@ -60,7 +61,7 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
   if (!result) notFound();
 
   const { series } = result;
-  const isAdmin = session?.user?.role === "ADMIN";
+  const isAdmin = isAdminRole(session?.user?.role);
   const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityUserId(session?.user));
   // A hidden series is absent, full stop — a MANAGER hitting its URL
   // directly (bookmark, typed URL) gets the same 404 as a nonexistent

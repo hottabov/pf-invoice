@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { FileText, Search } from "lucide-react";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { listContentBlocks } from "@/lib/queries/content";
 import { PageHeader, SectionCard, StatusBadge, EmptyState, fieldInputClass } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
@@ -39,7 +40,7 @@ export default async function ContentBlocksPage({
   // page, per the phase-6 spec: a 404 rather than a redirect, since a
   // Manager clicking a stale bookmark shouldn't be told a page exists.
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") notFound();
+  if (!isAdminRole(session?.user?.role)) notFound();
 
   const { q } = await searchParams;
   const groups = await listContentBlocks();

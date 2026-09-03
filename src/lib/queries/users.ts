@@ -4,7 +4,7 @@ export type UserListItem = {
   id: string;
   email: string;
   name: string | null;
-  role: "ADMIN" | "MANAGER";
+  role: "ADMIN" | "MANAGER" | "DEVELOPER";
   active: boolean;
   regionCode: string | null;
   /** True when the user has no `passwordHash` — they can only sign in via
@@ -45,7 +45,7 @@ export type UserDetail = {
   email: string;
   name: string | null;
   phone: string | null;
-  role: "ADMIN" | "MANAGER";
+  role: "ADMIN" | "MANAGER" | "DEVELOPER";
   active: boolean;
   regionCode: string | null;
   magicLinkOnly: boolean;
@@ -78,10 +78,10 @@ export async function getUser(userId: string): Promise<UserDetail | null> {
   };
 }
 
-/** Count of currently active ADMIN users — feeds the last-active-admin
- * safeguard in `canModifyUser` (src/lib/validation/users.ts). Computed
- * fresh on every mutating action rather than cached, since it gates a
- * safety check. */
+/** Count of currently active users with admin rights (ADMIN or DEVELOPER —
+ * see `isAdminRole`) — feeds the last-active-admin safeguard in
+ * `canModifyUser` (src/lib/validation/users.ts). Computed fresh on every
+ * mutating action rather than cached, since it gates a safety check. */
 export async function countActiveAdmins(): Promise<number> {
-  return db.user.count({ where: { role: "ADMIN", active: true } });
+  return db.user.count({ where: { role: { in: ["ADMIN", "DEVELOPER"] }, active: true } });
 }

@@ -56,6 +56,7 @@ export function UserForm({
           <select id="user-role" name="role" defaultValue="MANAGER" required className={fieldInputClass}>
             <option value="MANAGER">Manager</option>
             <option value="ADMIN">Admin</option>
+            <option value="DEVELOPER">Developer</option>
           </select>
         </FieldRow>
 

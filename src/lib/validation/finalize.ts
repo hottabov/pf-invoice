@@ -10,6 +10,7 @@
 // so pulling it in here doesn't compromise that either.
 import { concessionCapMessage, type DocumentConcession, type EngineViolation } from "../pricing";
 import { reconcileEasyLoaderSections } from "../production-forms/resolve";
+import { isAdminRole } from "../roles";
 
 /** The minimal shape `validateFinalizable` needs — deliberately not typed
  * against Prisma's generated `Document` payload so this stays trivial to
@@ -23,12 +24,13 @@ export type FinalizableDocument = {
   lines: { itemId: string | null }[];
 };
 
-/** The two roles that can ever call `finalizeDocument` — kept as a local
+/** The roles that can ever call `finalizeDocument` — kept as a local
  * string-literal union rather than importing Prisma's generated `Role` enum,
  * for the same "no `@/lib/db`-adjacent import" reason as everything else in
  * this file (the enum itself has no runtime/env dependency, but there's no
- * need to couple this pure module to `@prisma/client` either). */
-export type FinalizerRole = "ADMIN" | "MANAGER";
+ * need to couple this pure module to `@prisma/client` either). DEVELOPER
+ * carries the same finalize rights as ADMIN — see `isAdminRole`. */
+export type FinalizerRole = "ADMIN" | "MANAGER" | "DEVELOPER";
 
 /**
  * Returns a human-readable reason the document can't be finalized, or
@@ -76,14 +78,14 @@ export function validateFinalizable(
     return "Add at least one item or line before finalizing";
   }
 
-  if (violations.length > 0 && role !== "ADMIN") {
+  if (violations.length > 0 && !isAdminRole(role)) {
     const detail = violations
       .map((v) => `item ${v.itemIndex + 1} (max ${v.allowedPct}%)`)
       .join(", ");
     return `Reduce the discount before finalizing: ${detail}`;
   }
 
-  if (documentConcession.exceedsCap && role !== "ADMIN") {
+  if (documentConcession.exceedsCap && !isAdminRole(role)) {
     return concessionCapMessage(documentConcession, regionName, currency);
   }
 

@@ -11,6 +11,7 @@ import { createDraft } from "@/lib/actions/documents";
 import { setUserAvatar } from "@/lib/actions/users";
 import { formatMoney, relativeDate } from "@/lib/format";
 import { firstNameFrom } from "@/lib/avatar";
+import { isAdminRole } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE, EmptyState } from "@/components/ui-kit";
 import { AvatarEditor } from "@/components/users/avatar-editor";
@@ -67,7 +68,7 @@ export default async function DashboardPage() {
           </span>
         }
         description={
-          session.user.role === "ADMIN"
+          isAdminRole(session.user.role)
             ? "An overview of every quote across the business."
             : "An overview of your quotes and clients."
         }

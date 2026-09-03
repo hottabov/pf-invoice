@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Ban, EyeOff, FileText, MapPin, Users } from "lucide-react";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { getRegionById } from "@/lib/queries/catalog";
 import { getQuoteValidityDays, getShowOptionIcons } from "@/lib/queries/settings";
 import { updateSetting } from "@/lib/actions/settings";
@@ -18,7 +19,7 @@ export default async function SettingsPage() {
   // AppLayout (src/app/(app)/layout.tsx) already calls requireSession and
   // redirects unauthenticated requests, so a session is always present here.
   const session = (await auth())!;
-  const isAdmin = session.user.role === "ADMIN";
+  const isAdmin = isAdminRole(session.user.role);
   const [region, quoteValidityDays, showOptionIcons] = await Promise.all([
     getRegionById(session.user.regionId),
     getQuoteValidityDays(),

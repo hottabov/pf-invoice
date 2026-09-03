@@ -86,6 +86,10 @@ describe("userRoleSchema", () => {
     expect(userRoleSchema.safeParse("MANAGER").success).toBe(true);
   });
 
+  it("accepts DEVELOPER", () => {
+    expect(userRoleSchema.safeParse("DEVELOPER").success).toBe(true);
+  });
+
   it("rejects any other value", () => {
     expect(userRoleSchema.safeParse("SUPERADMIN").success).toBe(false);
     expect(userRoleSchema.safeParse("").success).toBe(false);
@@ -341,6 +345,44 @@ describe("canModifyUser", () => {
     const result = canModifyUser(target.id, target, { active: false }, 1);
     expect(result).toBe("You can't deactivate your own account");
   });
+
+  // DEVELOPER carries the same admin rights as ADMIN (see isAdminRole),
+  // so every safeguard above must treat it identically.
+  function developer(overrides: Partial<ModifiableUser> = {}): ModifiableUser {
+    return { id: "user-developer", role: "DEVELOPER", active: true, ...overrides };
+  }
+
+  it("blocks a developer from demoting themselves", () => {
+    const target = developer();
+    const result = canModifyUser(target.id, target, { role: "MANAGER" }, 3);
+    expect(result).toBe("You can't remove your own admin role");
+  });
+
+  it("blocks deactivating the last active admin-rights user when they're a developer", () => {
+    const target = developer();
+    const result = canModifyUser("some-other-admin", target, { active: false }, 1);
+    expect(result).toBe("Can't deactivate the last active admin");
+  });
+
+  it("blocks demoting the last active admin-rights user when they're a developer", () => {
+    const target = developer();
+    const result = canModifyUser("some-other-admin", target, { role: "MANAGER" }, 1);
+    expect(result).toBe("Can't demote the last active admin");
+  });
+
+  it("counts a developer and an admin as interchangeable for the last-admin guard", () => {
+    // One active admin left (the developer isn't it) — demoting the admin is
+    // still allowed because a developer with the same rights remains.
+    const target = admin();
+    const result = canModifyUser("some-other-admin", target, { role: "MANAGER" }, 2);
+    expect(result).toBeNull();
+  });
+
+  it("allows promoting a manager to developer", () => {
+    const target = manager();
+    const result = canModifyUser("some-other-admin", target, { role: "DEVELOPER" }, 3);
+    expect(result).toBeNull();
+  });
 });
 
 describe("canSetAvatar", () => {
@@ -358,5 +400,9 @@ describe("canSetAvatar", () => {
 
   it("refuses a MANAGER setting someone else's avatar", () => {
     expect(canSetAvatar("manager-1", "MANAGER", "other-user")).toBe(false);
+  });
+
+  it("allows a DEVELOPER to set anyone's avatar, same as an ADMIN", () => {
+    expect(canSetAvatar("dev-1", "DEVELOPER", "other-user")).toBe(true);
   });
 });

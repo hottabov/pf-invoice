@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Ban, Plus } from "lucide-react";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { listConflictGroups, type ConflictGroupListItem } from "@/lib/queries/conflict-groups";
 import {
   PageHeader,
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
 // told the page exists at all.
 export default async function ConflictGroupsPage() {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") notFound();
+  if (!isAdminRole(session?.user?.role)) notFound();
 
   const groups = await listConflictGroups();
 

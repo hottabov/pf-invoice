@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { getContentBlock } from "@/lib/queries/content";
 import { PLACEHOLDER_HINTS } from "@/lib/content-placeholders";
 import { ContentBlockEditor } from "@/components/content/content-block-editor";
@@ -31,7 +32,7 @@ export default async function ContentBlockEditorPage({ params }: { params: Promi
 
   // See src/app/(app)/settings/content/page.tsx for why this is notFound()
   // rather than a redirect.
-  if (session?.user?.role !== "ADMIN") notFound();
+  if (!isAdminRole(session?.user?.role)) notFound();
   if (!block || !block.default) notFound();
 
   return (

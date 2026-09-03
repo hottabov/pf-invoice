@@ -21,8 +21,12 @@ describe("catalogVisibilityUserId", () => {
     expect(catalogVisibilityUserId({ role: "ADMIN", id: "user_B" })).toBeNull();
   });
 
-  it("returns the user's own id for a non-ADMIN", () => {
+  it("returns the user's own id for a non-admin", () => {
     expect(catalogVisibilityUserId({ role: "MANAGER", id: "user_A" })).toBe("user_A");
+  });
+
+  it("returns null for a DEVELOPER, same as an ADMIN", () => {
+    expect(catalogVisibilityUserId({ role: "DEVELOPER", id: "user_A" })).toBeNull();
   });
 
   it("scopes by the individual user, not anything shared like a region -- two MANAGERs resolve to their own, different ids", () => {

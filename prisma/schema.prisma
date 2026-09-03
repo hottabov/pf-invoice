@@ -6,9 +6,18 @@ datasource db {
   provider = "postgresql"
 }
 
+// DEVELOPER carries the exact same rights as ADMIN everywhere in the app
+// (see isAdminRole, src/lib/roles.ts, which every "is this an admin?" check
+// routes through) -- the only thing distinguishing it is that the support
+// form (src/app/(app)/settings/support) addresses its message to whoever
+// holds this role. Added rather than repurposing ADMIN because Postgres can
+// add an enum value but can never drop one -- see migration
+// z23_developer_role's own comment for why that made this the only
+// direction worth building.
 enum Role {
   ADMIN
   MANAGER
+  DEVELOPER
 }
 
 enum DocumentStatus {

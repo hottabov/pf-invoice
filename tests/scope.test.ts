@@ -6,11 +6,15 @@ describe("companyWhereForUser", () => {
     expect(companyWhereForUser({ id: "u1", role: "ADMIN" })).toEqual({});
   });
 
+  it("returns no restriction for a DEVELOPER, same as an ADMIN", () => {
+    expect(companyWhereForUser({ id: "u1", role: "DEVELOPER" })).toEqual({});
+  });
+
   it("restricts to ownerId for a MANAGER", () => {
     expect(companyWhereForUser({ id: "u1", role: "MANAGER" })).toEqual({ ownerId: "u1" });
   });
 
-  it("restricts to ownerId for any non-ADMIN role", () => {
+  it("restricts to ownerId for any non-admin role", () => {
     expect(companyWhereForUser({ id: "u2", role: "SOMETHING_ELSE" })).toEqual({ ownerId: "u2" });
   });
 });
@@ -18,6 +22,10 @@ describe("companyWhereForUser", () => {
 describe("documentWhereForUser", () => {
   it("returns no restriction for an ADMIN", () => {
     expect(documentWhereForUser({ id: "u1", role: "ADMIN" })).toEqual({});
+  });
+
+  it("returns no restriction for a DEVELOPER, same as an ADMIN", () => {
+    expect(documentWhereForUser({ id: "u1", role: "DEVELOPER" })).toEqual({});
   });
 
   it("restricts to authorId for a MANAGER", () => {

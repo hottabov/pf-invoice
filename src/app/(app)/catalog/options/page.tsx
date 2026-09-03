@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Plus, Puzzle, Search } from "lucide-react";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { listOptions, listSeriesWithCounts, type OptionListItem } from "@/lib/queries/catalog";
 import { catalogVisibilityUserId, filterHiddenSeries } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
@@ -36,7 +37,7 @@ export default async function OptionsPage({
     auth(),
   ]);
 
-  const isAdmin = session?.user?.role === "ADMIN";
+  const isAdmin = isAdminRole(session?.user?.role);
   // The series filter chips name a series even though this page never lists
   // its products/prices — still enough of a "meet it" for a hidden series
   // (its name/code) to filter out here too, same as every other catalogue

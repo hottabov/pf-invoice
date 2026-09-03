@@ -9,7 +9,7 @@ import type { RegionOption } from "./user-form";
 export type EditUserFormValues = {
   name: string;
   phone: string;
-  role: "ADMIN" | "MANAGER";
+  role: "ADMIN" | "MANAGER" | "DEVELOPER";
   regionCode: string;
   active: boolean;
 };
@@ -92,6 +92,7 @@ export function EditUserForm({
           >
             <option value="MANAGER">Manager</option>
             <option value="ADMIN">Admin</option>
+            <option value="DEVELOPER">Developer</option>
           </select>
         </FieldRow>
 

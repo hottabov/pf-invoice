@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
+import { isAdminRole } from "@/lib/roles";
 import { createOption } from "@/lib/actions/catalog";
 import { OptionForm } from "@/components/catalog/option-form";
 import { PageHeader, SectionCard } from "@/components/ui-kit";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewOptionPage() {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") redirect("/catalog/options");
+  if (!isAdminRole(session?.user?.role)) redirect("/catalog/options");
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
