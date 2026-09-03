@@ -390,24 +390,34 @@ export function ItemsList({
                   showLineChip={machineCount > 1}
                 />
 
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-                  <ItemDiscountField
-                    itemId={item.id}
-                    discountMode={item.discountMode}
-                    discountValue={item.discountValue}
-                    maxDiscountPct={item.maxDiscountPct}
-                    currency={currency}
-                    setDiscountAction={setItemDiscountAction}
-                    readOnly={readOnly}
-                  />
-                  {!readOnly && item.productHasImage ? (
-                    <ItemShowImageToggle
-                      itemId={item.id}
-                      showImage={item.showImage}
-                      setShowImageAction={setItemShowImageAction}
-                    />
-                  ) : null}
-                </div>
+                {/* A credit item (item.isCredit — the TRADE-IN product) is
+                    already a negative line; a discount on it is meaningless
+                    and, entered by accident, silently wrong — so the control
+                    doesn't exist for it at all, not merely disabled. See
+                    `setItemDiscount`'s own guard for the server-side half of
+                    this. */}
+                {!item.isCredit || (!readOnly && item.productHasImage) ? (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                    {!item.isCredit ? (
+                      <ItemDiscountField
+                        itemId={item.id}
+                        discountMode={item.discountMode}
+                        discountValue={item.discountValue}
+                        maxDiscountPct={item.maxDiscountPct}
+                        currency={currency}
+                        setDiscountAction={setItemDiscountAction}
+                        readOnly={readOnly}
+                      />
+                    ) : null}
+                    {!readOnly && item.productHasImage ? (
+                      <ItemShowImageToggle
+                        itemId={item.id}
+                        showImage={item.showImage}
+                        setShowImageAction={setItemShowImageAction}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

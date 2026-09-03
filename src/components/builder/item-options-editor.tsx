@@ -233,6 +233,11 @@ export function ItemOptionsEditor({
     });
   }
 
+  // No compatible options for this product at all — there's nothing to add
+  // and nothing useful to say about that, so the whole block (heading,
+  // toggle, empty state) is omitted rather than shown empty.
+  if (compatibleOptions.length === 0) return null;
+
   return (
     <div className="mt-3">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -280,31 +285,27 @@ export function ItemOptionsEditor({
       {open && !readOnly ? (
         <div className="mt-2 flex max-h-[70dvh] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
           <div className="flex-1 overflow-y-auto p-3">
-            {compatibleOptions.length === 0 ? (
-              <p className="text-sm text-slate-500">No compatible options for this item.</p>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="search"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search options…"
-                    aria-label="Search options"
-                    className={cn(fieldInputClass, "h-11 min-w-[10rem] flex-1 sm:h-9")}
-                  />
-                  <Button type="button" variant="ghost" size="sm" onClick={selectAllFiltered}>
-                    Select all
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
-                    Clear
-                  </Button>
-                  <span className="text-xs text-slate-500">
-                    {selected.size} of {compatibleOptions.length} selected
-                  </span>
-                </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search options…"
+                aria-label="Search options"
+                className={cn(fieldInputClass, "h-11 min-w-[10rem] flex-1 sm:h-9")}
+              />
+              <Button type="button" variant="ghost" size="sm" onClick={selectAllFiltered}>
+                Select all
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
+                Clear
+              </Button>
+              <span className="text-xs text-slate-500">
+                {selected.size} of {compatibleOptions.length} selected
+              </span>
+            </div>
 
-                {displayOptions.length === 0 ? (
+            {displayOptions.length === 0 ? (
                   <p className="mt-2 text-sm text-slate-500">No options match &ldquo;{search}&rdquo;.</p>
                 ) : (
                   <div className="mt-2 flex flex-col gap-2">
@@ -454,8 +455,6 @@ export function ItemOptionsEditor({
                     })}
                   </div>
                 )}
-              </>
-            )}
           </div>
 
           <div className="sticky bottom-0 flex flex-col gap-2 border-t border-slate-200 bg-white p-3">

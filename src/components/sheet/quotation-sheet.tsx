@@ -117,21 +117,22 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
             </div>
           ) : null}
           <div className="pq-client pq-prepared-by-client">
-            {data.preparedBy.avatar ? (
-              // Plain <img>, not next/image — same reasoning as the logo
-              // above: this markup is also posted to Gotenberg as a raw
-              // HTML string. No initials fallback here (unlike the in-app
-              // `Avatar` component) — a customer-facing quote either shows
-              // the real photo or none at all.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={data.preparedBy.avatar} alt="" className="pq-prepared-by-avatar" />
-            ) : null}
             <div>
               <div className="pq-client-label">Prepared by</div>
               <div className="pq-client-name">{data.preparedBy.name ?? data.preparedBy.email}</div>
               {data.preparedBy.phone ? <div className="pq-client-line">{data.preparedBy.phone}</div> : null}
               {data.preparedBy.name ? <div className="pq-client-line">{data.preparedBy.email}</div> : null}
             </div>
+            {data.preparedBy.avatar ? (
+              // Plain <img>, not next/image — same reasoning as the logo
+              // above: this markup is also posted to Gotenberg as a raw
+              // HTML string. No initials fallback here (unlike the in-app
+              // `Avatar` component) — a customer-facing quote either shows
+              // the real photo or none at all, and nothing reserves the
+              // space when there's no photo.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={data.preparedBy.avatar} alt="" className="pq-prepared-by-avatar" />
+            ) : null}
           </div>
         </div>
 
@@ -663,18 +664,20 @@ const SHEET_CSS = `
   .pq-client-contact {
     margin-top: 4px;
   }
-  /* "Prepared by" avatar (see the JSX above) — a small circular photo to the
-     left of the name/phone/email block, only rendered when the author has
-     one. */
+  /* "Prepared by" photo (see the JSX above) — sits at the right edge of the
+     block, opposite the name/phone/email text; only rendered when the
+     author has one, and nothing reserves its space otherwise (no
+     placeholder, no extra gap). */
   .pq-prepared-by-client {
     display: flex;
     align-items: flex-start;
+    justify-content: space-between;
     gap: 10px;
   }
   .pq-prepared-by-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
+    width: 100px;
+    height: 100px;
+    border-radius: 4px;
     object-fit: cover;
     flex-shrink: 0;
   }

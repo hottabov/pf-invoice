@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui-kit";
+import { fieldInputClass, useToast } from "@/components/ui-kit";
+import { cn } from "@/lib/utils";
 
 export type ConflictGroupOptionRow = { id: string; code: string; name: string };
 
@@ -32,9 +33,18 @@ export function ConflictGroupMembersEditor({
   action: (groupId: string, optionIds: string[]) => Promise<{ error?: string }>;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(initialSelected));
+  const [search, setSearch] = useState("");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
+
+  const query = search.trim().toLowerCase();
+  const filteredOptions = query
+    ? options.filter(
+        (option) =>
+          option.code.toLowerCase().includes(query) || option.name.toLowerCase().includes(query)
+      )
+    : options;
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -63,28 +73,42 @@ export function ConflictGroupMembersEditor({
       {options.length === 0 ? (
         <p className="text-sm text-slate-500">No options in the catalogue yet.</p>
       ) : (
-        <div className="max-h-80 overflow-y-auto rounded-lg border border-slate-200">
-          {options.map((o) => {
-            const active = selected.has(o.id);
-            return (
-              <label
-                key={o.id}
-                htmlFor={`conflict-group-member-${o.id}`}
-                className="flex min-h-11 cursor-pointer items-center gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0 transition-colors hover:bg-slate-50"
-              >
-                <input
-                  id={`conflict-group-member-${o.id}`}
-                  type="checkbox"
-                  checked={active}
-                  onChange={() => toggle(o.id)}
-                  className="size-4 shrink-0 rounded border-slate-300 accent-brand"
-                />
-                <span className="font-mono text-xs text-slate-500">{o.code}</span>
-                <span className="min-w-0 truncate font-medium text-brand-dark">{o.name}</span>
-              </label>
-            );
-          })}
-        </div>
+        <>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search options…"
+            aria-label="Search options"
+            className={cn(fieldInputClass, "h-11 sm:h-9")}
+          />
+          {filteredOptions.length === 0 ? (
+            <p className="text-sm text-slate-500">No options match &ldquo;{search}&rdquo;.</p>
+          ) : (
+            <div className="max-h-80 overflow-y-auto rounded-lg border border-slate-200">
+              {filteredOptions.map((o) => {
+                const active = selected.has(o.id);
+                return (
+                  <label
+                    key={o.id}
+                    htmlFor={`conflict-group-member-${o.id}`}
+                    className="flex min-h-11 cursor-pointer items-center gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0 transition-colors hover:bg-slate-50"
+                  >
+                    <input
+                      id={`conflict-group-member-${o.id}`}
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => toggle(o.id)}
+                      className="size-4 shrink-0 rounded border-slate-300 accent-brand"
+                    />
+                    <span className="font-mono text-xs text-slate-500">{o.code}</span>
+                    <span className="min-w-0 truncate font-medium text-brand-dark">{o.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {error ? (

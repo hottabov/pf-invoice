@@ -38,27 +38,25 @@ export default async function ConflictGroupPage({ params }: { params: Promise<Pa
     <div className="flex flex-col gap-6">
       <PageHeader backHref="/settings/option-conflict-groups" backLabel="Option conflict groups" title={group.name} />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
-        <SectionCard title="Name" className="lg:col-span-2">
-          <ConflictGroupForm
-            action={updateConflictGroupName.bind(null, group.id)}
-            defaultValue={group.name}
-            submitLabel="Save changes"
-          />
-        </SectionCard>
+      <SectionCard title="Name">
+        <ConflictGroupForm
+          action={updateConflictGroupName.bind(null, group.id)}
+          defaultValue={group.name}
+          submitLabel="Save changes"
+        />
+      </SectionCard>
 
-        <SectionCard
-          title="Members"
-          description="Options in this group can never be selected together on the same item. A group with fewer than two members blocks nothing."
-        >
-          <ConflictGroupMembersEditor
-            groupId={group.id}
-            options={options}
-            initialSelected={group.memberIds}
-            action={setConflictGroupMembers}
-          />
-        </SectionCard>
-      </div>
+      <SectionCard
+        title="Members"
+        description="Options in this group can never be selected together on the same item. A group with fewer than two members blocks nothing."
+      >
+        <ConflictGroupMembersEditor
+          groupId={group.id}
+          options={options}
+          initialSelected={group.memberIds}
+          action={setConflictGroupMembers}
+        />
+      </SectionCard>
 
       <SectionCard
         tone="danger"

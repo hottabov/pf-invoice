@@ -1021,9 +1021,23 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
       id: parsedItemId.data,
       document: { status: "DRAFT", ...documentWhereForUser(session.user) },
     },
-    include: { document: { include: { region: true } }, lines: true },
+    include: {
+      document: { include: { region: true } },
+      lines: true,
+      product: { select: { isCredit: true } },
+    },
   });
   if (!item) return { error: NOT_FOUND_ERROR };
+
+  // A credit item (the TRADE-IN product) is already a negative line — a
+  // discount on it is meaningless, and if entered by accident would
+  // silently make the credit larger without the salesperson noticing. The
+  // UI already hides the control for a credit item (see the `isCredit`
+  // gate in `ItemBreakdownEditor`); this is the guard against a crafted
+  // request that skips straight to the action.
+  if (item.product?.isCredit && parsedValue.data !== null) {
+    return { error: "A trade-in credit can't have a discount." };
+  }
 
   const cap = item.document.region.maxDiscountPct ? Number(item.document.region.maxDiscountPct) : null;
 
