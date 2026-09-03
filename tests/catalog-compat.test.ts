@@ -3,6 +3,7 @@ import {
   compatibilityOrFilter,
   isOptionDisabled,
   findConflictingSelection,
+  conflictPartnersByGroup,
 } from "../src/lib/catalog-compat";
 
 describe("compatibilityOrFilter", () => {
@@ -57,22 +58,29 @@ describe("isOptionDisabled", () => {
     expect(isOptionDisabled({ needsReview: false }, null)).toBeNull();
   });
 
-  it("disables a priced option that conflicts with an already-selected option, naming it", () => {
+  it("disables a priced option that conflicts with an already-selected option, naming the option and its group", () => {
     expect(
-      isOptionDisabled({ needsReview: false }, { code: "MTS", name: "Additional travel" })
+      isOptionDisabled(
+        { needsReview: false },
+        { code: "DRG-1", name: "Drag knife", groupName: "Knife tools — fit one only" }
+      )
     ).toEqual({
       type: "conflict",
-      conflictingOptionCode: "MTS",
-      conflictingOptionName: "Additional travel",
+      conflictingOptionCode: "DRG-1",
+      conflictingOptionName: "Drag knife",
+      conflictingGroupName: "Knife tools — fit one only",
     });
   });
 
   it("disables an unpriced option for its own reason, distinct from a conflict, even when both apply", () => {
-    expect(isOptionDisabled(null, { code: "MTS", name: "Additional travel" })).toEqual({
-      type: "unpriced",
-    });
     expect(
-      isOptionDisabled({ needsReview: true }, { code: "MTS", name: "Additional travel" })
+      isOptionDisabled(null, { code: "MTS", name: "Additional travel", groupName: "Travel options" })
+    ).toEqual({ type: "unpriced" });
+    expect(
+      isOptionDisabled(
+        { needsReview: true },
+        { code: "MTS", name: "Additional travel", groupName: "Travel options" }
+      )
     ).toEqual({ type: "unpriced" });
   });
 });
@@ -105,5 +113,80 @@ describe("findConflictingSelection", () => {
     const conflictsByCode = new Map([["A", new Set(["B"])]]);
     // C has no entry at all -- selecting it alongside A/B never trips it up.
     expect(findConflictingSelection(["C"], conflictsByCode)).toBeNull();
+  });
+});
+
+describe("conflictPartnersByGroup", () => {
+  it("makes three options in one group conflict with each other in every direction", () => {
+    const result = conflictPartnersByGroup([
+      { memberKey: "A", groupId: "g1" },
+      { memberKey: "B", groupId: "g1" },
+      { memberKey: "C", groupId: "g1" },
+    ]);
+    expect(result.get("A")).toEqual(new Set(["B", "C"]));
+    expect(result.get("B")).toEqual(new Set(["A", "C"]));
+    expect(result.get("C")).toEqual(new Set(["A", "B"]));
+  });
+
+  it("makes an option in two groups conflict with the members of both", () => {
+    const result = conflictPartnersByGroup([
+      { memberKey: "A", groupId: "g1" },
+      { memberKey: "B", groupId: "g1" },
+      { memberKey: "A", groupId: "g2" },
+      { memberKey: "C", groupId: "g2" },
+    ]);
+    expect(result.get("A")).toEqual(new Set(["B", "C"]));
+    expect(result.get("B")).toEqual(new Set(["A"]));
+    expect(result.get("C")).toEqual(new Set(["A"]));
+  });
+
+  it("a group of one blocks nothing", () => {
+    const result = conflictPartnersByGroup([{ memberKey: "A", groupId: "g1" }]);
+    expect(result.get("A")).toBeUndefined();
+  });
+
+  it("removing an option from a group stops the conflict", () => {
+    const withThree = conflictPartnersByGroup([
+      { memberKey: "A", groupId: "g1" },
+      { memberKey: "B", groupId: "g1" },
+      { memberKey: "C", groupId: "g1" },
+    ]);
+    expect(withThree.get("A")).toEqual(new Set(["B", "C"]));
+
+    // C removed from the group -- only rows for A and B are given now.
+    const withoutC = conflictPartnersByGroup([
+      { memberKey: "A", groupId: "g1" },
+      { memberKey: "B", groupId: "g1" },
+    ]);
+    expect(withoutC.get("A")).toEqual(new Set(["B"]));
+    expect(withoutC.get("C")).toBeUndefined();
+  });
+
+  it("leaves an option with no membership rows unaffected", () => {
+    const result = conflictPartnersByGroup([
+      { memberKey: "A", groupId: "g1" },
+      { memberKey: "B", groupId: "g1" },
+    ]);
+    expect(result.get("Z")).toBeUndefined();
+  });
+
+  it("combined with findConflictingSelection, rejects a selection containing two members of the same group", () => {
+    // Mirrors what setItemOptions does: build conflictsByCode from the
+    // submitted options' own group memberships, then scan the submission.
+    const conflictsByCode = conflictPartnersByGroup([
+      { memberKey: "DRG-1", groupId: "knife-tools" },
+      { memberKey: "DRG-2", groupId: "knife-tools" },
+    ]);
+    expect(findConflictingSelection(["DRG-1", "DRG-2"], conflictsByCode)).toEqual([
+      "DRG-1",
+      "DRG-2",
+    ]);
+    // A third, unrelated option in the same submission is unaffected.
+    const withUnrelated = conflictPartnersByGroup([
+      { memberKey: "DRG-1", groupId: "knife-tools" },
+      { memberKey: "DRG-2", groupId: "knife-tools" },
+      { memberKey: "HFV", groupId: "unrelated-group" },
+    ]);
+    expect(findConflictingSelection(["HFV"], withUnrelated)).toBeNull();
   });
 });

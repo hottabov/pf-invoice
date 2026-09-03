@@ -37,10 +37,11 @@ export function compatibilityOrFilter(
  *    at all, or one flagged `needsReview`). The quote literally cannot be
  *    priced without one.
  * 2. `conflict` — a specific *other* option, already selected on this item,
- *    that this one has an `OptionConflict` row with (e.g. a knife too long
- *    for the machine's cut height — see the `OptionConflict` model comment
- *    in schema.prisma). Carries that option's code/name so the UI can name
- *    it ("Conflicts with MTS — additional travel"), not just say "disabled".
+ *    that shares an `OptionConflictGroup` with this one (e.g. a knife too
+ *    long for the machine's cut height — see that model's comment in
+ *    schema.prisma). Carries that option's code/name plus the shared
+ *    group's name so the UI can name both ("Conflicts with DRG-1 — knife
+ *    tools, fit one only"), not just say "disabled".
  *
  * `unpriced` wins when both apply — an option with no price is disabled for
  * its own reason regardless of what else is selected.
@@ -59,11 +60,19 @@ export function compatibilityOrFilter(
  */
 export type OptionDisabledReason =
   | { type: "unpriced" }
-  | { type: "conflict"; conflictingOptionCode: string; conflictingOptionName: string };
+  | {
+      type: "conflict";
+      conflictingOptionCode: string;
+      conflictingOptionName: string;
+      /** The shared `OptionConflictGroup.name` responsible for the block —
+       * see `conflictPartnersByGroup` below for how a caller resolves
+       * *which* group when a pair happens to share more than one. */
+      conflictingGroupName: string;
+    };
 
 export function isOptionDisabled(
   price: { needsReview: boolean } | null,
-  conflictingWith?: { code: string; name: string } | null
+  conflictingWith?: { code: string; name: string; groupName: string } | null
 ): OptionDisabledReason | null {
   if (price === null || price.needsReview) return { type: "unpriced" };
   if (conflictingWith) {
@@ -71,6 +80,7 @@ export function isOptionDisabled(
       type: "conflict",
       conflictingOptionCode: conflictingWith.code,
       conflictingOptionName: conflictingWith.name,
+      conflictingGroupName: conflictingWith.groupName,
     };
   }
   return null;
@@ -84,7 +94,10 @@ export function isOptionDisabled(
  * so the pairwise-scan logic doesn't have to be exercised through a mocked
  * database. The builder UI doesn't use this: it only ever needs "does *this*
  * option conflict with something selected", a single lookup, not a full scan
- * — see `isOptionDisabled` above.
+ * — see `isOptionDisabled` above. Unchanged by the move from `OptionConflict`
+ * to `OptionConflictGroup` — it only ever looks at the precomputed
+ * `conflictsByCode` map, never at how that map was built (see
+ * `conflictPartnersByGroup` below, which is what changed).
  */
 export function findConflictingSelection(
   selectedCodes: string[],
@@ -100,4 +113,55 @@ export function findConflictingSelection(
     }
   }
   return null;
+}
+
+/**
+ * Given every (memberKey, groupId) `OptionConflictGroupMember` row relevant
+ * to a set of options, returns each option's set of "conflict partner" keys
+ * -- every other option that shares at least one group with it (see the
+ * `OptionConflictGroup` model comment in schema.prisma: two options
+ * conflict when they share a group, so a plain pairwise conflict is just
+ * the two-member case). Pure and DB-agnostic like `compatibilityOrFilter`/
+ * `findConflictingSelection` above, and generic over whatever string key
+ * the caller keys rows by -- option *id* for the catalogue/builder reads
+ * (`listCompatibleOptions`), option *code* for `setItemOptions`, whose
+ * result feeds `findConflictingSelection` directly.
+ *
+ * Only the *given* rows matter: if `memberships` covers a subset of a
+ * group's real membership (e.g. `setItemOptions` only fetches the
+ * *submitted* options' own group rows, never the rest of that group's
+ * members), the result reflects conflicts among just that subset, not the
+ * group's full membership -- correct for `setItemOptions`, which only cares
+ * whether two *submitted* options share a group, not who else is in it.
+ *
+ * An option with no membership row at all, or whose every group has no
+ * other member among the given rows, has no entry (or an empty set) in the
+ * result -- both mean "conflicts with nothing", the same contract
+ * `findConflictingSelection` already expects from a missing map entry.
+ */
+export function conflictPartnersByGroup(
+  memberships: { memberKey: string; groupId: string }[]
+): Map<string, Set<string>> {
+  const membersByGroup = new Map<string, string[]>();
+  for (const { memberKey, groupId } of memberships) {
+    const list = membersByGroup.get(groupId);
+    if (list) list.push(memberKey);
+    else membersByGroup.set(groupId, [memberKey]);
+  }
+
+  const result = new Map<string, Set<string>>();
+  for (const members of membersByGroup.values()) {
+    for (const key of members) {
+      let set = result.get(key);
+      for (const other of members) {
+        if (other === key) continue;
+        if (!set) {
+          set = new Set<string>();
+          result.set(key, set);
+        }
+        set.add(other);
+      }
+    }
+  }
+  return result;
 }

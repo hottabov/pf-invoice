@@ -782,15 +782,18 @@ export type CompatibleOption = {
    * setting is on (see `getShowOptionIcons`, src/lib/queries/settings.ts) —
    * `null` (most options today) shows no icon and no placeholder. */
   imageUrl: string | null;
-  /** Every option this one conflicts with (`OptionConflict`, read from both
-   * sides of the normalised pair — see the model comment in schema.prisma),
-   * by code/name — not just the ones also compatible with this item, since
-   * an incompatible partner can never be selected anyway and so can never
-   * trip the conflict. The builder (`ItemOptionsEditor`) checks this
-   * against the *other* currently-selected codes to decide whether to
-   * disable this option (see `isOptionDisabled`'s `conflictingWith`
-   * parameter) — never against itself. */
-  conflictsWith: { code: string; name: string }[];
+  /** Every option this one conflicts with — i.e. every *other* option that
+   * shares at least one `OptionConflictGroup` with it (see that model's
+   * comment in schema.prisma) — by code/name plus the shared group's name,
+   * not just the ones also compatible with this item, since an incompatible
+   * partner can never be selected anyway and so can never trip the
+   * conflict. The builder (`ItemOptionsEditor`) checks this against the
+   * *other* currently-selected codes to decide whether to disable this
+   * option (see `isOptionDisabled`'s `conflictingWith` parameter) — never
+   * against itself. `groupName` names whichever shared group produced that
+   * partner (the first found, if a pair happens to share more than one) —
+   * enough to explain a block without an exhaustive list. */
+  conflictsWith: { code: string; name: string; groupName: string }[];
 };
 
 /**
@@ -818,13 +821,50 @@ export async function listCompatibleOptions(
     orderBy: { sortOrder: "asc" },
     include: {
       prices: { where: { regionId } },
-      conflictsAsA: { include: { optionB: { select: { code: true, name: true } } } },
-      conflictsAsB: { include: { optionA: { select: { code: true, name: true } } } },
+      conflictGroupMemberships: { select: { groupId: true } },
     },
   });
 
+  // Every group referenced by any of these options, each with its full
+  // member list and name — one extra query beats an N+1 (one per option),
+  // and options sharing the same group is the whole point of a group.
+  const groupIds = Array.from(
+    new Set(options.flatMap((o) => o.conflictGroupMemberships.map((m) => m.groupId)))
+  );
+  const groups =
+    groupIds.length > 0
+      ? await db.optionConflictGroup.findMany({
+          where: { id: { in: groupIds } },
+          include: {
+            members: { include: { option: { select: { id: true, code: true, name: true } } } },
+          },
+        })
+      : [];
+  const groupById = new Map(groups.map((g) => [g.id, g]));
+
   return options.map((o) => {
     const price = o.prices[0];
+
+    // Union every OTHER option across every group this one belongs to,
+    // deduped by id — an option can be in more than one group, and the same
+    // partner must never appear twice just because two groups both link
+    // them. `groupName` on a partner is whichever shared group was found
+    // first (see the CompatibleOption.conflictsWith doc comment above).
+    const partnersById = new Map<string, { code: string; name: string; groupName: string }>();
+    for (const membership of o.conflictGroupMemberships) {
+      const group = groupById.get(membership.groupId);
+      if (!group) continue;
+      for (const member of group.members) {
+        if (member.option.id === o.id) continue;
+        if (partnersById.has(member.option.id)) continue;
+        partnersById.set(member.option.id, {
+          code: member.option.code,
+          name: member.option.name,
+          groupName: group.name,
+        });
+      }
+    }
+
     return {
       id: o.id,
       code: o.code,
@@ -833,10 +873,7 @@ export async function listCompatibleOptions(
       attributeSchema: o.attributeSchema,
       price: price ? { amount: price.amount.toString(), needsReview: price.needsReview } : null,
       imageUrl: o.imageUrl,
-      conflictsWith: [
-        ...o.conflictsAsA.map((c) => c.optionB),
-        ...o.conflictsAsB.map((c) => c.optionA),
-      ],
+      conflictsWith: Array.from(partnersById.values()),
     };
   });
 }

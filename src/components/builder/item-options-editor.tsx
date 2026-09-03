@@ -63,10 +63,10 @@ function selectionsFromLines(lines: CurrentLine[]): Map<string, SelectionState> 
  * product-level `OptionCompatibility` — preloaded via
  * `listCompatibleOptions`). Checking an option reveals its qty stepper and
  * (when it carries an `attributeSchema`) its attribute inputs; an unpriced
- * option is shown but its checkbox is disabled, and so is one that
- * conflicts (`OptionConflict`) with another option already checked in this
- * same panel — its reason names the specific option responsible (see
- * `isOptionDisabled`, src/lib/catalog-compat.ts). Deselecting the option
+ * option is shown but its checkbox is disabled, and so is one that shares
+ * an `OptionConflictGroup` with another option already checked in this
+ * same panel — its reason names the specific option and group responsible
+ * (see `isOptionDisabled`, src/lib/catalog-compat.ts). Deselecting the option
  * that caused the conflict re-enables the others on the very next render —
  * disabled-ness is derived fresh from `selected` on every render, not
  * tracked separately, so there's nothing to resync. "Save options" sends the
@@ -355,7 +355,7 @@ export function ItemOptionsEditor({
                               {disabledReason?.type === "conflict" ? (
                                 <span className="mt-0.5 w-fit rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">
                                   Conflicts with {disabledReason.conflictingOptionCode} —{" "}
-                                  {disabledReason.conflictingOptionName}
+                                  {disabledReason.conflictingGroupName}
                                 </span>
                               ) : priced ? (
                                 <span className="text-xs text-slate-500">

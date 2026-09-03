@@ -382,6 +382,8 @@ export async function getProductDetailById(productId: string): Promise<ProductDe
 
 export type ConflictingOption = { id: string; code: string; name: string };
 
+export type ConflictGroupSummary = { id: string; name: string };
+
 export type OptionDetail = {
   id: string;
   code: string;
@@ -395,13 +397,14 @@ export type OptionDetail = {
   /** Series this option is compatible with at the series level (phase-3
    * scope excludes product-level compatibility). */
   compatSeriesCodes: string[];
-  /** Options this one conflicts with (`OptionConflict`, either side of the
-   * normalised pair — see the model comment in schema.prisma), sorted by
-   * code. Since a conflict is stored once for the whole pair and read from
-   * both directions, this list is the same whichever of the two options'
-   * editors you're looking at — adding a conflict from either side shows up
-   * on both. */
-  conflicts: ConflictingOption[];
+  /** `OptionConflictGroup`(s) this option belongs to, sorted by name —
+   * read-only here. Membership is managed from
+   * `/settings/option-conflict-groups`, not from this page: a group needs a
+   * name an admin will recognise, which has no natural home on a single
+   * option's editor (see that settings section's own page for the write
+   * side). Two options conflict when they share at least one group here —
+   * see the `OptionConflictGroup` model comment in schema.prisma. */
+  conflictGroups: ConflictGroupSummary[];
 };
 
 /** A single option (by id) with every active region's price row, its
@@ -418,21 +421,16 @@ export async function getOptionDetailById(optionId: string): Promise<OptionDetai
       include: {
         prices: { include: { region: true } },
         compat: { include: { series: true } },
-        // Both sides of the normalised pair -- this option can be stored as
-        // either optionAId or optionBId depending on which id sorted lower,
-        // so both relations must be read to see every conflict it's part of.
-        conflictsAsA: { include: { optionB: { select: { id: true, code: true, name: true } } } },
-        conflictsAsB: { include: { optionA: { select: { id: true, code: true, name: true } } } },
+        conflictGroupMemberships: { include: { group: { select: { id: true, name: true } } } },
       },
     }),
     listActiveRegions(),
   ]);
   if (!option) return null;
 
-  const conflicts: ConflictingOption[] = [
-    ...option.conflictsAsA.map((c) => c.optionB),
-    ...option.conflictsAsB.map((c) => c.optionA),
-  ].sort((a, b) => a.code.localeCompare(b.code));
+  const conflictGroups: ConflictGroupSummary[] = option.conflictGroupMemberships
+    .map((m) => m.group)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return {
     id: option.id,
@@ -449,18 +447,20 @@ export async function getOptionDetailById(optionId: string): Promise<OptionDetai
       .map((c) => c.series?.code)
       .filter((code): code is string => Boolean(code))
       .sort(),
-    conflicts,
+    conflictGroups,
   };
 }
 
-/** Every other active-or-not option (id/code/name only), ordered by code,
- * for the conflict picker on the option editor page — the analogue of
- * `listSeriesWithCounts` feeding `CompatEditor`'s series checkboxes, but for
- * options instead of series. Excludes `excludeOptionId` itself: an option
- * can never conflict with itself (see `normalizeConflictPair`). */
-export async function listOtherOptions(excludeOptionId: string): Promise<ConflictingOption[]> {
+/** Every option (id/code/name only), ordered by code, for the
+ * `/settings/option-conflict-groups/[groupId]` member checkbox editor — the
+ * analogue of `listSeriesWithCounts` feeding `CompatEditor`'s series
+ * checkboxes, but for options instead of series. Unlike the old
+ * `listOtherOptions` this replaces, nothing is excluded: a group's own
+ * current members are among "every option", not carved out of it (that
+ * editor edits membership directly, not one option's relationship to every
+ * other option). */
+export async function listOptionsForConflictGroups(): Promise<ConflictingOption[]> {
   const options = await db.option.findMany({
-    where: { id: { not: excludeOptionId } },
     orderBy: { code: "asc" },
     select: { id: true, code: true, name: true },
   });

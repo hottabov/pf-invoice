@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
-import { getOptionDetailById, listSeriesWithCounts, listOtherOptions } from "@/lib/queries/catalog";
+import { getOptionDetailById, listSeriesWithCounts } from "@/lib/queries/catalog";
 import { catalogVisibilityRegionId, filterHiddenSeries } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import {
@@ -9,16 +10,16 @@ import {
   deleteOption,
   upsertPrice,
   setOptionCompatibility,
-  setOptionConflicts,
   updateOptionImage,
 } from "@/lib/actions/catalog";
 import { OptionForm } from "@/components/catalog/option-form";
 import { PriceEditor } from "@/components/catalog/price-editor";
 import { CompatEditor } from "@/components/catalog/compat-editor";
-import { ConflictEditor } from "@/components/catalog/conflict-editor";
 import { ImageUpload } from "@/components/catalog/image-upload";
 import { DeleteButton } from "@/components/catalog/delete-button";
 import { PageHeader, SectionCard } from "@/components/ui-kit";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -46,10 +47,9 @@ export async function generateMetadata({
 
 export default async function OptionEditorPage({ params }: { params: Promise<Params> }) {
   const { optionId } = await params;
-  const [option, series, otherOptions, session] = await Promise.all([
+  const [option, series, session] = await Promise.all([
     getOptionDetailById(optionId),
     listSeriesWithCounts(),
-    listOtherOptions(optionId),
     auth(),
   ]);
 
@@ -126,16 +126,33 @@ export default async function OptionEditorPage({ params }: { params: Promise<Par
           </SectionCard>
 
           <SectionCard
-            title="Conflicts with"
-            description="Options that can't be selected together with this one on the same item — e.g. a knife too long for a machine's cut height. Adding a conflict from either option's editor applies to both."
+            title="Conflict groups"
+            description="Groups this option belongs to — two options can't be selected together on the same item when they share a group (e.g. a set of knife tools where only one can be fitted). Membership is managed from Settings, not here."
           >
-            <ConflictEditor
-              optionId={option.id}
-              options={otherOptions}
-              initialSelected={option.conflicts.map((c) => c.id)}
-              action={setOptionConflicts}
-              readOnly={!isAdmin}
-            />
+            {option.conflictGroups.length === 0 ? (
+              <p className="text-sm text-slate-500">Not in any conflict group.</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {option.conflictGroups.map((g) => (
+                  <li key={g.id}>
+                    <Link
+                      href={`/settings/option-conflict-groups/${g.id}`}
+                      className="focus-ring rounded text-sm font-medium text-brand-dark underline-offset-2 hover:underline"
+                    >
+                      {g.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {isAdmin ? (
+              <Link
+                href="/settings/option-conflict-groups"
+                className={cn(buttonVariants({ variant: "outline" }), "mt-3 h-10 w-full sm:w-auto")}
+              >
+                Manage conflict groups
+              </Link>
+            ) : null}
           </SectionCard>
         </div>
       </div>
@@ -144,12 +161,12 @@ export default async function OptionEditorPage({ params }: { params: Promise<Par
         <SectionCard
           tone="danger"
           title="Danger zone"
-          description="Deleting an option removes its prices, compatibility and conflicts too. Options used on a document can't be deleted."
+          description="Deleting an option removes its prices, compatibility and conflict group memberships too. Options used on a document can't be deleted."
         >
           <DeleteButton
             action={deleteOption.bind(null, option.id)}
             confirmTitle={`Delete ${option.code} — ${option.name}?`}
-            confirmDescription="This removes its prices, compatibility and conflicts too. This can't be undone."
+            confirmDescription="This removes its prices, compatibility and conflict group memberships too. This can't be undone."
             label="Delete option"
           />
         </SectionCard>

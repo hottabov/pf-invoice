@@ -5,7 +5,7 @@ import {
   priceInputSchema,
   compatDiff,
   maxDiscountPctSchema,
-  normalizeConflictPair,
+  conflictGroupNameSchema,
 } from "../src/lib/validation/catalog";
 
 describe("productSchema", () => {
@@ -311,24 +311,29 @@ describe("compatDiff", () => {
   });
 });
 
-describe("normalizeConflictPair", () => {
-  it("puts the lexicographically lower id in optionAId", () => {
-    expect(normalizeConflictPair("opt_b", "opt_a")).toEqual({
-      optionAId: "opt_a",
-      optionBId: "opt_b",
-    });
+describe("conflictGroupNameSchema", () => {
+  it("accepts a valid name", () => {
+    const result = conflictGroupNameSchema.safeParse("Knife tools — fit one only");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toBe("Knife tools — fit one only");
+    }
   });
 
-  it("stores a conflict pair once regardless of which side it's entered from", () => {
-    // The MTS editor adding VRB-180 as a conflict, and the VRB-180 editor
-    // adding MTS, must normalise to the exact same row.
-    const fromA = normalizeConflictPair("opt_mts", "opt_vrb180");
-    const fromB = normalizeConflictPair("opt_vrb180", "opt_mts");
-    expect(fromA).toEqual(fromB);
+  it("trims surrounding whitespace", () => {
+    const result = conflictGroupNameSchema.safeParse("  Knife tools  ");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toBe("Knife tools");
+    }
   });
 
-  it("refuses to pair an option with itself", () => {
-    expect(normalizeConflictPair("opt_a", "opt_a")).toBeNull();
+  it("rejects a name that's too short", () => {
+    expect(conflictGroupNameSchema.safeParse("K").success).toBe(false);
+  });
+
+  it("rejects a name over 200 characters", () => {
+    expect(conflictGroupNameSchema.safeParse("x".repeat(201)).success).toBe(false);
   });
 });
 

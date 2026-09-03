@@ -11,7 +11,7 @@ import {
   optionSchema,
   priceInputSchema,
   compatDiff,
-  normalizeConflictPair,
+  conflictGroupNameSchema,
 } from "@/lib/validation/catalog";
 import { IMAGE_URL_PATTERN } from "@/lib/uploads";
 
@@ -245,9 +245,9 @@ export async function deleteOption(optionId: string): Promise<ActionResult> {
     return { error: "This option is used on one or more documents and can't be deleted." };
   }
 
-  // Price, OptionCompatibility and OptionConflict rows all cascade (each
-  // onDelete: Cascade on its optionId/optionAId/optionBId relation in the
-  // schema), so no orphaned conflict half-pair is left behind either.
+  // Price, OptionCompatibility and OptionConflictGroupMember rows all
+  // cascade (each onDelete: Cascade on its optionId relation in the
+  // schema), so no orphaned group membership is left behind either.
   await db.option.delete({ where: { id: optionId } });
 
   revalidatePath("/catalog/options");
@@ -449,74 +449,119 @@ export async function setOptionCompatibility(
   return {};
 }
 
-// --- option conflicts --------------------------------------------------
+// --- option conflict groups ----------------------------------------------
 
 /**
- * Sets an option's conflicts to exactly `conflictingOptionIds`, diffing
- * against what's currently stored -- read from both sides of the
- * normalised pair, since this option can be stored as either optionAId or
- * optionBId depending on which id sorted lower (see the `OptionConflict`
- * model comment in schema.prisma) -- and only writing the delta. Every
- * added row goes through `normalizeConflictPair`, so it doesn't matter
- * which of the two options' editors this action is called from: the same
- * pair always ends up as the same single row, and both options' editors see
- * it afterwards (`getOptionDetailById`'s `conflicts` reads both sides too).
- *
- * Unknown ids in `conflictingOptionIds` are silently ignored (mirrors
- * `setOptionCompatibility`'s handling of unknown series codes) and the
- * option's own id is dropped before the diff even if somehow submitted --
- * `normalizeConflictPair` would refuse it as a self-pair anyway, but
- * filtering it out first keeps `toAdd`/`toRemove` accurate.
+ * Creates a new, empty `OptionConflictGroup` and redirects to its editor,
+ * where an admin adds members -- mirrors `createOption`'s
+ * create-then-redirect-to-detail shape. A group with no members yet is
+ * legal but inert (see the model comment in schema.prisma), so there's
+ * nothing unsafe about creating it before any member is chosen.
  */
-export async function setOptionConflicts(
-  optionId: string,
-  conflictingOptionIds: string[]
+export async function createConflictGroup(formData: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = conflictGroupNameSchema.safeParse(formData.get("name"));
+  if (!parsed.success) {
+    return { error: flattenZodError(parsed.error) };
+  }
+
+  const created = await db.optionConflictGroup.create({ data: { name: parsed.data } });
+
+  revalidatePath("/settings/option-conflict-groups");
+  redirect(`/settings/option-conflict-groups/${created.id}`);
+}
+
+/** Renames a conflict group -- the only field its own editor form has. */
+export async function updateConflictGroupName(
+  groupId: string,
+  formData: FormData
 ): Promise<ActionResult> {
   await requireAdmin();
 
-  const option = await db.option.findUnique({ where: { id: optionId } });
-  if (!option) return { error: "Option not found" };
+  const parsed = conflictGroupNameSchema.safeParse(formData.get("name"));
+  if (!parsed.success) {
+    return { error: flattenZodError(parsed.error) };
+  }
 
-  const [existingConflicts, matchedOptions] = await Promise.all([
-    db.optionConflict.findMany({
-      where: { OR: [{ optionAId: optionId }, { optionBId: optionId }] },
-    }),
-    db.option.findMany({
-      where: { id: { in: conflictingOptionIds.filter((id) => id !== optionId) } },
-      select: { id: true },
-    }),
+  const existing = await db.optionConflictGroup.findUnique({ where: { id: groupId } });
+  if (!existing) return { error: "Conflict group not found" };
+
+  await db.optionConflictGroup.update({ where: { id: groupId }, data: { name: parsed.data } });
+
+  revalidatePath("/settings/option-conflict-groups");
+  revalidatePath(`/settings/option-conflict-groups/${groupId}`);
+  return {};
+}
+
+/**
+ * Deletes a conflict group. Unlike `deleteProduct`/`deleteOption`, there's
+ * no "used on a document" guard here -- a group (and its membership rows)
+ * is purely a catalogue-admin concept that no `DocumentLine` ever
+ * references, so removing one only stops a future `setItemOptions` from
+ * treating its former members as conflicting; it can never orphan or
+ * invalidate an existing document (see the "existing documents" note on
+ * `setItemOptions` in actions/documents.ts).
+ */
+export async function deleteConflictGroup(groupId: string): Promise<ActionResult> {
+  await requireAdmin();
+
+  const existing = await db.optionConflictGroup.findUnique({ where: { id: groupId } });
+  if (!existing) return { error: "Conflict group not found" };
+
+  // Membership rows cascade (OptionConflictGroupMember.groupId is
+  // onDelete: Cascade).
+  await db.optionConflictGroup.delete({ where: { id: groupId } });
+
+  revalidatePath("/settings/option-conflict-groups");
+  redirect("/settings/option-conflict-groups");
+}
+
+/**
+ * Sets a conflict group's members to exactly `optionIds`, diffing against
+ * what's currently stored (same `compatDiff` "hand over the full desired
+ * set, let the action diff it" shape `setOptionCompatibility` above uses)
+ * and only writing the delta. Unlike the old `setOptionConflicts` this
+ * replaces, there's no pair-normalisation step and no self-conflict guard
+ * to worry about -- a group's members are just a set, so "membership" has
+ * no directionality and an option can't accidentally conflict with itself
+ * by being listed once.
+ *
+ * Unknown ids in `optionIds` are silently ignored, mirroring
+ * `setOptionCompatibility`'s handling of unknown series codes.
+ */
+export async function setConflictGroupMembers(
+  groupId: string,
+  optionIds: string[]
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const group = await db.optionConflictGroup.findUnique({ where: { id: groupId } });
+  if (!group) return { error: "Conflict group not found" };
+
+  const [existingMembers, matchedOptions] = await Promise.all([
+    db.optionConflictGroupMember.findMany({ where: { groupId }, select: { optionId: true } }),
+    db.option.findMany({ where: { id: { in: optionIds } }, select: { id: true } }),
   ]);
 
-  const currentIds = existingConflicts.map((c) =>
-    c.optionAId === optionId ? c.optionBId : c.optionAId
-  );
+  const currentIds = existingMembers.map((m) => m.optionId);
   const submittedIds = matchedOptions.map((o) => o.id);
   const { toAdd, toRemove } = compatDiff(currentIds, submittedIds);
 
-  const removeRowIds = existingConflicts
-    .filter((c) => {
-      const otherId = c.optionAId === optionId ? c.optionBId : c.optionAId;
-      return toRemove.includes(otherId);
-    })
-    .map((c) => c.id);
-
-  const addRows = toAdd
-    .map((otherId) => normalizeConflictPair(optionId, otherId))
-    .filter((pair): pair is { optionAId: string; optionBId: string } => pair !== null);
-
   await db.$transaction([
-    ...(removeRowIds.length > 0
-      ? [db.optionConflict.deleteMany({ where: { id: { in: removeRowIds } } })]
+    ...(toRemove.length > 0
+      ? [db.optionConflictGroupMember.deleteMany({ where: { groupId, optionId: { in: toRemove } } })]
       : []),
-    ...addRows.map((pair) => db.optionConflict.create({ data: pair })),
+    ...toAdd.map((optionId) => db.optionConflictGroupMember.create({ data: { groupId, optionId } })),
   ]);
 
-  // Symmetric: the pair shows up on both options' editors, so both need
-  // revalidating -- not just the option this action was called for.
-  revalidatePath(`/catalog/options/${optionId}`);
-  for (const otherId of [...toAdd, ...toRemove]) {
-    revalidatePath(`/catalog/options/${otherId}`);
+  revalidatePath(`/settings/option-conflict-groups/${groupId}`);
+  revalidatePath("/settings/option-conflict-groups");
+  // Every affected option's own editor page shows this group in its
+  // read-only "Conflict groups" summary -- revalidate each so it doesn't
+  // show stale membership after a save here.
+  for (const optionId of [...toAdd, ...toRemove]) {
+    revalidatePath(`/catalog/options/${optionId}`);
   }
-  revalidatePath("/catalog/options");
   return {};
 }

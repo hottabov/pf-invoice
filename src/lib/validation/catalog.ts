@@ -229,28 +229,20 @@ export function compatDiff(current: string[], submitted: string[]): CompatDiff {
   };
 }
 
-// --- option conflicts --------------------------------------------------
+// --- option conflict groups ----------------------------------------------
 
 /**
- * Normalises an unordered pair of option ids into the `{optionAId,
- * optionBId}` shape `OptionConflict` stores -- the lower id (plain string
- * comparison) always goes in `optionAId`. Every writer (`setOptionConflicts`)
- * goes through this, so a conflict entered from either option's editor
- * (A's editor adding B, or B's editor adding A) always resolves to the
- * exact same row -- see the `OptionConflict` model comment in
- * schema.prisma for why that matters: a directional table would let an
- * admin enter half a conflict and get a catalogue where A blocks B but B
- * doesn't block A.
- *
- * Returns `null` for a self-pair (`idA === idB`) -- an option can never
- * conflict with itself. This is the primary guard for that rule (the
- * migration's `CHECK` constraint is a second line of defence in the
- * database, not the first).
+ * An `OptionConflictGroup.name` -- e.g. "Knife tools -- fit one only". Same
+ * bounds as `nameSchema` above (trimmed, 2-200 chars); kept as its own
+ * export (rather than reusing the private `nameSchema`) since a conflict
+ * group is administered from its own settings screens
+ * (`/settings/option-conflict-groups`), not the product/option editors this
+ * module's other schemas back.
  */
-export function normalizeConflictPair(
-  idA: string,
-  idB: string
-): { optionAId: string; optionBId: string } | null {
-  if (idA === idB) return null;
-  return idA < idB ? { optionAId: idA, optionBId: idB } : { optionAId: idB, optionBId: idA };
-}
+export const conflictGroupNameSchema = z
+  .string()
+  .trim()
+  .min(2, "Name must be at least 2 characters")
+  .max(200, "Name must be at most 200 characters");
+
+export type ConflictGroupNameInput = z.infer<typeof conflictGroupNameSchema>;

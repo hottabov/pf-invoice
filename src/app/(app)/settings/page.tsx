@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { EyeOff, FileText, MapPin, Users } from "lucide-react";
+import { Ban, EyeOff, FileText, MapPin, Users } from "lucide-react";
 import { auth } from "@/auth";
 import { getRegionById } from "@/lib/queries/catalog";
 import { getQuoteValidityDays, getShowOptionIcons } from "@/lib/queries/settings";
@@ -140,6 +140,21 @@ export default async function SettingsPage() {
           >
             <EyeOff className="size-4" data-icon="inline-start" aria-hidden="true" />
             Manage catalog visibility
+          </Link>
+        </SectionCard>
+      ) : null}
+
+      {isAdmin ? (
+        <SectionCard
+          title="Option conflict groups"
+          description="Sets of options that can't be selected together on the same item — e.g. a set of knife tools where only one can be fitted."
+        >
+          <Link
+            href="/settings/option-conflict-groups"
+            className={cn(buttonVariants({ variant: "outline" }), "h-11 w-full sm:w-auto")}
+          >
+            <Ban className="size-4" data-icon="inline-start" aria-hidden="true" />
+            Manage conflict groups
           </Link>
         </SectionCard>
       ) : null}

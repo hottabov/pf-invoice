@@ -181,61 +181,68 @@ model Option {
   sortOrder        Int                   @default(0)
   prices           Price[]
   compat           OptionCompatibility[]
-  // Two relations to the same self-referencing join table -- see
-  // OptionConflict below for why the pair is always stored with the lower
-  // id in optionAId, and never in both directions.
-  conflictsAsA     OptionConflict[]      @relation("OptionConflictA")
-  conflictsAsB     OptionConflict[]      @relation("OptionConflictB")
+  // Which OptionConflictGroup(s) this option belongs to -- see that model's
+  // comment below for why group membership, not a pairwise row, is how two
+  // options are said to conflict.
+  conflictGroupMemberships OptionConflictGroupMember[]
 }
 
-// Two options that must never both appear on the same item (John: a knife
-// long enough to jam a shorter-cut-height machine -- "that would just break
-// the machine"). One row per UNORDERED pair -- physical incompatibility has
-// no direction, a knife that doesn't fit a machine doesn't fit it "the other
-// way" either, so this is deliberately NOT modelled as two directional rows
-// or as a seriesId/productId-style single-owner row like OptionCompatibility
-// above.
+// A named set of options where at most one may be fitted to the same item
+// -- e.g. "Knife tools -- fit one only". Supersedes migration
+// z20_option_conflict's OptionConflict (one row per UNORDERED PAIR of
+// conflicting options): the owner clarified the real case is three or more
+// mutually exclusive options ("Це може бути 3 і більше опцій які між собою
+// не сумісні"), and a pairwise table can only express that as a clique --
+// three mutually exclusive options need three pairwise rows, five need ten,
+// and an admin who enters nine of those ten leaves a half-conflict in the
+// catalogue that the schema has no way to catch. Storing the group directly
+// makes that failure mode unrepresentable: an option either is or isn't a
+// member, full stop, and "two options conflict" becomes "they share at
+// least one group" (see conflictPartnersByGroup, src/lib/catalog-compat.ts,
+// which every reader -- the builder's isOptionDisabled caller and
+// setItemOptions -- goes through). A plain pairwise conflict is just the
+// two-member case of this, not a separate concept.
 //
-// Stored symmetrically: every row is normalised so the lower option id
-// (plain string comparison) is always optionAId and the higher is always
-// optionBId -- see normalizeConflictPair in src/lib/validation/catalog.ts,
-// which every writer (setOptionConflicts) goes through. This is the
-// deliberate choice here: a directional model (say, only ever writing from
-// the option currently being edited) would let an admin add a conflict from
-// option A's editor and get a catalogue where A blocks B but B doesn't block
-// A -- exactly the kind of half-entered rule this table exists to prevent.
-// Normalising means the same pair, entered from either option's editor,
-// always resolves to the same single row, so @@unique below can actually
-// catch a duplicate, and every reader (isOptionDisabled's caller,
-// setItemOptions) checks both optionAId and optionBId rather than assuming
-// "the current option" is always column A.
+// `name` isn't decoration -- it's what the catalogue admin (and the
+// builder's disabled-option message, see isOptionDisabled) can quote when
+// explaining a block, so every group needs one an admin will recognise at a
+// glance.
 //
-// No seed data ships with this table -- the owner has the mechanism ready
-// but no concrete conflicting pairs yet ("наразі в мене конкретних даних
-// немає що блокує що, але механізм має бути готовий"). An empty table
-// changes nothing: every existing catalogue and every existing quote is
-// unaffected until an admin adds a row.
-model OptionConflict {
-  id        String @id @default(cuid())
-  optionAId String
-  optionA   Option @relation("OptionConflictA", fields: [optionAId], references: [id], onDelete: Cascade)
-  optionBId String
-  optionB   Option @relation("OptionConflictB", fields: [optionBId], references: [id], onDelete: Cascade)
+// A group with 0 or 1 members is legal but inert (blocks nothing) --
+// nothing here forbids it, since an admin building a group up necessarily
+// starts with one member before adding a second.
+//
+// z20_option_conflict's OptionConflict is dropped in this same migration
+// (z21_option_conflict_groups) rather than kept alongside this: it shipped
+// empty (no seed data, and per the owner's own words above, no admin had
+// concrete pairs to enter yet), so there is no data to migrate, only a
+// mechanism to replace. z20 itself is left in place, unedited -- the owner
+// may already have applied it.
+model OptionConflictGroup {
+  id      String                      @id @default(cuid())
+  name    String
+  members OptionConflictGroupMember[]
+}
 
-  // Normalised-pair uniqueness -- see the model comment above. Both FKs
-  // cascade on delete (like CatalogVisibility, unlike OptionCompatibility's
-  // ON DELETE SET NULL): a conflict row means nothing once either option in
-  // the pair is gone, so deleting an option must never leave an orphaned
-  // half-conflict behind.
-  // `@@check` isn't available in this Prisma version (7.10.0 has no
-  // `checkConstraints` preview feature -- validated directly, don't
-  // reintroduce it without re-checking) so the self-pair guard can't be
-  // declared here. The migration adds the equivalent `CHECK` constraint as
-  // raw SQL instead; Prisma just won't know about it. The primary guard is
-  // still the application layer -- see normalizeConflictPair, which every
-  // writer goes through and which refuses a self-pair before it ever
-  // reaches the database.
-  @@unique([optionAId, optionBId])
+// One row per (group, option) membership. Table/column shape verified
+// against "OptionCompatibility" in prisma/migrations/0_init/migration.sql --
+// same id/two-required-relation-columns/@@unique shape. Both FKs cascade on
+// delete (like CatalogVisibility, unlike OptionCompatibility's SET NULL): a
+// membership row means nothing once either its group or its option is gone,
+// so deleting either must never leave an orphaned row behind. Unique on
+// (groupId, optionId) so an option can't be added to the same group twice,
+// but nothing here stops it belonging to several different groups at once
+// (see the OptionConflictGroup comment above) -- unlike OptionConflict's
+// self-pair guard, there's no analogous "impossible" membership shape to
+// check for here, so no extra CHECK constraint is needed in the migration.
+model OptionConflictGroupMember {
+  id       String              @id @default(cuid())
+  groupId  String
+  group    OptionConflictGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  optionId String
+  option   Option              @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, optionId])
 }
 
 model OptionCompatibility {

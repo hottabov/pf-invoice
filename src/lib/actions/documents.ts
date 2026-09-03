@@ -7,7 +7,11 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
 import { companyWhereForUser, documentWhereForUser } from "@/lib/scope";
-import { compatibilityOrFilter, findConflictingSelection } from "@/lib/catalog-compat";
+import {
+  compatibilityOrFilter,
+  findConflictingSelection,
+  conflictPartnersByGroup,
+} from "@/lib/catalog-compat";
 import {
   capPct,
   computeTotals,
@@ -656,10 +660,10 @@ const MAX_OPTION_SELECTIONS = 100;
  * for that item; nothing here re-validates existing `DocumentLine` rows on
  * read (recalc/totals work purely off what's already stored — see
  * `recalcAndEnforce`/`computeTotals`, neither of which touches
- * `OptionConflict` at all). A save that resubmits the same two conflicting
- * codes unchanged is still a save, though, and is rejected exactly like a
- * brand-new one — the rule is "no new writes with a conflicting pair", not
- * "grandfather whatever was already there".
+ * `OptionConflictGroup` at all). A save that resubmits the same two
+ * conflicting codes unchanged is still a save, though, and is rejected
+ * exactly like a brand-new one — the rule is "no new writes with a
+ * conflicting pair", not "grandfather whatever was already there".
  */
 export async function setItemOptions(
   itemId: string,
@@ -716,15 +720,13 @@ export async function setItemOptions(
     include: {
       prices: { where: { regionId: item.document.regionId } },
       compat: { where: { OR: compatOr } },
-      // Both sides of the normalised pair -- see the `OptionConflict` model
-      // comment in schema.prisma. Only fetched for the *submitted* options
-      // (this `where: { code: { in: codes } }` above), but each conflict
-      // partner's own code is read via the relation regardless of whether
-      // that partner is itself one of the submitted codes -- irrelevant
-      // here anyway, since `findConflictingSelection` only ever looks for a
-      // partner among `codes`.
-      conflictsAsA: { include: { optionB: { select: { code: true } } } },
-      conflictsAsB: { include: { optionA: { select: { code: true } } } },
+      // Every `OptionConflictGroup` this option belongs to -- see that
+      // model's comment in schema.prisma. Only fetched for the *submitted*
+      // options (this `where: { code: { in: codes } }` above) -- correct,
+      // since `conflictPartnersByGroup` below only needs to know which
+      // *submitted* options share a group with which other submitted
+      // options, never who else (outside this submission) is in that group.
+      conflictGroupMemberships: { select: { groupId: true } },
     },
   });
   const optionByCode = new Map(options.map((o) => [o.code, o]));
@@ -759,13 +761,11 @@ export async function setItemOptions(
     return { error: `Price required for: ${unpricedCodes.join(", ")}` };
   }
 
-  const conflictsByCode = new Map<string, Set<string>>();
-  for (const option of options) {
-    const conflictCodes = new Set<string>();
-    for (const c of option.conflictsAsA) conflictCodes.add(c.optionB.code);
-    for (const c of option.conflictsAsB) conflictCodes.add(c.optionA.code);
-    conflictsByCode.set(option.code, conflictCodes);
-  }
+  const conflictsByCode = conflictPartnersByGroup(
+    options.flatMap((option) =>
+      option.conflictGroupMemberships.map((m) => ({ memberKey: option.code, groupId: m.groupId }))
+    )
+  );
   const conflictingPair = findConflictingSelection(codes, conflictsByCode);
   if (conflictingPair) {
     const [a, b] = conflictingPair;
