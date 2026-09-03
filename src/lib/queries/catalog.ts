@@ -107,20 +107,18 @@ export type SeriesDetail = {
   imageUrl: string | null;
 };
 
-/**
- * A series (by code) plus its products ordered for display, each carrying
- * its price in the given region (default AU) if one exists. A product with
- * no Price row for the region, or whose Price row has needsReview=true, is
- * returned with `price` reflecting that (or omitted entirely when there's
- * no row at all) so the UI can render a "price required" badge.
- */
-export const listProductsBySeries = cache(async function listProductsBySeries(
-  seriesCode: string,
-  regionCode: string = DEFAULT_REGION_CODE
-): Promise<{ series: SeriesDetail; products: ProductListItem[] } | null> {
-  const series = await db.series.findUnique({ where: { code: seriesCode } });
-  if (!series) return null;
+type SeriesProductsResult = { series: SeriesDetail; products: ProductListItem[] };
 
+async function seriesProductsResult(
+  series: {
+    id: string;
+    code: string;
+    name: string;
+    maxDiscountPct: { toString(): string } | null;
+    imageUrl: string | null;
+  },
+  regionCode: string
+): Promise<SeriesProductsResult> {
   const products = await db.product.findMany({
     where: { seriesId: series.id },
     orderBy: { sortOrder: "asc" },
@@ -157,7 +155,47 @@ export const listProductsBySeries = cache(async function listProductsBySeries(
       };
     }),
   };
+}
+
+/**
+ * A series (by code) plus its products ordered for display, each carrying
+ * its price in the given region (default AU) if one exists. A product with
+ * no Price row for the region, or whose Price row has needsReview=true, is
+ * returned with `price` reflecting that (or omitted entirely when there's
+ * no row at all) so the UI can render a "price required" badge.
+ *
+ * Looked up by *code* deliberately -- unlike the `/catalog/[seriesId]` route
+ * page, which uses `listProductsBySeriesById` below, this function's other
+ * caller (`getItemPickerCatalog`, src/lib/queries/documents.ts) builds the
+ * "Add item" picker, which is keyed by product/series code throughout (see
+ * `addItem`, src/lib/actions/documents.ts) — nothing to do with routing, so
+ * it stays on code rather than being forced onto id.
+ */
+export const listProductsBySeries = cache(async function listProductsBySeries(
+  seriesCode: string,
+  regionCode: string = DEFAULT_REGION_CODE
+): Promise<SeriesProductsResult | null> {
+  const series = await db.series.findUnique({ where: { code: seriesCode } });
+  if (!series) return null;
+  return seriesProductsResult(series, regionCode);
 });
+
+/** Same as `listProductsBySeries` above, but looked up by id -- the
+ * `/catalog/[seriesId]` route page's query. Routed by id rather than code
+ * for the same reason the option editor route is (see the doc comment on
+ * `Params` in `src/app/(app)/catalog/[seriesId]/page.tsx`): a series code is
+ * short-lived free text today, but nothing stops an admin editing it, and an
+ * id never changes. Added alongside the code-based version above rather
+ * than replacing it, since that one has its own legitimate non-routing
+ * caller. */
+export async function listProductsBySeriesById(
+  seriesId: string,
+  regionCode: string = DEFAULT_REGION_CODE
+): Promise<SeriesProductsResult | null> {
+  const series = await db.series.findUnique({ where: { id: seriesId } });
+  if (!series) return null;
+  return seriesProductsResult(series, regionCode);
+}
 
 /** The product photo a series falls back to on /catalog when it has no
  * explicit `Series.imageUrl` override -- the first active product (ordered
@@ -243,10 +281,15 @@ export async function listOptions(params: {
   });
 }
 
-/** A single series by code — for the "new product" page header and to
- * validate a `[seriesCode]` route param without pulling its product list. */
-export async function getSeriesByCode(code: string): Promise<SeriesDetail | null> {
-  const series = await db.series.findUnique({ where: { code } });
+/** A single series by id — for the "new product" page header and to
+ * validate a `[seriesId]` route param without pulling its product list.
+ * Looked up by id rather than code for the same routing reason as
+ * `listProductsBySeriesById`; its only caller (`/catalog/[seriesId]/new`)
+ * has no other need for code lookup, so `getSeriesByCode` was replaced here
+ * rather than kept alongside this, the same call `getOptionDetailById` made
+ * for the option route. */
+export async function getSeriesById(seriesId: string): Promise<SeriesDetail | null> {
+  const series = await db.series.findUnique({ where: { id: seriesId } });
   if (!series) return null;
   return {
     id: series.id,
@@ -299,24 +342,23 @@ export type ProductDetail = {
 };
 
 /**
- * A single product (by series code + product code) with everything the
- * editor needs: every active region's price row (present or not) for the
- * per-region price section.
+ * A single product (by id) with everything the editor needs: every active
+ * region's price row (present or not) for the per-region price section.
+ * Looked up by id rather than by series code + product code: the route it
+ * backs (`/catalog/[seriesId]/[productId]`) needs a key that never changes,
+ * since a code is free text an admin can edit and may contain characters
+ * (like `/`) that don't survive as a URL path segment — same reasoning as
+ * `getOptionDetailById`. `getProductDetail`-by-code has no other callers, so
+ * it was replaced here rather than kept alongside this.
  */
-export async function getProductDetail(
-  seriesCode: string,
-  productCode: string
-): Promise<ProductDetail | null> {
-  const [series, regions] = await Promise.all([
-    db.series.findUnique({ where: { code: seriesCode } }),
+export async function getProductDetailById(productId: string): Promise<ProductDetail | null> {
+  const [product, regions] = await Promise.all([
+    db.product.findUnique({
+      where: { id: productId },
+      include: { series: true, prices: { include: { region: true } } },
+    }),
     listActiveRegions(),
   ]);
-  if (!series) return null;
-
-  const product = await db.product.findFirst({
-    where: { code: productCode, seriesId: series.id },
-    include: { prices: { include: { region: true } } },
-  });
   if (!product) return null;
 
   return {
@@ -328,11 +370,11 @@ export async function getProductDetail(
     sortOrder: product.sortOrder,
     imageUrl: product.imageUrl,
     series: {
-      id: series.id,
-      code: series.code,
-      name: series.name,
-      maxDiscountPct: series.maxDiscountPct?.toString() ?? null,
-      imageUrl: series.imageUrl,
+      id: product.series.id,
+      code: product.series.code,
+      name: product.series.name,
+      maxDiscountPct: product.series.maxDiscountPct?.toString() ?? null,
+      imageUrl: product.series.imageUrl,
     },
     prices: toRegionPriceRows(regions, product.prices),
   };

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
-import { getProductDetail } from "@/lib/queries/catalog";
+import { getProductDetailById } from "@/lib/queries/catalog";
 import { catalogVisibilityRegionId, isProductHidden } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { updateProduct, deleteProduct, upsertPrice, updateProductImage } from "@/lib/actions/catalog";
@@ -13,18 +13,26 @@ import { PageHeader, SectionCard } from "@/components/ui-kit";
 
 export const dynamic = "force-dynamic";
 
-type Params = { seriesCode: string; productCode: string };
+// Routed by Product.id, not Product.code (and the series segment by
+// Series.id, not Series.code) -- see the doc comment on `Params` in
+// `src/app/(app)/catalog/[seriesId]/page.tsx` for why: a code is free text
+// an admin can edit, and a `/` in it encodes to `%2F`, which Node/Next
+// normalise back into a path separator before route matching, so the
+// dynamic segment never matches and the page 404s. No product code contains
+// a slash today, but nothing stops one being renamed into one, and an id
+// never changes either way. Don't "simplify" this back to codes.
+type Params = { seriesId: string; productId: string };
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<Params>;
 }): Promise<Metadata> {
-  const { seriesCode, productCode } = await params;
+  const { productId } = await params;
   // Re-check hidden-ness here too, same reasoning as the series page's own
   // generateMetadata — a hidden product's name/series shouldn't leak into
   // the tab title for a manager who hit its URL directly.
-  const [product, session] = await Promise.all([getProductDetail(seriesCode, productCode), auth()]);
+  const [product, session] = await Promise.all([getProductDetailById(productId), auth()]);
   if (!product) return { title: "Product" };
   const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
   if (isProductHidden({ id: product.id, seriesId: product.series.id }, hiddenCatalogIds)) {
@@ -34,9 +42,9 @@ export async function generateMetadata({
 }
 
 export default async function ProductEditorPage({ params }: { params: Promise<Params> }) {
-  const { seriesCode, productCode } = await params;
+  const { productId } = await params;
   const [product, session] = await Promise.all([
-    getProductDetail(seriesCode, productCode),
+    getProductDetailById(productId),
     auth(),
   ]);
 
@@ -58,7 +66,7 @@ export default async function ProductEditorPage({ params }: { params: Promise<Pa
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        backHref={`/catalog/${encodeURIComponent(product.series.code)}`}
+        backHref={`/catalog/${product.series.id}`}
         backLabel={product.series.name}
         title={product.name}
         description={

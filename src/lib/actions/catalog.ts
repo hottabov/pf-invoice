@@ -56,7 +56,7 @@ function readOptionForm(formData: FormData) {
 
 // --- products ----------------------------------------------------------
 
-export async function createProduct(seriesCode: string, formData: FormData): Promise<ActionResult> {
+export async function createProduct(seriesId: string, formData: FormData): Promise<ActionResult> {
   await requireAdmin();
 
   const parsed = productSchema.safeParse(readProductForm(formData));
@@ -64,7 +64,7 @@ export async function createProduct(seriesCode: string, formData: FormData): Pro
     return { error: flattenZodError(parsed.error) };
   }
 
-  const series = await db.series.findUnique({ where: { code: seriesCode } });
+  const series = await db.series.findUnique({ where: { id: seriesId } });
   if (!series) {
     return { error: "Series not found" };
   }
@@ -87,8 +87,8 @@ export async function createProduct(seriesCode: string, formData: FormData): Pro
   }
 
   revalidatePath("/catalog");
-  revalidatePath(`/catalog/${encodeURIComponent(series.code)}`);
-  redirect(`/catalog/${encodeURIComponent(series.code)}/${encodeURIComponent(created.code)}`);
+  revalidatePath(`/catalog/${series.id}`);
+  redirect(`/catalog/${series.id}/${created.id}`);
 }
 
 export async function updateProduct(productId: string, formData: FormData): Promise<ActionResult> {
@@ -121,17 +121,14 @@ export async function updateProduct(productId: string, formData: FormData): Prom
     throw error;
   }
 
+  // The route is keyed by id, which never changes on an update, so unlike
+  // the code-keyed revalidation this replaced there's no "old code path" /
+  // "new code path" pair to worry about here — just the one URL (same
+  // simplification `updateOption` made when its route moved to id).
   revalidatePath("/catalog");
-  revalidatePath(`/catalog/${encodeURIComponent(existing.series.code)}`);
-  revalidatePath(`/catalog/${encodeURIComponent(existing.series.code)}/${encodeURIComponent(existing.code)}`);
-  if (parsed.data.code !== existing.code) {
-    revalidatePath(
-      `/catalog/${encodeURIComponent(existing.series.code)}/${encodeURIComponent(parsed.data.code)}`
-    );
-  }
-  redirect(
-    `/catalog/${encodeURIComponent(existing.series.code)}/${encodeURIComponent(parsed.data.code)}`
-  );
+  revalidatePath(`/catalog/${existing.series.id}`);
+  revalidatePath(`/catalog/${existing.series.id}/${productId}`);
+  redirect(`/catalog/${existing.series.id}/${productId}`);
 }
 
 export async function deleteProduct(productId: string): Promise<ActionResult> {
@@ -155,8 +152,8 @@ export async function deleteProduct(productId: string): Promise<ActionResult> {
   await db.product.delete({ where: { id: productId } });
 
   revalidatePath("/catalog");
-  revalidatePath(`/catalog/${encodeURIComponent(existing.series.code)}`);
-  redirect(`/catalog/${encodeURIComponent(existing.series.code)}`);
+  revalidatePath(`/catalog/${existing.series.id}`);
+  redirect(`/catalog/${existing.series.id}`);
 }
 
 // --- options -------------------------------------------------------------
@@ -283,8 +280,8 @@ export async function updateProductImage(productId: string, url: string | null):
 
   await db.product.update({ where: { id: productId }, data: { imageUrl: parsed.value } });
 
-  revalidatePath(`/catalog/${encodeURIComponent(existing.series.code)}/${encodeURIComponent(existing.code)}`);
-  revalidatePath(`/catalog/${encodeURIComponent(existing.series.code)}`);
+  revalidatePath(`/catalog/${existing.series.id}/${productId}`);
+  revalidatePath(`/catalog/${existing.series.id}`);
   return {};
 }
 
@@ -320,8 +317,10 @@ export async function updateSeriesImage(seriesId: string, url: string | null): P
 
   await db.series.update({ where: { id: seriesId }, data: { imageUrl: parsed.value } });
 
+  // The route is keyed by id, which is already the parameter this action
+  // takes -- no need for the `existing` lookup's code to build the path.
   revalidatePath("/catalog");
-  revalidatePath(`/catalog/${encodeURIComponent(existing.code)}`);
+  revalidatePath(`/catalog/${seriesId}`);
   return {};
 }
 
@@ -377,17 +376,19 @@ export async function upsertPrice(target: PriceTarget, formData: FormData): Prom
   }
 
   if (isProductPriceTarget(target)) {
+    // Both route segments are ids now, but `target` only carries the
+    // product's -- the series' id still needs a lookup to build the path
+    // (unlike the option branch below, where the route has just the one id
+    // and `target` already carries it).
     const product = await db.product.findUnique({
       where: { id: target.productId },
       include: { series: true },
     });
     if (product) {
-      revalidatePath(`/catalog/${encodeURIComponent(product.series.code)}/${encodeURIComponent(product.code)}`);
-      revalidatePath(`/catalog/${encodeURIComponent(product.series.code)}`);
+      revalidatePath(`/catalog/${product.series.id}/${product.id}`);
+      revalidatePath(`/catalog/${product.series.id}`);
     }
   } else {
-    // Option route is keyed by id, so no lookup is needed to build its path
-    // (unlike the product branch above, which still needs the series code).
     revalidatePath(`/catalog/options/${target.optionId}`);
     revalidatePath("/catalog/options");
   }

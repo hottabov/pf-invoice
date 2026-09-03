@@ -11,9 +11,14 @@ export const dynamic = "force-dynamic";
 type Params = { key: string };
 
 // Next.js decodes a dynamic route segment before handing it to `params` —
-// same as [optionCode]/[productCode] elsewhere in the app — so `key` here
-// is already the raw content-block key (e.g. "software.pathworks-i"), not
-// its URL-encoded form.
+// same as every dynamic segment elsewhere in the app — so `key` here is
+// already the raw content-block key (e.g. "software.pathworks-i"), not its
+// URL-encoded form. (The catalogue's own dynamic segments -- [optionId],
+// [seriesId], [productId] -- are routed by opaque id rather than by a
+// human-readable code specifically to sidestep this decoding trap for a
+// value that can contain a `/`; `key` here doesn't need that because
+// content-block keys are developer-defined constants, never free text an
+// admin edits.)
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { key } = await params;
   const block = await getContentBlock(key);

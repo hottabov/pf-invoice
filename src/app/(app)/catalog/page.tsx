@@ -63,7 +63,7 @@ export default async function CatalogPage() {
 function SeriesCard({ series: s }: { series: SeriesWithCounts }) {
   return (
     <Link
-      href={`/catalog/${encodeURIComponent(s.code)}`}
+      href={`/catalog/${s.id}`}
       className="focus-ring flex min-h-12 items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-brand-accent-ink hover:bg-slate-50 active:bg-slate-100"
     >
       <span className="flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 sm:size-32">

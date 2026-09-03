@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { Package, Plus } from "lucide-react";
 import { auth } from "@/auth";
 import {
-  listProductsBySeries,
+  listProductsBySeriesById,
   getSeriesFallbackImageUrl,
   type ProductListItem,
 } from "@/lib/queries/catalog";
@@ -27,19 +27,26 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-type Params = { seriesCode: string };
+// Routed by Series.id, not Series.code. Same reasoning as
+// `/catalog/options/[optionId]` (see the doc comment there): a code is free
+// text an admin can edit, and a `/` in it encodes to `%2F`, which Node/Next
+// normalise back into a path separator before route matching, so the
+// dynamic segment never matches and the page 404s. No series code contains
+// a slash today, but nothing stops one being renamed into one, and an id
+// never changes either way. Don't "simplify" this back to the code.
+type Params = { seriesId: string };
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<Params>;
 }): Promise<Metadata> {
-  const { seriesCode } = await params;
+  const { seriesId } = await params;
   // Metadata runs before the page body — re-check hidden-ness here too
   // (same reasoning the document builder's own generateMetadata gives) so a
   // manager browsing to a hidden series' URL never even sees its name in
   // the tab title.
-  const [result, session] = await Promise.all([listProductsBySeries(seriesCode), auth()]);
+  const [result, session] = await Promise.all([listProductsBySeriesById(seriesId), auth()]);
   if (!result) return { title: "Series" };
   const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityRegionId(session?.user));
   if (isSeriesHidden(result.series.id, hiddenCatalogIds)) return { title: "Series" };
@@ -47,8 +54,8 @@ export async function generateMetadata({
 }
 
 export default async function SeriesProductsPage({ params }: { params: Promise<Params> }) {
-  const { seriesCode } = await params;
-  const [result, session] = await Promise.all([listProductsBySeries(seriesCode), auth()]);
+  const { seriesId } = await params;
+  const [result, session] = await Promise.all([listProductsBySeriesById(seriesId), auth()]);
 
   if (!result) notFound();
 
@@ -78,7 +85,7 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
         actions={
           isAdmin ? (
             <Link
-              href={`/catalog/${encodeURIComponent(series.code)}/new`}
+              href={`/catalog/${series.id}/new`}
               className={cn(
                 buttonVariants(),
                 "h-11 w-full bg-brand text-white hover:bg-brand/90 sm:w-auto"
@@ -119,13 +126,13 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
               </thead>
               <tbody>
                 {products.map((p) => (
-                  <ProductRow key={p.id} seriesCode={series.code} product={p} />
+                  <ProductRow key={p.id} seriesId={series.id} product={p} />
                 ))}
               </tbody>
             </table>
           }
           cards={products.map((p) => (
-            <ProductCard key={p.id} seriesCode={series.code} product={p} />
+            <ProductCard key={p.id} seriesId={series.id} product={p} />
           ))}
         />
       )}
@@ -143,13 +150,13 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
 }
 
 function ProductRow({
-  seriesCode,
+  seriesId,
   product: p,
 }: {
-  seriesCode: string;
+  seriesId: string;
   product: ProductListItem;
 }) {
-  const href = `/catalog/${encodeURIComponent(seriesCode)}/${encodeURIComponent(p.code)}`;
+  const href = `/catalog/${seriesId}/${p.id}`;
   return (
     <tr className={cn(tableRowClassName, p.active ? "" : "opacity-60")}>
       <RowCell href={href} primary={`Open ${p.name}`}>
@@ -171,15 +178,15 @@ function ProductRow({
 }
 
 function ProductCard({
-  seriesCode,
+  seriesId,
   product: p,
 }: {
-  seriesCode: string;
+  seriesId: string;
   product: ProductListItem;
 }) {
   return (
     <Link
-      href={`/catalog/${encodeURIComponent(seriesCode)}/${encodeURIComponent(p.code)}`}
+      href={`/catalog/${seriesId}/${p.id}`}
       className={cn(
         "focus-ring flex min-h-12 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-colors active:bg-slate-100",
         p.active ? "" : "opacity-60"
