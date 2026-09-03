@@ -34,6 +34,12 @@ export const SERIES_IMAGES: Record<string, string> = {
   L: "l-series.png",
   LNS: "leather-nesting.png",
   EF: "easyfeeder.png",
+  // HDRF was split out of the EF series into its own catalogue series (see
+  // MANUAL_PRODUCTS.HDRF in scripts/extract-catalog.ts) but never had its
+  // own separate series photo -- it reuses "hdrf.png", the same photo
+  // already assigned to each width variant individually via PRODUCT_IMAGES
+  // below, so the /catalog series card shows the same art the products do.
+  HDRF: "hdrf.png",
   FP: "fabricpro.png",
 };
 

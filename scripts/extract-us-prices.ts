@@ -664,10 +664,12 @@ function extractFabricPro(wb: XLSX.WorkBook): void {
 }
 
 // ---------------------------------------------------------------------------
-// HDRF -- the catalog now has three width-specific products, HDRF-180/220/320
-// (see MANUAL_PRODUCTS.EF in scripts/extract-catalog.ts; owner decision to
-// split the old single width-less "HDRF" product, same as this sheet's own
-// three real, distinctly-priced width variants). Each section's machine row
+// HDRF -- the catalog now has three width-specific products, HDRF-180/220/320,
+// in their own "HDRF" series (see MANUAL_PRODUCTS.HDRF in
+// scripts/extract-catalog.ts; owner decision to split the old single
+// width-less "HDRF" product, same as this sheet's own three real,
+// distinctly-priced width variants, and to give it its own series rather
+// than nest it under EasyFeeder). Each section's machine row
 // maps directly onto its matching catalog product code. Each section's
 // "2 hours installation" row is priced identically (180) across all three
 // widths and maps to the SVC-HDRF-INSTALL service option (see

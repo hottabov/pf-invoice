@@ -626,7 +626,23 @@ const MANUAL_PRODUCTS: Record<string, CatalogItem[]> = {
   // price-list cell. needsReview: false because this is a real, deliberate
   // number, not a "TBD" placeholder -- same reasoning as TRADE-IN's price
   // in MANUAL_PRODUCTS.SVC below.
-  EF: [
+  //
+  // Own series, not EF: HDRF used to live inside MANUAL_PRODUCTS.EF (it
+  // rode along in the EasyFeeder series purely because it had no sheet of
+  // its own on the AU side). The NA source workbook
+  // (RAW/Price List North America (01-06-2026).xlsx) has a dedicated "HDRF"
+  // sheet (see extractHDRF in scripts/extract-us-prices.ts) and its own
+  // product photo (hdrf.png, see PRODUCT_IMAGES in scripts/import-images-lib.ts)
+  // -- it's a different machine, not an EasyFeeder variant, so owner
+  // decision: give it its own catalogue series ("HDRF" series entry below,
+  // alongside `series` in main()) instead of nesting it under EF. No
+  // Option in this catalog is compatibleSeries-scoped to "EF" (the EF sheet
+  // itself contributes zero options -- see extractEasyFeeder, options: []
+  // always), so this move carries nothing else along implicitly; the HDRF
+  // crate options below (MANUAL_OPTIONS) were already product-scoped
+  // (compatibleProducts: ["HDRF-180"] etc.), not series-scoped, so they are
+  // unaffected by which series the products sit in.
+  HDRF: [
     {
       code: "HDRF-180",
       name: "Heavy Duty Roll Feeder 180",
@@ -1049,6 +1065,12 @@ function main(): void {
     { seriesCode: "LNS", seriesName: "Leather Nesting System", maxDiscountPct: null, products: sortByCode(lns.products) },
     { seriesCode: "EL", seriesName: "EasyLoader", maxDiscountPct: null, products: sortByCode(el.products) },
     { seriesCode: "EF", seriesName: "EasyFeeder", maxDiscountPct: null, products: sortByCode(ef.products) },
+    // "Heavy Duty Roll Feeder" -- a hand-authored series with no sheet of
+    // its own on the AU side (see MANUAL_PRODUCTS.HDRF above for why it's
+    // its own series rather than nested under EF). Starts empty here; the
+    // MANUAL_PRODUCTS append loop further down fills in its three width
+    // variants.
+    { seriesCode: "HDRF", seriesName: "Heavy Duty Roll Feeder", maxDiscountPct: null, products: [] },
     { seriesCode: "FP", seriesName: "FabricPro", maxDiscountPct: null, products: sortByCode(fp.products) },
     // "Service" -- a hand-authored series with no sheet of its own at all
     // (see MANUAL_PRODUCTS.SVC and MANUAL_OPTIONS below). Starts empty here;

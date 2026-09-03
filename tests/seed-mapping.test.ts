@@ -153,8 +153,12 @@ describe("seed-lib: smoke assertions against the real catalog.json (counts only)
     expect(REGIONS).toHaveLength(3);
   });
 
-  it("has exactly 9 series", () => {
-    expect(mapSeries(catalog)).toHaveLength(9);
+  // 9 -> 10: HDRF was split out of the EasyFeeder ("EF") series into its own
+  // "HDRF" series (owner decision -- see MANUAL_PRODUCTS.HDRF in
+  // scripts/extract-catalog.ts and tests/catalog.test.ts's "Series Structure"
+  // describe block).
+  it("has exactly 10 series", () => {
+    expect(mapSeries(catalog)).toHaveLength(10);
   });
 
   it("has exactly 66 total products", () => {

@@ -57,8 +57,12 @@ describe('Catalog Extraction Validation', () => {
     // was retired from the catalogue entirely (owner decision -- not sold
     // anymore), dropped at extraction rather than extracted-and-filtered
     // (see the comment above extractSoftware in scripts/extract-catalog.ts).
-    it('should have exactly 9 series', () => {
-      expect(catalog.series).toHaveLength(9);
+    // 9 -> 10: HDRF was split out of the EasyFeeder ("EF") series into its
+    // own "HDRF" series (owner decision -- it's a different machine with its
+    // own NA sheet and product photo, not an EasyFeeder variant; see
+    // MANUAL_PRODUCTS.HDRF in scripts/extract-catalog.ts).
+    it('should have exactly 10 series', () => {
+      expect(catalog.series).toHaveLength(10);
     });
 
     it('Punchline ("P") no longer exists as a series', () => {
@@ -97,14 +101,26 @@ describe('Catalog Extraction Validation', () => {
       expect(el.products).toHaveLength(4);
     });
 
-    // 5 -> 7: the single "HDRF" product was replaced by three width variants
-    // (HDRF-180/220/320) -- see MANUAL_PRODUCTS.EF in scripts/extract-catalog.ts.
-    it('EasyFeeder (EF) should have 7 products (2020/2420/4030 + NA-only EF-3220 + manual HDRF-180/220/320)', () => {
+    // 5 -> 4: HDRF (the old single width-less product, later split into
+    // three width variants) moved out of EF entirely into its own "HDRF"
+    // series -- see MANUAL_PRODUCTS.HDRF in scripts/extract-catalog.ts. EF
+    // is back down to just its own four EasyFeeder products.
+    it('EasyFeeder (EF) should have 4 products (2020/2420/4030 + NA-only EF-3220), and no HDRF products', () => {
       const ef = catalog.series.find((s) => s.seriesCode === 'EF')!;
-      expect(ef.products).toHaveLength(7);
-      expect(ef.products.map((p) => p.code).sort()).toEqual(
-        ['EF-2020', 'EF-2420', 'EF-3220', 'EF-4030', 'HDRF-180', 'HDRF-220', 'HDRF-320'].sort()
-      );
+      expect(ef.products).toHaveLength(4);
+      expect(ef.products.map((p) => p.code).sort()).toEqual(['EF-2020', 'EF-2420', 'EF-3220', 'EF-4030'].sort());
+      expect(ef.products.some((p) => p.code.startsWith('HDRF'))).toBe(false);
+    });
+
+    // HDRF is its own catalogue series now (owner decision -- see
+    // MANUAL_PRODUCTS.HDRF in scripts/extract-catalog.ts), carrying exactly
+    // the three width variants that used to live inside EF.
+    it('Heavy Duty Roll Feeder (HDRF) should have exactly 3 products: HDRF-180/220/320', () => {
+      const hdrf = catalog.series.find((s) => s.seriesCode === 'HDRF')!;
+      expect(hdrf).toBeDefined();
+      expect(hdrf.seriesName).toBe('Heavy Duty Roll Feeder');
+      expect(hdrf.products).toHaveLength(3);
+      expect(hdrf.products.map((p) => p.code).sort()).toEqual(['HDRF-180', 'HDRF-220', 'HDRF-320']);
     });
 
     it('FabricPro (FP) should have 4 products (FP-180/FP-220 + manual FP-TROLLEY + NA-only FP-300)', () => {
@@ -290,20 +306,24 @@ describe('Catalog Extraction Validation', () => {
 
     // The old single width-less "HDRF" product was split into three width
     // variants (owner decision, model like EasyLoader) -- see
-    // MANUAL_PRODUCTS.EF in scripts/extract-catalog.ts. "HDRF" itself no
-    // longer exists as a product code. Unlike every other manual/NA-only
-    // gap in this describe block, these three DO carry a real AU price --
-    // the owner's own USD->AUD conversion (see the comment on
-    // MANUAL_PRODUCTS.EF's HDRF entries), not something sourced from the AU
-    // price list, so needsReview is false rather than the usual "no AU
-    // pricing published yet" true.
-    it('HDRF-180/220/320 (manual EF products) should exist with real AU prices, needsReview=false', () => {
+    // MANUAL_PRODUCTS.HDRF in scripts/extract-catalog.ts. "HDRF" itself no
+    // longer exists as a product code, and these three now live in their own
+    // "HDRF" series, not EF (owner decision -- see the "Series Structure"
+    // describe block above). Unlike every other manual/NA-only gap in this
+    // describe block, these three DO carry a real AU price -- the owner's
+    // own USD->AUD conversion (see the comment on MANUAL_PRODUCTS.HDRF's
+    // entries), not something sourced from the AU price list, so
+    // needsReview is false rather than the usual "no AU pricing published
+    // yet" true.
+    it('HDRF-180/220/320 (manual HDRF-series products) should exist with real AU prices, needsReview=false', () => {
+      const hdrf = catalog.series.find((s) => s.seriesCode === 'HDRF')!;
       const ef = catalog.series.find((s) => s.seriesCode === 'EF')!;
       expect(ef.products.some((p) => p.code === 'HDRF')).toBe(false);
+      expect(ef.products.some((p) => p.code.startsWith('HDRF'))).toBe(false);
       const expectedPrices: Record<string, number> = { 'HDRF-180': 17500, 'HDRF-220': 19500, 'HDRF-320': 21400 };
       for (const [code, price] of Object.entries(expectedPrices)) {
-        const product = ef.products.find((p) => p.code === code);
-        expect(product, `expected EF product "${code}"`).toBeDefined();
+        const product = hdrf.products.find((p) => p.code === code);
+        expect(product, `expected HDRF product "${code}"`).toBeDefined();
         expect(product?.name).toBe(`Heavy Duty Roll Feeder ${code.split('-')[1]}`);
         expect(product?.price).toBe(price);
         expect(product?.needsReview).toBe(false);
@@ -509,6 +529,19 @@ describe('Catalog Extraction Validation', () => {
         expect(option?.compatibleSeries).toEqual([]);
         expect(option?.compatibleProducts).toEqual([productCode]);
       }
+    });
+
+    // Confirms the "no option silently disappears" analysis behind moving
+    // HDRF out of the EF series: no option in the catalog is compatibleSeries
+    // -scoped to "EF" at all (the EF sheet contributes zero options -- see
+    // extractEasyFeeder in scripts/extract-catalog.ts, always `options: []`),
+    // so relocating HDRF-180/220/320 into their own series carries nothing
+    // implicit along with it. The three HDRF crate options above are already
+    // product-scoped (compatibleProducts), not series-scoped, so they move
+    // with their products regardless of which series those products sit in.
+    it('no option is compatibleSeries-scoped to EF (so moving HDRF out of EF drops no implicit option)', () => {
+      const efScoped = catalog.options.filter((o) => o.compatibleSeries.includes('EF'));
+      expect(efScoped).toEqual([]);
     });
   });
 

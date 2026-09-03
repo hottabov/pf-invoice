@@ -7,8 +7,9 @@ import type { FormContext, FormSpec } from "./types";
 
 /**
  * Which form a quote item prints on. Matching is by product code, not series:
- * HDRF-180/220/320 live in the EF series alongside EasyFeeder but have their
- * own form, so series-level matching would be wrong.
+ * HDRF-180/220/320 have their own form regardless of which catalogue series
+ * they sit in (their own "HDRF" series today; formerly nested inside EF
+ * alongside EasyFeeder), so series-level matching would be wrong.
  */
 export function resolveForm(code: string): FormSpec | null {
   return FORM_SPECS.find((spec) => spec.matches(code)) ?? null;

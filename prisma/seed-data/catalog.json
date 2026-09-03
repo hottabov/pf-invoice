@@ -446,7 +446,14 @@
           "description": "1200m length, functionality for synchronisation with the M and L series. Electronic Edge Control including Edge control sensors. Includes roll keeper and plastic roll holder.",
           "price": 17540,
           "needsReview": false
-        },
+        }
+      ]
+    },
+    {
+      "seriesCode": "HDRF",
+      "seriesName": "Heavy Duty Roll Feeder",
+      "maxDiscountPct": null,
+      "products": [
         {
           "code": "HDRF-180",
           "name": "Heavy Duty Roll Feeder 180",
