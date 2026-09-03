@@ -85,3 +85,16 @@ export async function getUser(userId: string): Promise<UserDetail | null> {
 export async function countActiveAdmins(): Promise<number> {
   return db.user.count({ where: { role: { in: ["ADMIN", "DEVELOPER"] }, active: true } });
 }
+
+/** Every currently active user holding the DEVELOPER role — the recipient
+ * list for a PathQuote Support submission (see
+ * src/lib/actions/support.ts and src/lib/support.ts's `resolveSupportRecipients`,
+ * which turns this into a plain refusal when it comes back empty). Inactive
+ * developers are excluded on purpose: a deactivated account shouldn't keep
+ * receiving mail. */
+export async function listActiveDevelopers(): Promise<{ email: string; name: string | null }[]> {
+  return db.user.findMany({
+    where: { role: "DEVELOPER", active: true },
+    select: { email: true, name: true },
+  });
+}

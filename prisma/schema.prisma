@@ -80,6 +80,7 @@ model Region {
   prices            Price[]
   documents         Document[]
   contentBlocks     ContentBlock[]
+  supportMessages   SupportMessage[]
 }
 
 model User {
@@ -99,6 +100,7 @@ model User {
   sessions          Session[]
   companiesOwned    Company[]           @relation("CompanyOwner")
   catalogVisibility CatalogVisibility[]
+  supportMessages   SupportMessage[]
 }
 
 model Account {
@@ -558,4 +560,39 @@ model NumberSequence {
 model Setting {
   key   String @id
   value Json
+}
+
+// A message from "Settings -> PathQuote Support" (any signed-in user) to
+// whoever holds the DEVELOPER role -- see the Role enum's own comment. Kept
+// small on purpose: who, when, subject, body, and just enough context to
+// reproduce a report without a round trip back to the sender -- the role
+// and region the sender held *at submission time* (not a live join to
+// User/Region, which could read back something that had since changed) plus
+// a best-effort app version (see src/lib/app-version.ts).
+//
+// Always written before an email is attempted (see submitSupportMessage,
+// src/lib/actions/support.ts) -- a misconfigured SMTP transport must never
+// mean the report simply vanishes; emailedAt/emailError record whether the
+// notification actually went out so a developer reading this table directly
+// can tell "nobody's seen this yet" from "sent, and probably read".
+model SupportMessage {
+  id         String   @id @default(cuid())
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+  authorRole Role // snapshot of the sender's role at submission time
+  regionId   String?
+  region     Region?  @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  appVersion String?
+  subject    String
+  body       String
+  createdAt  DateTime @default(now())
+  // Null until a send attempt succeeds. Distinguishes "never sent" from
+  // "sent" without needing a separate boolean that could drift from it.
+  emailedAt  DateTime?
+  // The last send attempt's error message, if any -- cleared implicitly by
+  // emailedAt being set on a later successful retry (there is no retry
+  // mechanism yet, but the shape doesn't rule one out).
+  emailError String?
+
+  @@index([authorId])
 }

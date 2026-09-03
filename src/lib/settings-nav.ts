@@ -6,7 +6,7 @@
 // visibility rule below — which section a given role gets to see — is
 // unit-testable without a database or a rendered component.
 import type { LucideIcon } from "lucide-react";
-import { User, SlidersHorizontal, Users, Package, MapPin } from "lucide-react";
+import { User, SlidersHorizontal, Users, Package, MapPin, LifeBuoy } from "lucide-react";
 import { isAdminRole } from "./roles";
 
 export type SettingsNavItem = {
@@ -36,9 +36,10 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     activePrefixes: ["/settings/option-conflict-groups"],
   },
   { href: "/settings/regions", label: "Regions", icon: MapPin, adminOnly: true },
-  // A sixth section, "PathQuote Support", is added by the commit that
-  // introduces the support form (src/lib/actions/support.ts) — kept out
-  // until that route exists so this list never points at a 404.
+  // Open to every signed-in user, same as Account/Preferences — a MANAGER
+  // is exactly who most needs to reach the developer about a pricing or
+  // technical problem (see src/app/(app)/settings/support/page.tsx).
+  { href: "/settings/support", label: "PathQuote Support", icon: LifeBuoy, adminOnly: false },
 ];
 
 /**
