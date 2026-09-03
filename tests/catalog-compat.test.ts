@@ -31,13 +31,11 @@ describe("compatibilityOrFilter", () => {
 });
 
 describe("isOptionDisabled", () => {
-  // Change 2 ("an incompatible pairing warns instead of blocking"): a price
-  // is a different condition from compatibility — the quote literally
-  // cannot be priced without one — and stays a hard disable. Compatibility
-  // itself is advisory only from here down (see `CompatibleOption.compatible`
-  // in src/lib/queries/documents.ts) and is deliberately not even an input
-  // to this function, so an incompatible-but-priced option can never be
-  // disabled through it, by construction.
+  // A missing/needsReview price is a different condition from compatibility
+  // — the quote literally cannot be priced without one. `isOptionDisabled`
+  // deliberately takes only `price`, not compatibility, as an input: an
+  // incompatible-but-priced option is never disabled through it, only kept
+  // out of the list entirely by `listCompatibleOptions`.
 
   it("disables an option with no price row at all", () => {
     expect(isOptionDisabled(null)).toBe(true);

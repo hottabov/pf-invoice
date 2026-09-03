@@ -782,34 +782,19 @@ export type CompatibleOption = {
    * setting is on (see `getShowOptionIcons`, src/lib/queries/settings.ts) —
    * `null` (most options today) shows no icon and no placeholder. */
   imageUrl: string | null;
-  /** Whether this option has an `OptionCompatibility` row matching the
-   * item — at either the series level (`seriesId`) or the product level
-   * (`productId`; e.g. EasyLoader accessories are only compatible with
-   * product EL-2020, not the whole EasyLoader series) — see
-   * `compatibilityOrFilter`. `false` no longer means "cannot be added":
-   * every active option is offered regardless (Ross, in the meeting: "there
-   * might be a situation where you do... if you restrict yourself"), this
-   * just tells the builder which ones to flag and confirm before adding
-   * (see `ItemOptionsEditor`). The `OptionCompatibility` model only ever
-   * records a plain yes/no per (option, series/product) pair — no
-   * spec/measurement data (e.g. widths) is stored anywhere — so this is the
-   * only thing a caller can honestly say about *why* a pairing isn't
-   * marked compatible. */
-  compatible: boolean;
 };
 
 /**
- * Every active option, each flagged with whether it's marked compatible with
- * `productId`/`seriesId` (see `CompatibleOption.compatible`) — until Change
- * 2 this query filtered incompatible options out entirely; it now returns
- * all of them so the builder's options editor can offer everything, visibly
- * marking what the catalog doesn't vouch for (see `ItemOptionsEditor`) —
- * incompatible is a warning now, not a wall. Each result still carries its
- * price in `regionId` if one exists, unpriced or not: a missing/`needsReview`
- * price is a *different* condition (the option literally cannot be priced on
- * this quote) and stays a hard disable in the editor, untouched by this
- * change. Preloaded once per distinct (productId, seriesId) pair on the
- * builder page (not per item) and handed to each item's options editor.
+ * Active options compatible with `productId` and/or `seriesId` — an option
+ * counts as compatible when it has a compat row at either the series level
+ * (matching `seriesId`) or the product level (matching `productId`; e.g.
+ * EasyLoader accessories are only compatible with product EL-2020, not the
+ * whole EasyLoader series) — see `compatibilityOrFilter`. Each result
+ * carries its price in `regionId` if one exists. Preloaded once per distinct
+ * (productId, seriesId) pair on the builder page (not per item) and handed
+ * to each item's options editor — a product with no price row at all, or
+ * one flagged `needsReview`, is still included (so the editor can show it
+ * disabled with "price required") rather than silently hidden.
  */
 export async function listCompatibleOptions(
   productId: string | null,
@@ -820,9 +805,9 @@ export async function listCompatibleOptions(
   if (!or) return [];
 
   const options = await db.option.findMany({
-    where: { active: true },
+    where: { active: true, compat: { some: { OR: or } } },
     orderBy: { sortOrder: "asc" },
-    include: { prices: { where: { regionId } }, compat: { where: { OR: or } } },
+    include: { prices: { where: { regionId } } },
   });
 
   return options.map((o) => {
@@ -835,7 +820,6 @@ export async function listCompatibleOptions(
       attributeSchema: o.attributeSchema,
       price: price ? { amount: price.amount.toString(), needsReview: price.needsReview } : null,
       imageUrl: o.imageUrl,
-      compatible: o.compat.length > 0,
     };
   });
 }

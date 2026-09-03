@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
 import { companyWhereForUser, documentWhereForUser } from "@/lib/scope";
+import { compatibilityOrFilter } from "@/lib/catalog-compat";
 import {
   capPct,
   computeTotals,
@@ -634,26 +635,19 @@ const MAX_OPTION_SELECTIONS = 100;
 /**
  * Replaces an item's OPTION lines with exactly `selections`, preserving
  * selection order as `sortOrder`. Every option code must (a) resolve to a
- * real, active-or-not `Option` row and (b) carry a usable price (exists, not
- * `needsReview`) in the *document's* region — otherwise nothing is written
- * at all and the offending codes are named in the returned error, checked in
- * that order (unknown, then unpriced) so the caller always gets one
- * actionable message. Delete+create happens in a single transaction so a
- * failed create can never leave an item with no options where it had some a
- * moment ago. Scoped through item -> document -> author chain and
- * DRAFT-only, like every other item mutation in this file.
- *
- * Compatibility (`OptionCompatibility`, a series- and/or product-level row —
- * see `compatibilityOrFilter`) is deliberately NOT enforced here any more
- * (Change: "an incompatible pairing warns instead of blocking" — Ross in the
- * meeting: "there might be a situation where you do... if you restrict
- * yourself"). The picker (`listCompatibleOptions` in
- * src/lib/queries/documents.ts) still tells the builder which options are
- * compatible, but only to flag them and ask for confirmation before adding
- * one that isn't (see `ItemOptionsEditor`) — once added, an incompatible
- * option is a normal line with no server-side penalty or re-check. A price
- * is a different condition entirely (the quote literally cannot be priced
- * without one), which is why it's still enforced here.
+ * real, active-or-not `Option` row, (b) be compatible with the item —
+ * either via a series-level `OptionCompatibility` row (matching the item's
+ * product's series) or a product-level one (matching the item's product
+ * directly, e.g. EasyLoader accessories scoped to EL-2020 — see
+ * `compatibilityOrFilter`) — and (c) carry a usable price (exists, not
+ * `needsReview`) in the *document's* region — otherwise
+ * nothing is written at all and the offending codes are named in the
+ * returned error, checked in that order (unknown, then incompatible, then
+ * unpriced) so the caller always gets one actionable message. Delete+create
+ * happens in a single transaction so a failed create can never leave an
+ * item with no options where it had some a moment ago. Scoped through
+ * item -> document -> author chain and DRAFT-only, like every other item
+ * mutation in this file.
  */
 export async function setItemOptions(
   itemId: string,
@@ -680,7 +674,7 @@ export async function setItemOptions(
       id: parsedItemId.data,
       document: { status: "DRAFT", ...documentWhereForUser(session.user) },
     },
-    include: { document: true, product: true },
+    include: { document: true, product: { include: { series: true } } },
   });
   if (!item) return { error: NOT_FOUND_ERROR };
   if (!item.product) return { error: "This item has no product to attach options to" };
@@ -701,15 +695,21 @@ export async function setItemOptions(
     return concessionWarning ? { warning: concessionWarning } : {};
   }
 
+  // item.product is checked truthy above, so both its id and seriesId
+  // (a required field on Product) are always available here — the OR filter
+  // is never null in practice, but the `?? []` keeps the type honest.
+  const compatOr = compatibilityOrFilter(item.product.id, item.product.seriesId) ?? [];
   const options = await db.option.findMany({
     where: { code: { in: codes } },
     include: {
       prices: { where: { regionId: item.document.regionId } },
+      compat: { where: { OR: compatOr } },
     },
   });
   const optionByCode = new Map(options.map((o) => [o.code, o]));
 
   const missingCodes: string[] = [];
+  const incompatibleCodes: string[] = [];
   const unpricedCodes: string[] = [];
   for (const code of codes) {
     const option = optionByCode.get(code);
@@ -717,14 +717,22 @@ export async function setItemOptions(
       missingCodes.push(code);
       continue;
     }
+    if (option.compat.length === 0) {
+      incompatibleCodes.push(code);
+      continue;
+    }
     const price = option.prices[0];
     if (!price || price.needsReview) {
       unpricedCodes.push(code);
     }
   }
-
   if (missingCodes.length > 0) {
     return { error: `Unknown option code(s): ${missingCodes.join(", ")}` };
+  }
+  if (incompatibleCodes.length > 0) {
+    return {
+      error: `Not compatible with ${item.product.series.name}: ${incompatibleCodes.join(", ")}`,
+    };
   }
   if (unpricedCodes.length > 0) {
     return { error: `Price required for: ${unpricedCodes.join(", ")}` };

@@ -3,8 +3,7 @@
 import { useState, useTransition } from "react";
 import { ChevronDown, Minus, Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { fieldInputClass, useConfirm } from "@/components/ui-kit";
-import { isOptionDisabled } from "@/lib/catalog-compat";
+import { fieldInputClass } from "@/components/ui-kit";
 import { formatMoney } from "@/lib/format";
 import { formatMetres, unitLengthMetres } from "@/lib/option-length";
 import { cn } from "@/lib/utils";
@@ -59,45 +58,29 @@ function selectionsFromLines(lines: CurrentLine[]): Map<string, SelectionState> 
 /**
  * Per-item options editor: a row of "code ×qty" chips summarizing the
  * item's current OPTION lines, plus an "Edit options" toggle that opens a
- * panel listing every active option, preloaded via `listCompatibleOptions`
- * (src/lib/queries/documents.ts) with an "OptionCompatibility"-derived
- * `compatible` flag per option. Checking an option reveals its qty stepper
- * and (when it carries an `attributeSchema`) its attribute inputs.
- *
- * Two independent gates, never conflated (Change: "an incompatible pairing
- * warns instead of blocking" — Ross in the meeting: "there might be a
- * situation where you do... if you restrict yourself"):
- * - An unpriced option (no usable `Price` row for the document's region) is
- *   shown but its checkbox is *disabled* — see `isOptionDisabled` — the
- *   quote literally cannot be priced without one, so this is unchanged from
- *   before.
- * - An option not marked compatible with this item is shown, flagged with a
- *   badge, and still fully selectable — checking it (when priced) asks for
- *   confirmation first, naming the pairing the catalog doesn't vouch for
- *   (see `toggle` below). Once added it's a normal line: no permanent
- *   penalty, no re-check on save.
- *
- * "Save options" sends the *entire* selection set to `setItemOptions`, which
- * replaces the item's OPTION lines as a whole (see actions/documents.ts) —
- * there's no partial add/remove here.
+ * panel listing every option compatible with the item (series- and/or
+ * product-level `OptionCompatibility` — preloaded via
+ * `listCompatibleOptions`). Checking an option reveals its qty stepper and
+ * (when it carries an `attributeSchema`) its attribute inputs; an unpriced
+ * option is shown but its checkbox is disabled. "Save options" sends the
+ * *entire* selection set to `setItemOptions`, which replaces the item's
+ * OPTION lines as a whole (see actions/documents.ts) — there's no partial
+ * add/remove here.
  *
  * The panel also has a search box (client-side filter on code + name),
  * "Select all" / "Clear" buttons, and a "N of M selected" count badge.
- * "Select all" adds every currently-*filtered*, priced, AND compatible
- * option to the selection — an incompatible option always needs its own
- * individual confirmation, so a bulk action never silently waves a whole
- * batch of them through; "Clear" resets the whole selection (not just the
- * filtered subset) — a full reset is one click away regardless of search
- * state. Options are always rendered in their original catalog order
- * (filtered by search only) — selecting/deselecting never reorders the
- * list. The panel itself is one scrolling column capped at 70dvh with the
- * Save/Cancel bar pinned (`sticky bottom-0`) to its own bottom, so it stays
- * reachable even when a series has many options — including on a phone, the
- * primary device this builder targets.
+ * "Select all" adds every currently-*filtered* and priced option to the
+ * selection; "Clear" resets the whole selection (not just the filtered
+ * subset) — a full reset is one click away regardless of search state.
+ * Options are always rendered in their original catalog order (filtered by
+ * search only) — selecting/deselecting never reorders the list. The panel
+ * itself is one scrolling column capped at 70dvh with the Save/Cancel bar pinned
+ * (`sticky bottom-0`) to its own bottom, so it stays reachable even when a
+ * series has many options — including on a phone, the primary device this
+ * builder targets.
  */
 export function ItemOptionsEditor({
   itemId,
-  itemName,
   currentLines,
   compatibleOptions,
   currency,
@@ -106,11 +89,6 @@ export function ItemOptionsEditor({
   readOnly = false,
 }: {
   itemId: string;
-  /** The item's own product name (e.g. "M5180") — named in the
-   * confirmation dialog when adding an option the catalog doesn't mark
-   * compatible with it (see `toggle`), so the warning says what's actually
-   * being paired rather than a generic "are you sure". */
-  itemName: string;
   currentLines: CurrentLine[];
   compatibleOptions: CompatibleOption[];
   currency: string;
@@ -135,7 +113,6 @@ export function ItemOptionsEditor({
   const [search, setSearch] = useState("");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const confirm = useConfirm();
 
   const chips = currentLines.filter((line): line is CurrentLine & { code: string } => Boolean(line.code));
 
@@ -167,12 +144,8 @@ export function ItemOptionsEditor({
       const next = new Map(prev);
       for (const option of filteredOptions) {
         if (next.has(option.code)) continue;
-        if (isOptionDisabled(option.price)) continue;
-        // Bulk-select only ever adds what the catalog already vouches for —
-        // an incompatible option always needs its own individual
-        // confirmation (see `toggle` below), which a batch action can't
-        // meaningfully ask on someone's behalf.
-        if (!option.compatible) continue;
+        const priced = Boolean(option.price && !option.price.needsReview);
+        if (!priced) continue;
         next.set(option.code, { qty: 1, attributes: {} });
       }
       return next;
@@ -183,31 +156,11 @@ export function ItemOptionsEditor({
     setSelected(new Map());
   }
 
-  /**
-   * Checking/unchecking one option. Unchecking (removing a selection) never
-   * needs confirmation — it's always safe. Checking an option the catalog
-   * doesn't mark compatible with this item asks for confirmation first,
-   * naming the actual pairing (`${option.name}` with `itemName`) rather
-   * than a generic "are you sure" — see the component's own doc comment for
-   * why that's as specific as the confirmation can honestly be (the
-   * `OptionCompatibility` model records a plain yes/no, nothing richer like
-   * a width or spec mismatch). A user who cancels the dialog leaves the
-   * selection untouched.
-   */
-  async function toggle(option: CompatibleOption) {
-    const alreadySelected = selected.has(option.code);
-    if (!alreadySelected && !option.compatible) {
-      const confirmed = await confirm({
-        title: `Add ${option.name} anyway?`,
-        description: `${option.code} — ${option.name} isn't marked compatible with ${itemName}. The catalog doesn't list this pairing as compatible, so double-check it's the right fit before adding it.`,
-        confirmLabel: "Add anyway",
-      });
-      if (!confirmed) return;
-    }
+  function toggle(code: string) {
     setSelected((prev) => {
       const next = new Map(prev);
-      if (next.has(option.code)) next.delete(option.code);
-      else next.set(option.code, { qty: 1, attributes: {} });
+      if (next.has(code)) next.delete(code);
+      else next.set(code, { qty: 1, attributes: {} });
       return next;
     });
   }
@@ -345,7 +298,7 @@ export function ItemOptionsEditor({
                     {displayOptions.map((option) => {
                       const state = selected.get(option.code);
                       const checked = Boolean(state);
-                      const priced = !isOptionDisabled(option.price);
+                      const priced = Boolean(option.price && !option.price.needsReview);
                       const attributeFields = parseAttributeFields(option.attributeSchema);
                       const unitLength = unitLengthMetres(option.name);
 
@@ -359,7 +312,7 @@ export function ItemOptionsEditor({
                               type="checkbox"
                               checked={checked}
                               disabled={!priced}
-                              onChange={() => void toggle(option)}
+                              onChange={() => toggle(option.code)}
                               className="mt-0.5 size-5 shrink-0 rounded border-slate-300 accent-brand"
                             />
                             {showOptionIcons && option.imageUrl ? (
@@ -375,27 +328,15 @@ export function ItemOptionsEditor({
                                 <span className="font-mono text-xs text-brand-dark">{option.code}</span>
                                 <span className="text-sm text-slate-700">{option.name}</span>
                               </span>
-                              <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                                {priced ? (
-                                  <span className="text-xs text-slate-500">
-                                    {formatMoney(option.price!.amount, currency)}
-                                  </span>
-                                ) : (
-                                  <span className="w-fit rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                                    price required
-                                  </span>
-                                )}
-                                {/* Flags what the catalog doesn't vouch for
-                                    without blocking it — see the component's
-                                    own doc comment. Shown alongside (not
-                                    instead of) the price badge above, since
-                                    the two are independent conditions. */}
-                                {!option.compatible ? (
-                                  <span className="w-fit rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                                    not marked compatible
-                                  </span>
-                                ) : null}
-                              </span>
+                              {priced ? (
+                                <span className="text-xs text-slate-500">
+                                  {formatMoney(option.price!.amount, currency)}
+                                </span>
+                              ) : (
+                                <span className="mt-0.5 w-fit rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                  price required
+                                </span>
+                              )}
                             </span>
                           </label>
 
