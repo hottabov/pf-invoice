@@ -123,9 +123,16 @@ async function seriesProductsResult(
   },
   regionCode: string
 ): Promise<SeriesProductsResult> {
+  // `sortOrder` first (drag-to-reorder — see `reorderProducts` in
+  // src/lib/actions/catalog.ts), `code` as the tiebreak. Every product
+  // defaults to `sortOrder: 0`, so a series nobody has ever reordered ties
+  // on every row and falls through entirely to `code` — i.e. reads
+  // alphabetically, exactly the owner's stated default. Dragging touches
+  // only that series' own rows (see `reorderProducts`), so an untouched
+  // series elsewhere is unaffected either way.
   const products = await db.product.findMany({
     where: { seriesId: series.id },
-    orderBy: { sortOrder: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
     include: {
       prices: {
         where: { region: { code: regionCode } },

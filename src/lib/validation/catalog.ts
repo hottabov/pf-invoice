@@ -210,6 +210,45 @@ export const maxMarkupPctSchema = z.preprocess(
 );
 export type MaxMarkupPctInput = z.infer<typeof maxMarkupPctSchema>;
 
+// --- product reordering (drag-and-drop) -------------------------------------
+
+/** The full ordered list of a series' product ids submitted by the
+ * /catalog/[seriesId] page's drag-and-drop / up-down reorder UI — same
+ * shape and bound as `reorderSchema` in validation/documents.ts (the
+ * builder's own item reorder), kept as its own schema here rather than a
+ * cross-import: same reasoning `maxDiscountPctSchema`/`maxMarkupPctSchema`
+ * above already give — the two modules happen to need an identically-shaped
+ * id list, not actually depend on each other. Plain (non-cuid-pattern)
+ * strings, matching how every other id this module's actions take
+ * (`productId`, `seriesId`, ...) is handled — not validated by shape, just
+ * checked against what's actually in the database. The *set* of ids still
+ * has to be checked against the series' actual products by the caller (see
+ * `isProductPermutation`) since a schema alone can't know what the series
+ * holds. */
+export const reorderProductsSchema = z
+  .array(z.string().min(1), { error: "Invalid order" })
+  .min(1, "Invalid order")
+  .max(500, "Invalid order")
+  .refine((ids) => new Set(ids).size === ids.length, "Duplicate product in order");
+export type ReorderProductsInput = z.infer<typeof reorderProductsSchema>;
+
+/** Pure set-equality check — duplicated from `isPermutation` in
+ * validation/documents.ts for the same reason `reorderProductsSchema` is a
+ * duplicate, not a cross-import. `proposed` must contain exactly the same
+ * ids as `actual`, any order; two empty arrays count as a permutation of
+ * each other. */
+export function isProductPermutation(proposed: string[], actual: string[]): boolean {
+  if (proposed.length !== actual.length) return false;
+  const proposedSet = new Set(proposed);
+  const actualSet = new Set(actual);
+  if (proposedSet.size !== proposed.length) return false;
+  if (actualSet.size !== actual.length) return false;
+  for (const id of proposedSet) {
+    if (!actualSet.has(id)) return false;
+  }
+  return true;
+}
+
 // --- compatibility diff -----------------------------------------------------
 
 export type CompatDiff = { toAdd: string[]; toRemove: string[] };

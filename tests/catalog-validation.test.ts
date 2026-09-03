@@ -6,6 +6,8 @@ import {
   compatDiff,
   maxDiscountPctSchema,
   conflictGroupNameSchema,
+  reorderProductsSchema,
+  isProductPermutation,
 } from "../src/lib/validation/catalog";
 
 describe("productSchema", () => {
@@ -380,5 +382,53 @@ describe("maxDiscountPctSchema", () => {
 
   it("rejects a non-numeric string", () => {
     expect(maxDiscountPctSchema.safeParse("abc").success).toBe(false);
+  });
+});
+
+describe("reorderProductsSchema", () => {
+  it("accepts a non-empty list of ids", () => {
+    expect(reorderProductsSchema.safeParse(["p1", "p2", "p3"]).success).toBe(true);
+  });
+
+  it("accepts a single id", () => {
+    expect(reorderProductsSchema.safeParse(["p1"]).success).toBe(true);
+  });
+
+  it("rejects an empty list", () => {
+    expect(reorderProductsSchema.safeParse([]).success).toBe(false);
+  });
+
+  it("rejects a duplicate id", () => {
+    expect(reorderProductsSchema.safeParse(["p1", "p2", "p1"]).success).toBe(false);
+  });
+
+  it("rejects an empty-string id", () => {
+    expect(reorderProductsSchema.safeParse(["p1", ""]).success).toBe(false);
+  });
+
+  it("rejects a non-array", () => {
+    expect(reorderProductsSchema.safeParse("p1").success).toBe(false);
+  });
+});
+
+describe("isProductPermutation", () => {
+  it("is true for the same ids in a different order", () => {
+    expect(isProductPermutation(["a", "b", "c"], ["c", "a", "b"])).toBe(true);
+  });
+
+  it("is true for two empty lists", () => {
+    expect(isProductPermutation([], [])).toBe(true);
+  });
+
+  it("is false when a proposed id is missing from actual", () => {
+    expect(isProductPermutation(["a", "b"], ["a", "c"])).toBe(false);
+  });
+
+  it("is false when actual has more ids than proposed", () => {
+    expect(isProductPermutation(["a", "b"], ["a", "b", "c"])).toBe(false);
+  });
+
+  it("is false when proposed has a duplicate", () => {
+    expect(isProductPermutation(["a", "a"], ["a", "b"])).toBe(false);
   });
 });

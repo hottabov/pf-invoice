@@ -11,8 +11,9 @@ import {
 } from "@/lib/queries/catalog";
 import { catalogVisibilityUserId, isSeriesHidden } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
-import { updateSeriesImage } from "@/lib/actions/catalog";
+import { updateSeriesImage, reorderProducts } from "@/lib/actions/catalog";
 import { SeriesImageCard } from "@/components/catalog/series-image-card";
+import { ProductReorderList } from "@/components/catalog/product-reorder-list";
 import { PriceDisplay, InactiveBadge } from "@/components/catalog-badges";
 import { CatalogThumb } from "@/components/catalog/catalog-thumb";
 import { buttonVariants } from "@/components/ui/button";
@@ -106,6 +107,16 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
           title="No products in this series yet"
           description={isAdmin ? "Add the first one above." : undefined}
         />
+      ) : isAdmin ? (
+        // ADMIN (or DEVELOPER — see `requireAdmin`) gets drag-to-reorder
+        // instead of the read-only table/cards split below — see
+        // `ProductReorderList`'s own doc comment for why it's one adaptive
+        // list rather than a `<table>` + cards pair. Untouched products
+        // still read alphabetically (every `sortOrder` defaults to 0, and
+        // `listProductsBySeriesById` ties on `code`) — dragging one only
+        // ever reindexes the whole series at once, so the list never shows
+        // a half-ordered mix of dragged and alphabetical rows.
+        <ProductReorderList seriesId={series.id} products={products} reorderProductsAction={reorderProducts} />
       ) : (
         <TableShell
           table={
