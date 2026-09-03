@@ -568,6 +568,21 @@ installs had nothing equivalent.
 Fixed by a `postinstall: prisma generate` script. If you hit it on an older
 checkout, run `npx prisma generate` by hand.
 
+That script has a consequence in the Dockerfile: `npm ci` now runs
+`prisma generate`, which needs `prisma.config.ts` and `prisma/schema.prisma` to
+be present. The `deps` stage previously copied only `package*.json`, so the
+build died with `Could not find Prisma Schema` inside `RUN npm ci`. It now
+copies those two files as well — deliberately not the whole `prisma/`
+directory, so that a migration or a `seed-data/` edit doesn't invalidate the
+`npm ci` layer. If you add another install-time dependency on a repo file,
+it has to be copied there too.
+
+Verify a change to that stage without a full deploy:
+
+```bash
+docker build --target deps -t pq-deps-check .
+```
+
 Related: `node_modules` holds platform-specific native binaries
 (`@node-rs/argon2-*`, `@next/swc-*`, `lightningcss-*`). Running `npm install`
 against the same working tree from a different OS — a Linux container sharing

@@ -1,6 +1,12 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
-COPY package*.json ./
+# The `postinstall: prisma generate` script (added so a plain `npm ci` leaves a
+# usable client — Prisma 7 dropped its own install hook) runs as part of
+# `npm ci`, and it needs the schema and config to exist. Copying just those two
+# files rather than the whole `prisma/` directory keeps this layer cached when
+# migrations or seed data change, which is most of the time.
+COPY package*.json prisma.config.ts ./
+COPY prisma/schema.prisma ./prisma/schema.prisma
 RUN npm ci
 
 FROM node:22-alpine AS build
