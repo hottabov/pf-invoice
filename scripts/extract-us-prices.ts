@@ -671,8 +671,14 @@ function extractFabricPro(wb: XLSX.WorkBook): void {
 // maps directly onto its matching catalog product code. Each section's
 // "2 hours installation" row is priced identically (180) across all three
 // widths and maps to the SVC-HDRF-INSTALL service option (see
-// MANUAL_OPTIONS in scripts/extract-catalog.ts). Crate rows are reported,
-// not catalogued (no catalog crate code exists for this series at all).
+// MANUAL_OPTIONS in scripts/extract-catalog.ts). Crate rows ARE genuinely
+// different per width (1254/1400/1600) -- unlike installation, they map onto
+// three separate product-scoped catalog options (one per width, see the same
+// MANUAL_OPTIONS section) rather than a single shared one; catalogCratecode
+// carries the exact code MANUAL_OPTIONS uses for each ("<width> Crate- Wooden
+// Crate for transport"), sourced from this sheet's own label text (note the
+// third section's label starts "HDRF320", no hyphen -- a typo in the source
+// workbook, normalized to "HDRF-320 ..." here to match the catalog code).
 // ---------------------------------------------------------------------------
 
 function extractHDRF(wb: XLSX.WorkBook): void {
@@ -680,9 +686,27 @@ function extractHDRF(wb: XLSX.WorkBook): void {
   const sheet = "HDRF";
 
   const sections = [
-    { widthLabel: "HDRF-180", catalogCode: "HDRF-180", machineRow: 6, crateRow: 7, installRow: 8 },
-    { widthLabel: "HDRF-220", catalogCode: "HDRF-220", machineRow: 13, crateRow: 14, installRow: 15 },
-    { widthLabel: "HDRF320", catalogCode: "HDRF-320", machineRow: 23, crateRow: 24, installRow: 25 },
+    {
+      catalogCode: "HDRF-180",
+      catalogCrateCode: "HDRF-180 Crate- Wooden Crate for transport",
+      machineRow: 6,
+      crateRow: 7,
+      installRow: 8,
+    },
+    {
+      catalogCode: "HDRF-220",
+      catalogCrateCode: "HDRF-220 Crate- Wooden Crate for transport",
+      machineRow: 13,
+      crateRow: 14,
+      installRow: 15,
+    },
+    {
+      catalogCode: "HDRF-320",
+      catalogCrateCode: "HDRF-320 Crate- Wooden Crate for transport",
+      machineRow: 23,
+      crateRow: 24,
+      installRow: 25,
+    },
   ];
 
   for (const section of sections) {
@@ -691,10 +715,9 @@ function extractHDRF(wb: XLSX.WorkBook): void {
       setPrice(section.catalogCode, machinePrice, `${sheet} G${section.machineRow}`);
     }
 
-    const crateLabel = cellText(ws, `C${section.crateRow}`);
     const cratePrice = cellNumber(ws, `G${section.crateRow}`);
-    if (crateLabel && cratePrice !== null) {
-      addUnmatched(sheet, `${section.widthLabel} ${crateLabel}`, cratePrice);
+    if (cratePrice !== null) {
+      setPrice(section.catalogCrateCode, cratePrice, `${sheet} G${section.crateRow}`);
     }
 
     const installLabel = cellText(ws, `C${section.installRow}`);

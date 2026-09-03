@@ -230,6 +230,18 @@
       "amountUsd": 15290
     },
     {
+      "code": "HDRF-180 Crate- Wooden Crate for transport",
+      "amountUsd": 1254
+    },
+    {
+      "code": "HDRF-220 Crate- Wooden Crate for transport",
+      "amountUsd": 1400
+    },
+    {
+      "code": "HDRF-320 Crate- Wooden Crate for transport",
+      "amountUsd": 1600
+    },
+    {
       "code": "HFV-L",
       "amountUsd": 17143
     },
@@ -558,21 +570,6 @@
       "sheet": "EasyLoader",
       "label": "EL-4030 Travel platform support rails including mounting brackets per 1.2m",
       "price": 161
-    },
-    {
-      "sheet": "HDRF",
-      "label": "HDRF-180 Crate- Wooden Crate for transport",
-      "price": 1254
-    },
-    {
-      "sheet": "HDRF",
-      "label": "HDRF-220 Crate- Wooden Crate for transport",
-      "price": 1400
-    },
-    {
-      "sheet": "HDRF",
-      "label": "HDRF320 Crate- Wooden Crate for transport",
-      "price": 1600
     },
     {
       "sheet": "M-series",

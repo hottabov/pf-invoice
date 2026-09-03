@@ -35,7 +35,6 @@ export const SERIES_IMAGES: Record<string, string> = {
   LNS: "leather-nesting.png",
   EF: "easyfeeder.png",
   FP: "fabricpro.png",
-  P: "punchline.png",
 };
 
 /**
@@ -75,8 +74,12 @@ export const PRODUCT_IMAGES: Record<string, string> = {
  * in any lookup:
  *  - EasyLoader (EL series) has no source image at all.
  *  - "LS Convert" (SW series) has no source image at all.
+ *  - punchline.png: Punchline (the "P" series) was retired from the catalog
+ *    entirely (owner: "не продаємо, видаляємо з каталогу взагалі") -- the
+ *    file is left vendored rather than deleted (harmless, unreferenced) but
+ *    SERIES_IMAGES no longer points anything at it.
  */
-export const UNMAPPED_IMAGE_FILES: string[] = [];
+export const UNMAPPED_IMAGE_FILES: string[] = ["punchline.png"];
 
 /**
  * Every distinct image filename actually referenced by SERIES_IMAGES or

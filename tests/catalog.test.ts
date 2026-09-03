@@ -34,14 +34,12 @@ describe('Catalog Extraction Validation', () => {
   let mSeries: Series;
   let xcSeries: Series;
   let lSeries: Series;
-  let pSeries: Series;
   let allItems: CatalogItem[];
 
   beforeAll(() => {
     mSeries = catalog.series.find((s) => s.seriesCode === 'M')!;
     xcSeries = catalog.series.find((s) => s.seriesCode === 'X')!;
     lSeries = catalog.series.find((s) => s.seriesCode === 'L')!;
-    pSeries = catalog.series.find((s) => s.seriesCode === 'P')!;
 
     // Collect all items (products from every series, plus the global options)
     allItems = [];
@@ -52,12 +50,19 @@ describe('Catalog Extraction Validation', () => {
   });
 
   describe('Series Structure', () => {
-    // 10 series: the original 9 plus "SVC" (Service) -- a hand-authored
-    // series with no sheet of its own, added for the new "SERVICE" container
-    // product and its SVC-* service options (see MANUAL_PRODUCTS.SVC and
-    // MANUAL_OPTIONS in scripts/extract-catalog.ts).
-    it('should have exactly 10 series', () => {
-      expect(catalog.series).toHaveLength(10);
+    // 10 series (the original 9 plus "SVC" (Service), a hand-authored series
+    // with no sheet of its own, added for the new "SERVICE" container
+    // product and its SVC-* service options -- see MANUAL_PRODUCTS.SVC and
+    // MANUAL_OPTIONS in scripts/extract-catalog.ts) minus 1: Punchline ("P")
+    // was retired from the catalogue entirely (owner decision -- not sold
+    // anymore), dropped at extraction rather than extracted-and-filtered
+    // (see the comment above extractSoftware in scripts/extract-catalog.ts).
+    it('should have exactly 9 series', () => {
+      expect(catalog.series).toHaveLength(9);
+    });
+
+    it('Punchline ("P") no longer exists as a series', () => {
+      expect(catalog.series.some((s) => s.seriesCode === 'P')).toBe(false);
     });
 
     // 64 -> 67: the single width-less "HDRF" product was split into three
@@ -68,9 +73,11 @@ describe('Catalog Extraction Validation', () => {
     // 67 -> 68: the TRADE-IN credit product was added (+1, see
     // MANUAL_PRODUCTS.SVC) -- a real catalogue product (John: "you're selling
     // a trade in. It's a negative value"), not a discount.
-    it('should have exactly 68 total products across all series', () => {
+    // 68 -> 66: Punchline's two products (P-180, P-220) were retired along
+    // with the whole series (see above).
+    it('should have exactly 66 total products across all series', () => {
       const totalProducts = catalog.series.reduce((sum, series) => sum + series.products.length, 0);
-      expect(totalProducts).toBe(68);
+      expect(totalProducts).toBe(66);
     });
 
     it('M series should have 16 products (12 original + NA-only M3300/M5300/M7300/M10300)', () => {
@@ -200,16 +207,6 @@ describe('Catalog Extraction Validation', () => {
       expect(l180?.price).toBe(135000);
     });
 
-    it('P-180 should have price 10660', () => {
-      const p180 = pSeries.products.find((p) => p.code === 'P-180');
-      expect(p180?.price).toBe(10660);
-    });
-
-    it('P-220 should have price 11310', () => {
-      const p220 = pSeries.products.find((p) => p.code === 'P-220');
-      expect(p220?.price).toBe(11310);
-    });
-
     it('EL-2020 should have price 4050', () => {
       const el = catalog.series.find((s) => s.seriesCode === 'EL')!;
       const el2020 = el.products.find((p) => p.code === 'EL-2020');
@@ -294,16 +291,22 @@ describe('Catalog Extraction Validation', () => {
     // The old single width-less "HDRF" product was split into three width
     // variants (owner decision, model like EasyLoader) -- see
     // MANUAL_PRODUCTS.EF in scripts/extract-catalog.ts. "HDRF" itself no
-    // longer exists as a product code.
-    it('HDRF-180/220/320 (manual EF products) should exist with needsReview=true and no AU price', () => {
+    // longer exists as a product code. Unlike every other manual/NA-only
+    // gap in this describe block, these three DO carry a real AU price --
+    // the owner's own USD->AUD conversion (see the comment on
+    // MANUAL_PRODUCTS.EF's HDRF entries), not something sourced from the AU
+    // price list, so needsReview is false rather than the usual "no AU
+    // pricing published yet" true.
+    it('HDRF-180/220/320 (manual EF products) should exist with real AU prices, needsReview=false', () => {
       const ef = catalog.series.find((s) => s.seriesCode === 'EF')!;
       expect(ef.products.some((p) => p.code === 'HDRF')).toBe(false);
-      for (const code of ['HDRF-180', 'HDRF-220', 'HDRF-320']) {
+      const expectedPrices: Record<string, number> = { 'HDRF-180': 17500, 'HDRF-220': 19500, 'HDRF-320': 21400 };
+      for (const [code, price] of Object.entries(expectedPrices)) {
         const product = ef.products.find((p) => p.code === code);
         expect(product, `expected EF product "${code}"`).toBeDefined();
         expect(product?.name).toBe(`Heavy Duty Roll Feeder ${code.split('-')[1]}`);
-        expect(product?.price).toBeNull();
-        expect(product?.needsReview).toBe(true);
+        expect(product?.price).toBe(price);
+        expect(product?.needsReview).toBe(false);
       }
     });
   });
@@ -315,8 +318,17 @@ describe('Catalog Extraction Validation', () => {
     // 90 -> 95: +1 (Crate-EL) +4 (EL-3220/EL-4030 Additional/Static table
     // 1.2M lengths, priced null pending confirmation) -- production forms
     // phase 2, Task 1.
-    it('should have exactly 95 global options', () => {
-      expect(catalog.options).toHaveLength(95);
+    // 95 -> 94: Crate-P retired along with the rest of Punchline (see the
+    // "Series Structure" describe block above).
+    // 94 -> 97: the three HDRF crate options (HDRF-180/220/320 "Crate- Wooden
+    // Crate for transport"), product-scoped like EasyLoader's own
+    // accessories -- see MANUAL_OPTIONS in scripts/extract-catalog.ts.
+    it('should have exactly 97 global options', () => {
+      expect(catalog.options).toHaveLength(97);
+    });
+
+    it('Crate-P no longer exists as an option', () => {
+      expect(catalog.options.some((o) => o.code === 'Crate-P')).toBe(false);
     });
 
     // Most options are series-scoped (non-empty compatibleSeries). A few
@@ -379,16 +391,18 @@ describe('Catalog Extraction Validation', () => {
         expect(mVariant!.compatibleSeries).toContain('X');
       });
 
-      // Crate splits three ways (M, P, FP), all at different prices.
+      // "Crate" used to split three ways (M, P, FP), all at different
+      // prices. Punchline's own "Crate" row (Crate-P) went with the rest of
+      // the retired series (see "Series Structure" above), so the sheet-
+      // level split is now two ways (M, FP) -- the two still-priced-
+      // differently variants remain, and Crate-P must not have come back.
       const crateM = catalog.options.find((o) => o.code === 'Crate-M');
-      const crateP = catalog.options.find((o) => o.code === 'Crate-P');
       const crateFP = catalog.options.find((o) => o.code === 'Crate-FP');
       expect(crateM).toBeDefined();
-      expect(crateP).toBeDefined();
       expect(crateFP).toBeDefined();
-      expect(new Set([crateM!.price, crateP!.price, crateFP!.price]).size).toBe(3);
+      expect(crateM!.price).not.toBe(crateFP!.price);
+      expect(catalog.options.some((o) => o.code === 'Crate-P')).toBe(false);
       expect(catalog.options.some((o) => o.code === 'Crate')).toBe(false);
-
     });
 
     // PRA used to split two ways (L-Series option, SW-sheet option) at
@@ -443,12 +457,15 @@ describe('Catalog Extraction Validation', () => {
     // Service options (MANUAL_OPTIONS in scripts/extract-catalog.ts),
     // product-scoped to the new "SERVICE" container product, sourced from
     // prisma/seed-data/prices-us.json's `unmatched[]` rows (real NA service
-    // rows with no AU equivalent) -- see scripts/extract-us-prices.ts.
-    it('service options exist, product-scoped to SERVICE, AU price null + needsReview true', () => {
+    // rows with no AU equivalent) -- see scripts/extract-us-prices.ts. Every
+    // one of these has AU price null + needsReview true EXCEPT
+    // SVC-HDRF-INSTALL, which now carries the owner's own manual USD->AUD
+    // conversion (see the comment on MANUAL_PRODUCTS.EF's HDRF entries) --
+    // checked separately below.
+    it('service options (excluding SVC-HDRF-INSTALL) exist, product-scoped to SERVICE, AU price null + needsReview true', () => {
       const serviceCodes = [
         'SVC-LNS-INSTALL',
         'SVC-FP-INSTALL',
-        'SVC-HDRF-INSTALL',
         'SVC-M-INSTALL',
         'SVC-M-INSTALL-MTS',
         'SVC-L-INSTALL',
@@ -456,7 +473,7 @@ describe('Catalog Extraction Validation', () => {
         'SVC-EL-INSTALL',
         'SVC-SW-TRAINING',
       ];
-      expect(serviceCodes).toHaveLength(9);
+      expect(serviceCodes).toHaveLength(8);
       for (const code of serviceCodes) {
         const option = catalog.options.find((o) => o.code === code);
         expect(option, `expected service option "${code}"`).toBeDefined();
@@ -464,6 +481,33 @@ describe('Catalog Extraction Validation', () => {
         expect(option?.needsReview).toBe(true);
         expect(option?.compatibleSeries).toEqual([]);
         expect(option?.compatibleProducts).toEqual(['SERVICE']);
+      }
+    });
+
+    it('SVC-HDRF-INSTALL is priced 300 (AU), needsReview=false, product-scoped to SERVICE', () => {
+      const option = catalog.options.find((o) => o.code === 'SVC-HDRF-INSTALL');
+      expect(option).toBeDefined();
+      expect(option?.price).toBe(300);
+      expect(option?.needsReview).toBe(false);
+      expect(option?.compatibleSeries).toEqual([]);
+      expect(option?.compatibleProducts).toEqual(['SERVICE']);
+    });
+
+    // HDRF crates: product-scoped like EasyLoader's own accessories, one per
+    // width, each a genuinely different price (see the owner's table).
+    it('HDRF crate options exist, product-scoped to their own width, priced per the owner table', () => {
+      const expected: Record<string, [string, number]> = {
+        'HDRF-180 Crate- Wooden Crate for transport': ['HDRF-180', 1800],
+        'HDRF-220 Crate- Wooden Crate for transport': ['HDRF-220', 2000],
+        'HDRF-320 Crate- Wooden Crate for transport': ['HDRF-320', 2300],
+      };
+      for (const [code, [productCode, price]] of Object.entries(expected)) {
+        const option = catalog.options.find((o) => o.code === code);
+        expect(option, `expected HDRF crate option "${code}"`).toBeDefined();
+        expect(option?.price).toBe(price);
+        expect(option?.needsReview).toBe(false);
+        expect(option?.compatibleSeries).toEqual([]);
+        expect(option?.compatibleProducts).toEqual([productCode]);
       }
     });
   });

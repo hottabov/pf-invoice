@@ -28,8 +28,9 @@
  *  - The single region brand logo under prisma/seed-data/brand/pf-logo.png
  *    -> every Region's logoUrl (active or not), only-if-null.
  * Deliberately unmapped, by design (no catalog code / no useful
- * stand-alone image): Punchline (P series), EasyLoader (EL series) product
- * photos; the JTP option icon (see UNMAPPED_ICONS).
+ * stand-alone image): EasyLoader (EL series) product photos; the JTP option
+ * icon (see UNMAPPED_ICONS); punchline.png (Punchline/"P" was retired from
+ * the catalog entirely -- see UNMAPPED_IMAGE_FILES).
  *
  * Idempotent:
  *  - Filenames are content-addressed, so re-running never duplicates a

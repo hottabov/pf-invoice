@@ -296,27 +296,18 @@ function extractLSeries(wb: XLSX.WorkBook) {
   return { products, options };
 }
 
-function extractPunchline(wb: XLSX.WorkBook) {
-  const ws = getSheet(wb, "Punchline");
-  const products: CatalogItem[] = [];
-  const options: CatalogItem[] = [];
-  const seenP = new Set<string>();
-  const seenO = new Set<string>();
-
-  // Rows 6-8, single code column B, description column D, price column F.
-  // P-180 / P-220 are the perforator machines; "Crate" is an accessory.
-  for (let row = 6; row <= 8; row++) {
-    const code = cellText(ws, `B${row}`);
-    if (!code) continue;
-    const desc = cellText(ws, `D${row}`);
-    const price = cellNumber(ws, `F${row}`);
-    const item: CatalogItem = { code, name: desc, description: desc, price, needsReview: price === null };
-    if (/^P-\d/.test(code)) register(products, seenP, item, "P", "product");
-    else register(options, seenO, item, "P", "option");
-  }
-
-  return { products, options };
-}
+// Punchline (the "P" series -- P-180/P-220 perforator machines plus the
+// Crate-P accessory, rows 6-8 of the AU sheet's "Punchline" tab) is retired --
+// not sold anymore (owner decision, same "delete the product line entirely"
+// treatment FM180 got below, not a deactivation). Dropped at extraction so it
+// never reappears in catalog.json even after a `npm run extract:catalog`
+// re-run against a source workbook that still has the sheet; an existing DB
+// is cleaned up by a hand-written migration instead of prisma/seed.ts's
+// RETIRED_OPTION_CODES loop, since a whole series (Series + Products +
+// Options + their Price/OptionCompatibility rows) is a bigger blast radius
+// than the single-Option retirements that loop handles -- see the migration
+// referenced from the commit that removed this function for the exact
+// DELETE statements and its DocumentItem guard.
 
 function extractSoftware(wb: XLSX.WorkBook) {
   const ws = getSheet(wb, "Software");
@@ -619,38 +610,46 @@ const MANUAL_PRODUCTS: Record<string, CatalogItem[]> = {
   // (scripts/extract-us-prices.ts) confirms three real, distinctly-priced
   // width variants (180/220/320cm) -- owner decision: split into three
   // separate products, one per width, same convention as EasyLoader/
-  // EasyFeeder/FabricPro's own per-width products. AU pricing isn't
-  // published for any of the three yet (needsReview, same as the original
-  // single HDRF product); US pricing is 12500/13900/15290 respectively --
-  // see extractHDRF in scripts/extract-us-prices.ts, which now writes all
-  // three into prisma/seed-data/prices-us.json instead of leaving 220/320 in
-  // `unmatched`. prisma/seed.ts renames any pre-existing "HDRF" product row
-  // to "HDRF-180" in place (preserving its id/refs/image) before this
-  // product list is upserted.
+  // EasyFeeder/FabricPro's own per-width products. US pricing is
+  // 12500/13900/15290 respectively -- see extractHDRF in
+  // scripts/extract-us-prices.ts, which writes all three into
+  // prisma/seed-data/prices-us.json. prisma/seed.ts renames any pre-existing
+  // "HDRF" product row to "HDRF-180" in place (preserving its id/refs/image)
+  // before this product list is upserted.
+  //
+  // AU pricing: there is no AU-sheet row for HDRF at all (it never shipped
+  // on RAW/11 Price List Australia ...xlsx), so unlike every other needsReview
+  // gap in this file these three prices are NOT extracted from a spreadsheet
+  // -- they're the owner's own AUD figures (USD x1.3961, the mid-market rate
+  // at the time, rounded UP to the next whole 100 -- e.g. 12500 -> 17451 ->
+  // 17500), given directly for the HDRF launch rather than sourced from a
+  // price-list cell. needsReview: false because this is a real, deliberate
+  // number, not a "TBD" placeholder -- same reasoning as TRADE-IN's price
+  // in MANUAL_PRODUCTS.SVC below.
   EF: [
     {
       code: "HDRF-180",
       name: "Heavy Duty Roll Feeder 180",
       description:
         "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 1800mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
-      price: null,
-      needsReview: true,
+      price: 17500,
+      needsReview: false,
     },
     {
       code: "HDRF-220",
       name: "Heavy Duty Roll Feeder 220",
       description:
         "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 2200mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
-      price: null,
-      needsReview: true,
+      price: 19500,
+      needsReview: false,
     },
     {
       code: "HDRF-320",
       name: "Heavy Duty Roll Feeder 320",
       description:
         "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 3200mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
-      price: null,
-      needsReview: true,
+      price: 21400,
+      needsReview: false,
     },
   ],
   // "Service" is a container product -- it exists so the service OPTIONS in
@@ -859,7 +858,10 @@ const NA_PRODUCTS: Record<string, CatalogItem[]> = {
 // `npm run extract:catalog` always regenerates them rather than requiring a
 // hand-edit of catalog.json. Every entry here has AU price: null /
 // needsReview: true -- none of these are published in the AU price list
-// (RAW/11 Price List Australia ...xlsx) at all.
+// (RAW/11 Price List Australia ...xlsx) at all -- EXCEPT the HDRF crates and
+// SVC-HDRF-INSTALL, whose AU price is the owner's own manual USD->AUD
+// conversion (see the comment on MANUAL_PRODUCTS.EF's HDRF entries above for
+// the exact rule); those three carry a real price and needsReview: false.
 //
 //  - JTP ("JetPen"): owner-requested new option, L-Series only. Distinct
 //    from the pre-existing "JetPen" option (coded from the L-Series sheet's
@@ -881,7 +883,20 @@ const NA_PRODUCTS: Record<string, CatalogItem[]> = {
 //    "Installation (3 hrs)" row, 360 for the 2020/2420 sections vs 720 for
 //    3220/4030) are left as unmatched/unclaimed rather than guessing which
 //    price (or how many split codes) is "correct" -- same policy this file
-//    already applies to genuinely ambiguous data everywhere else.
+//    already applies to genuinely ambiguous data everywhere else. Same for
+//    HDRF's own installation row (identical 180 across all three width
+//    sections, hence one option, not three) -- SVC-HDRF-INSTALL itself is
+//    the one exception with a real AU price too, per the note above.
+//
+//  - HDRF crates: unlike every other HDRF row, the NA sheet's per-width
+//    crate rows (HDRF-180/220/320) are genuinely different prices, so
+//    they're product-scoped options (compatibleProducts, not
+//    compatibleSeries) -- the same "per-product option" shape EasyLoader's
+//    EL-2020 accessories already use -- rather than one shared option like
+//    SVC-HDRF-INSTALL. scripts/extract-us-prices.ts's extractHDRF used to
+//    report these three rows into prices-us.json's `unmatched[]` (no catalog
+//    code existed for them); it now maps them onto these three codes instead
+//    -- see that function's own comment.
 const MANUAL_OPTIONS: GlobalOption[] = [
   {
     code: "JTP",
@@ -913,10 +928,37 @@ const MANUAL_OPTIONS: GlobalOption[] = [
     code: "SVC-HDRF-INSTALL",
     name: "HDRF Installation (2 hours)",
     description: "Heavy Duty Roll Feeder installation, 2 hours.",
-    price: null,
-    needsReview: true,
+    price: 300,
+    needsReview: false,
     compatibleSeries: [],
     compatibleProducts: ["SERVICE"],
+  },
+  {
+    code: "HDRF-180 Crate- Wooden Crate for transport",
+    name: "Crate- Wooden Crate for transport",
+    description: "Crate- Wooden Crate for transport",
+    price: 1800,
+    needsReview: false,
+    compatibleSeries: [],
+    compatibleProducts: ["HDRF-180"],
+  },
+  {
+    code: "HDRF-220 Crate- Wooden Crate for transport",
+    name: "Crate- Wooden Crate for transport",
+    description: "Crate- Wooden Crate for transport",
+    price: 2000,
+    needsReview: false,
+    compatibleSeries: [],
+    compatibleProducts: ["HDRF-220"],
+  },
+  {
+    code: "HDRF-320 Crate- Wooden Crate for transport",
+    name: "Crate- Wooden Crate for transport",
+    description: "Crate- Wooden Crate for transport",
+    price: 2300,
+    needsReview: false,
+    compatibleSeries: [],
+    compatibleProducts: ["HDRF-320"],
   },
   {
     code: "SVC-M-INSTALL",
@@ -992,7 +1034,6 @@ function main(): void {
 
   const m = extractMSeries(wb);
   const l = extractLSeries(wb);
-  const p = extractPunchline(wb);
   const sw = extractSoftware(wb);
   const lns = extractLNS(wb);
   const el = extractEasyLoader(wb);
@@ -1002,7 +1043,8 @@ function main(): void {
   const series: CatalogSeries[] = [
     { seriesCode: "M", seriesName: "M-Series", maxDiscountPct: null, products: sortByCode(m.products) },
     { seriesCode: "L", seriesName: "L-Series", maxDiscountPct: 10, products: sortByCode(l.products) },
-    { seriesCode: "P", seriesName: "Punchline", maxDiscountPct: null, products: sortByCode(p.products) },
+    // Punchline ("P") retired -- see the comment above extractSoftware for
+    // why this series is gone rather than extracted-and-filtered.
     { seriesCode: "SW", seriesName: "Software", maxDiscountPct: null, products: sortByCode(sw.products) },
     { seriesCode: "LNS", seriesName: "Leather Nesting System", maxDiscountPct: null, products: sortByCode(lns.products) },
     { seriesCode: "EL", seriesName: "EasyLoader", maxDiscountPct: null, products: sortByCode(el.products) },
@@ -1014,16 +1056,16 @@ function main(): void {
     { seriesCode: "SVC", seriesName: "Service", maxDiscountPct: null, products: [] },
   ];
 
-  // Cross-sheet option merge, in the same M/L/P/SW/LNS/EL/EF/FP order used
-  // above -- see buildGlobalOptions for the merge/split rule. MANUAL_OPTIONS
-  // (JTP, the SVC-* service options) have no sheet row at all, so they're
-  // appended after the merge rather than fed into it, then the combined list
-  // is re-sorted so they take their alphabetical place.
+  // Cross-sheet option merge, in the same M/L/SW/LNS/EL/EF/FP order used
+  // above (Punchline's "P" dropped along with its series, see above) -- see
+  // buildGlobalOptions for the merge/split rule. MANUAL_OPTIONS (JTP, the
+  // SVC-* service options, the HDRF crates) have no sheet row at all, so
+  // they're appended after the merge rather than fed into it, then the
+  // combined list is re-sorted so they take their alphabetical place.
   const options = sortByCode([
     ...buildGlobalOptions([
       { seriesCode: "M", options: m.options },
       { seriesCode: "L", options: l.options },
-      { seriesCode: "P", options: p.options },
       { seriesCode: "SW", options: sw.options },
       { seriesCode: "LNS", options: lns.options },
       { seriesCode: "EL", options: el.options },

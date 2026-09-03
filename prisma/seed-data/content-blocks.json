@@ -169,12 +169,6 @@
       "body": "Conveyorised Spreading Table ({{lengthM}}mtr)\n\nThe Easy-Loader is designed to integrate with the Pathfinder cutting system, automatically presenting spread materials into the cutting machine.\n\n- {{tableWidthMm}} table width\n- Modular design\n- Digitally controlled speed drive\n- Manual/Auto bypass switch\n- Auto synchronised with Pathfinder cutter"
     },
     {
-      "key": "equipment.punchline",
-      "title": "Punchline P-180/P-220",
-      "sortOrder": 29,
-      "body": "Automatic paper perforating machine. Designed for use by manufacturers utilising automatic knife cutting technology. Perforated paper is often required as an underlay, maximising vacuum and transfer of spread materials.\n\nPaper width: {{paperWidthMm}} (Max)"
-    },
-    {
       "key": "terms.delivery",
       "title": "Delivery",
       "sortOrder": 30,

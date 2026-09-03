@@ -268,27 +268,6 @@
       ]
     },
     {
-      "seriesCode": "P",
-      "seriesName": "Punchline",
-      "maxDiscountPct": null,
-      "products": [
-        {
-          "code": "P-180",
-          "name": "Automatic paper perforating machine- paper width up to 1880mm",
-          "description": "Automatic paper perforating machine- paper width up to 1880mm",
-          "price": 10660,
-          "needsReview": false
-        },
-        {
-          "code": "P-220",
-          "name": "Punchline: Automatic paper perforating machine- paper width up to 2420mm",
-          "description": "Punchline: Automatic paper perforating machine- paper width up to 2420mm",
-          "price": 11310,
-          "needsReview": false
-        }
-      ]
-    },
-    {
       "seriesCode": "SW",
       "seriesName": "Software",
       "maxDiscountPct": null,
@@ -472,22 +451,22 @@
           "code": "HDRF-180",
           "name": "Heavy Duty Roll Feeder 180",
           "description": "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 1800mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
-          "price": null,
-          "needsReview": true
+          "price": 17500,
+          "needsReview": false
         },
         {
           "code": "HDRF-220",
           "name": "Heavy Duty Roll Feeder 220",
           "description": "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 2200mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
-          "price": null,
-          "needsReview": true
+          "price": 19500,
+          "needsReview": false
         },
         {
           "code": "HDRF-320",
           "name": "Heavy Duty Roll Feeder 320",
           "description": "Heavy duty roll feeder for rolls up to 500kg, roll diameters up to 900mm and widths up to 3200mm. Adjustable core support 70-80mm (option up to 200mm), adjustable disk brake prevents roll run-away, heavy-duty lockable castors. Compatible with all Pathfinder automatic cutting machines.",
-          "price": null,
-          "needsReview": true
+          "price": 21400,
+          "needsReview": false
         }
       ]
     },
@@ -794,16 +773,6 @@
       "compatibleSeries": [
         "M",
         "X"
-      ]
-    },
-    {
-      "code": "Crate-P",
-      "name": "Crate- Wooden box for transport",
-      "description": "Crate- Wooden box for transport",
-      "price": 600,
-      "needsReview": false,
-      "compatibleSeries": [
-        "P"
       ]
     },
     {
@@ -1166,6 +1135,39 @@
       ]
     },
     {
+      "code": "HDRF-180 Crate- Wooden Crate for transport",
+      "name": "Crate- Wooden Crate for transport",
+      "description": "Crate- Wooden Crate for transport",
+      "price": 1800,
+      "needsReview": false,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "HDRF-180"
+      ]
+    },
+    {
+      "code": "HDRF-220 Crate- Wooden Crate for transport",
+      "name": "Crate- Wooden Crate for transport",
+      "description": "Crate- Wooden Crate for transport",
+      "price": 2000,
+      "needsReview": false,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "HDRF-220"
+      ]
+    },
+    {
+      "code": "HDRF-320 Crate- Wooden Crate for transport",
+      "name": "Crate- Wooden Crate for transport",
+      "description": "Crate- Wooden Crate for transport",
+      "price": 2300,
+      "needsReview": false,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "HDRF-320"
+      ]
+    },
+    {
       "code": "HFV-L",
       "name": "High Flow Vacuum system- THIS REQUIRES 3PHASE POWER- Recommended for ALL Extended and standard 220 & 320 models. Specific application to be discussed with Pathfinder.(Replacement for standard Vac unit)",
       "description": "High Flow Vacuum system- THIS REQUIRES 3PHASE POWER- Recommended for ALL Extended and standard 220 & 320 models. Specific application to be discussed with Pathfinder.(Replacement for standard Vac unit)",
@@ -1435,8 +1437,8 @@
       "code": "SVC-HDRF-INSTALL",
       "name": "HDRF Installation (2 hours)",
       "description": "Heavy Duty Roll Feeder installation, 2 hours.",
-      "price": null,
-      "needsReview": true,
+      "price": 300,
+      "needsReview": false,
       "compatibleSeries": [],
       "compatibleProducts": [
         "SERVICE"

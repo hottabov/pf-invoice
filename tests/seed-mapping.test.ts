@@ -153,12 +153,12 @@ describe("seed-lib: smoke assertions against the real catalog.json (counts only)
     expect(REGIONS).toHaveLength(3);
   });
 
-  it("has exactly 10 series", () => {
-    expect(mapSeries(catalog)).toHaveLength(10);
+  it("has exactly 9 series", () => {
+    expect(mapSeries(catalog)).toHaveLength(9);
   });
 
-  it("has exactly 68 total products", () => {
-    expect(mapProducts(catalog)).toHaveLength(68);
+  it("has exactly 66 total products", () => {
+    expect(mapProducts(catalog)).toHaveLength(66);
   });
 });
 
@@ -178,8 +178,8 @@ describe("mapContentBlocks", () => {
     ]);
   });
 
-  it("real content-blocks.json has exactly 52 blocks", () => {
-    expect(mapContentBlocks(contentBlocksJson)).toHaveLength(52);
+  it("real content-blocks.json has exactly 51 blocks", () => {
+    expect(mapContentBlocks(contentBlocksJson)).toHaveLength(51);
   });
 
   it("real content-blocks.json has unique keys", () => {
