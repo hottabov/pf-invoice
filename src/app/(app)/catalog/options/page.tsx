@@ -7,6 +7,7 @@ import { listOptions, listSeriesWithCounts, type OptionListItem } from "@/lib/qu
 import { catalogVisibilityUserId, filterHiddenSeries } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { PriceDisplay, InactiveBadge, CompatBadges } from "@/components/catalog-badges";
+import { CatalogThumb } from "@/components/catalog/catalog-thumb";
 import { buttonVariants } from "@/components/ui/button";
 import {
   PageHeader,
@@ -178,7 +179,10 @@ function OptionRow({ option: o }: { option: OptionListItem }) {
         </span>
       </RowCell>
       <RowCell href={href}>
-        <span className="text-sm text-slate-700">{o.name}</span>
+        <span className="flex items-center gap-2.5">
+          <CatalogThumb src={o.imageUrl} />
+          <span className="text-sm text-slate-700">{o.name}</span>
+        </span>
       </RowCell>
       <RowCell href={href}>
         <CompatBadges seriesCodes={o.compatSeriesCodes} />
@@ -209,7 +213,10 @@ function OptionCard({ option: o }: { option: OptionListItem }) {
         </div>
         <PriceDisplay price={o.price} />
       </div>
-      <p className="truncate text-sm text-slate-600">{o.name}</p>
+      <div className="flex items-center gap-2.5">
+        <CatalogThumb src={o.imageUrl} />
+        <p className="truncate text-sm text-slate-600">{o.name}</p>
+      </div>
       <CompatBadges seriesCodes={o.compatSeriesCodes} />
     </Link>
   );

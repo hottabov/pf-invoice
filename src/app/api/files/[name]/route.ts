@@ -3,6 +3,7 @@ import { stat } from "fs/promises";
 import { Readable } from "stream";
 import { auth } from "@/auth";
 import { resolveUploadPath } from "@/lib/uploads";
+import { ensureDerivative, parseDerivativeWidth } from "@/lib/image-derivatives";
 
 // Needs real filesystem access (fs/promises, fs streams) — not available on
 // the edge runtime.
@@ -20,9 +21,17 @@ const CONTENT_TYPES: Record<string, string> = {
  * (managers need to see catalog images too, not just admins). The proxy's
  * matcher excludes image-extension paths from its own auth check, so this
  * route re-checks the session itself rather than relying on the proxy.
+ *
+ * An optional `?w=<width>` asks for a downscaled WebP *thumbnail* of a
+ * raster upload instead of the original bytes — see src/lib/image-
+ * derivatives.ts. Only the widths in `DERIVATIVE_WIDTHS` are honoured;
+ * anything else (including an SVG, or a width whose derivative can't be
+ * built) silently serves the original, so a caller never has to branch on
+ * the stored file's format. Quotation sheets/PDFs deliberately request the
+ * URL *without* `w`, because those go to print at full resolution.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ name: string }> }
 ) {
   const session = await auth();
@@ -31,10 +40,14 @@ export async function GET(
   }
 
   const { name } = await params;
-  const filePath = resolveUploadPath(name);
-  if (!filePath) {
+  const originalPath = resolveUploadPath(name);
+  if (!originalPath) {
     return new Response("Not found", { status: 404 });
   }
+
+  const width = parseDerivativeWidth(new URL(request.url).searchParams.get("w"));
+  const derivedPath = width === null ? null : await ensureDerivative(name, width);
+  const filePath = derivedPath ?? originalPath;
 
   let size: number;
   try {
@@ -43,14 +56,19 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
-  const ext = name.slice(name.lastIndexOf(".") + 1);
+  const ext = derivedPath ? "webp" : name.slice(name.lastIndexOf(".") + 1);
   const contentType = CONTENT_TYPES[ext] ?? "application/octet-stream";
   const body = Readable.toWeb(createReadStream(filePath)) as ReadableStream<Uint8Array>;
 
   const headers: Record<string, string> = {
     "Content-Type": contentType,
     "Content-Length": String(size),
-    "Cache-Control": "private, max-age=86400",
+    // A derivative is keyed by the original's uuid, which `saveUpload` never
+    // reuses, so its bytes can never change under a client — cache it for a
+    // year. The original keeps the shorter window it always had.
+    "Cache-Control": derivedPath
+      ? "private, max-age=31536000, immutable"
+      : "private, max-age=86400",
     "X-Content-Type-Options": "nosniff",
   };
   // SVG is XML that can carry <script>/event-handler content -- sandbox it

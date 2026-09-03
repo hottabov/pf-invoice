@@ -93,6 +93,10 @@ export type ProductListItem = {
   name: string;
   active: boolean;
   price?: CatalogPrice;
+  /** `Product.imageUrl` (raw, unresolved) — the list pages render it as a
+   * thumbnail beside the name via `CatalogThumb`. `null` when the product
+   * has no image; unlike `SeriesDetail.imageUrl` there is no fallback. */
+  imageUrl: string | null;
 };
 
 export type SeriesDetail = {
@@ -145,6 +149,7 @@ async function seriesProductsResult(
         code: p.code,
         name: p.name,
         active: p.active,
+        imageUrl: p.imageUrl,
         price: price
           ? {
               amount: price.amount.toString(),
@@ -219,6 +224,9 @@ export type OptionListItem = {
   active: boolean;
   price?: CatalogPrice;
   compatSeriesCodes: string[];
+  /** `Option.imageUrl` (raw, unresolved) — rendered as a thumbnail beside
+   * the name by the options list, same as `ProductListItem.imageUrl`. */
+  imageUrl: string | null;
 };
 
 /**
@@ -266,6 +274,7 @@ export async function listOptions(params: {
       code: o.code,
       name: o.name,
       active: o.active,
+      imageUrl: o.imageUrl,
       price: price
         ? {
             amount: price.amount.toString(),

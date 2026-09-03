@@ -14,6 +14,7 @@ import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { updateSeriesImage } from "@/lib/actions/catalog";
 import { SeriesImageCard } from "@/components/catalog/series-image-card";
 import { PriceDisplay, InactiveBadge } from "@/components/catalog-badges";
+import { CatalogThumb } from "@/components/catalog/catalog-thumb";
 import { buttonVariants } from "@/components/ui/button";
 import {
   PageHeader,
@@ -166,7 +167,12 @@ function ProductRow({
         </span>
       </RowCell>
       <RowCell href={href}>
-        <span className="text-sm text-slate-700">{p.name}</span>
+        <span className="flex items-center gap-2.5">
+          {/* Product photos are landscape (1280x768 as shot), so they get a
+              wider box than CatalogThumb's square default. */}
+          <CatalogThumb src={p.imageUrl} width={64} />
+          <span className="text-sm text-slate-700">{p.name}</span>
+        </span>
       </RowCell>
       <RowCell href={href} align="right">
         <PriceDisplay price={p.price} />
@@ -200,7 +206,10 @@ function ProductCard({
         </div>
         <PriceDisplay price={p.price} />
       </div>
-      <p className="truncate text-sm text-slate-600">{p.name}</p>
+      <div className="flex items-center gap-2.5">
+        <CatalogThumb src={p.imageUrl} width={64} />
+        <p className="truncate text-sm text-slate-600">{p.name}</p>
+      </div>
     </Link>
   );
 }
