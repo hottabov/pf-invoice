@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   quoteValidityDaysSchema,
   showOptionIconsSchema,
+  commissionTiersSchema,
   isAllowedSettingKey,
   ALLOWED_SETTING_KEYS,
 } from "../src/lib/validation/settings";
+import { DEFAULT_COMMISSION_TIERS } from "../src/lib/pricing";
 
 describe("quoteValidityDaysSchema", () => {
   it("accepts the lower bound (1)", () => {
@@ -72,6 +74,47 @@ describe("showOptionIconsSchema", () => {
     expect(showOptionIconsSchema.safeParse("").success).toBe(false);
     expect(showOptionIconsSchema.safeParse(null).success).toBe(false);
     expect(showOptionIconsSchema.safeParse(undefined).success).toBe(false);
+  });
+});
+
+describe("commissionTiersSchema", () => {
+  it("accepts the default table as JSON", () => {
+    const result = commissionTiersSchema.safeParse(JSON.stringify(DEFAULT_COMMISSION_TIERS));
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toEqual(DEFAULT_COMMISSION_TIERS);
+  });
+
+  it("accepts an empty array (clearing the table)", () => {
+    const result = commissionTiersSchema.safeParse("[]");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toEqual([]);
+  });
+
+  it("rejects text that isn't valid JSON", () => {
+    const result = commissionTiersSchema.safeParse("not json");
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects JSON that isn't an array of tier rows", () => {
+    expect(commissionTiersSchema.safeParse('{"minPct":0}').success).toBe(false);
+    expect(commissionTiersSchema.safeParse('[{"minPct":"0","maxPct":null,"ratePct":5}]').success).toBe(false);
+  });
+
+  it("rejects a table with a gap, surfacing validateCommissionTiers's message", () => {
+    const tiers = [
+      { minPct: 0, maxPct: 5, ratePct: 5 },
+      { minPct: 6, maxPct: null, ratePct: 4 },
+    ];
+    const result = commissionTiersSchema.safeParse(JSON.stringify(tiers));
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues[0]?.message).toMatch(/gap/);
+  });
+
+  it("rejects a table not starting at 0%", () => {
+    const tiers = [{ minPct: 1, maxPct: null, ratePct: 5 }];
+    const result = commissionTiersSchema.safeParse(JSON.stringify(tiers));
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues[0]?.message).toMatch(/start at 0/);
   });
 });
 

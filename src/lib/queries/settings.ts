@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { DEFAULT_COMMISSION_TIERS, validateCommissionTiers, type CommissionTier } from "@/lib/pricing";
 
 const QUOTE_VALIDITY_SETTING_KEY = "quote.validityDays";
 
@@ -49,4 +50,58 @@ export async function getShowOptionIcons(): Promise<boolean> {
   const setting = await db.setting.findUnique({ where: { key: SHOW_OPTION_ICONS_SETTING_KEY } });
   const rawValue = setting?.value;
   return typeof rawValue === "boolean" ? rawValue : DEFAULT_SHOW_OPTION_ICONS;
+}
+
+const COMMISSION_TIERS_SETTING_KEY = "commission.tiers";
+
+/** Structural check only (shape, not the cross-row gap/overlap rules — see
+ * `validateCommissionTiers` in src/lib/pricing.ts for those) that a
+ * `Setting.value` read back from the database is actually a
+ * `CommissionTier[]` before this module trusts it as one. Defensive: the
+ * only writer already validates through `commissionTiersSchema`
+ * (src/lib/validation/settings.ts), but a `Setting` row is a bare Json
+ * column with nothing enforcing that at rest. */
+function isCommissionTierArray(value: unknown): value is CommissionTier[] {
+  return (
+    Array.isArray(value) &&
+    value.every((row) => {
+      if (typeof row !== "object" || row === null) return false;
+      const r = row as Record<string, unknown>;
+      return typeof r.minPct === "number" && (r.maxPct === null || typeof r.maxPct === "number") && typeof r.ratePct === "number";
+    })
+  );
+}
+
+/**
+ * The admin-editable commission-rate table (`Setting` key
+ * "commission.tiers"), read by `getDocumentForBuilder`'s commission
+ * calculation (src/lib/queries/documents.ts) and by the Settings →
+ * Preferences editor (`CommissionTiersForm`).
+ *
+ * Ships pre-filled: when no `Setting` row exists yet, this returns
+ * `DEFAULT_COMMISSION_TIERS` (src/lib/pricing.ts), not an empty table — an
+ * admin has to explicitly clear it (save an empty table) to reach "no
+ * commission tiers configured". That empty-array state IS preserved and
+ * returned here as `[]` (see `validateCommissionTiers`'s doc comment for
+ * why saving one is allowed) — it's the only way `computeTotals` ends up
+ * with `commission: null`, and that distinction — "cleared on purpose" vs.
+ * "nothing saved yet" vs. "a real table" — is the whole point of not just
+ * defaulting an unset row to `[]`.
+ *
+ * A row that's present but doesn't parse as a structurally sound, valid
+ * `CommissionTier[]` (shouldn't happen — the only writer, `updateSetting`,
+ * always validates through `commissionTiersSchema` first — but a `Setting`
+ * row is a bare Json column with no constraint enforcing that at rest)
+ * falls back to `DEFAULT_COMMISSION_TIERS` too, the same "invalid stored
+ * value -> default" rule `getShowOptionIcons` above already follows —
+ * never a table that could silently pay the wrong rate.
+ */
+export async function getCommissionTiers(): Promise<CommissionTier[]> {
+  const setting = await db.setting.findUnique({ where: { key: COMMISSION_TIERS_SETTING_KEY } });
+  if (setting === null) return DEFAULT_COMMISSION_TIERS;
+
+  const rawValue = setting.value;
+  if (!isCommissionTierArray(rawValue)) return DEFAULT_COMMISSION_TIERS;
+  if (validateCommissionTiers(rawValue) !== null) return DEFAULT_COMMISSION_TIERS;
+  return rawValue;
 }

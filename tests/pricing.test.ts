@@ -7,6 +7,9 @@ import {
   capPct,
   concessionCapMessage,
   markupCapMessage,
+  validateCommissionTiers,
+  DEFAULT_COMMISSION_TIERS,
+  type CommissionTier,
 } from "../src/lib/pricing";
 
 describe("toCents", () => {
@@ -108,6 +111,7 @@ describe("computeTotals", () => {
         exceedsMarkupCap: false,
         parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
       },
+      commission: null,
     });
   });
 
@@ -359,6 +363,7 @@ describe("computeTotals", () => {
         exceedsMarkupCap: false,
         parts: { documentDiscount: "0.00", itemDiscounts: "0.00", priceAdjustments: "0.00", tradeIns: "0.00" },
       },
+      commission: null,
     });
   });
 
@@ -1094,5 +1099,246 @@ describe("capPct", () => {
   it("returns 0 for a null value regardless of mode", () => {
     expect(capPct("PERCENT", null, 10000, 0)).toBe(0);
     expect(capPct("AMOUNT", null, 10000, 0)).toBe(0);
+  });
+});
+
+describe("commission calculation (PricingTotals.commission)", () => {
+  it("reproduces the owner's worked example to the cent", () => {
+    // Item 1  10,000
+    // Item 2  15,000
+    // Item 3  20,000
+    // Item 4   3,000
+    // Item 5   6,000   (no commission)
+    //         ------
+    //         54,000   list
+    //
+    // 10% discount -> 48,600 the customer pays
+    // commission base = 48,600 - 6,000 = 42,600
+    // 10% discount -> 4.5% rate
+    // commission = 42,600 x 4.5% = 1,917
+    const result = computeTotals({
+      items: [
+        { unitPrice: 10000, lines: [] },
+        { unitPrice: 15000, lines: [] },
+        { unitPrice: 20000, lines: [] },
+        { unitPrice: 3000, lines: [] },
+        { unitPrice: 6000, lines: [], isNoCommission: true },
+      ],
+      extraLines: [],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "10",
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    expect(result.subtotal).toBe(54000);
+    expect(result.taxableBase).toBe(48600);
+    expect(result.documentConcession.effectivePct).toBe(10);
+    expect(result.commission).toEqual({ base: "42600.00", ratePct: 4.5, amount: "1917.00" });
+  });
+
+  // Every tier boundary, both sides -- a tier table is nothing but
+  // boundaries. Each case sells a single $10,000-list item at a price that
+  // produces an exact concession percentage (no document/item discount
+  // involved), so `documentConcession.effectivePct` lands exactly on the
+  // boundary being tested.
+  function ratePctForConcessionPct(pct: number): number | undefined {
+    const concessionDollars = (pct / 100) * 10000;
+    const result = computeTotals({
+      items: [{ unitPrice: 10000 - concessionDollars, listPrice: 10000, lines: [] }],
+      extraLines: [],
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    return result.commission?.ratePct;
+  }
+
+  it.each([
+    [0, 5],
+    [0.01, 4.75],
+    [5, 4.75],
+    [5.01, 4.5],
+    [10, 4.5],
+    [10.01, 4.25],
+    [15, 4.25],
+    [15.01, 4],
+  ])("a %s%% discount earns %s%% commission", (pct, expectedRatePct) => {
+    expect(ratePctForConcessionPct(pct)).toBe(expectedRatePct);
+  });
+
+  it("selling above list clamps to the 0% tier, never a negative rate", () => {
+    // Priced $1,000 above a $10,000 list -- a -10% concession.
+    const result = computeTotals({
+      items: [{ unitPrice: 11000, listPrice: 10000, lines: [] }],
+      extraLines: [],
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    expect(result.documentConcession.effectivePct).toBe(-10);
+    expect(result.commission?.ratePct).toBe(5);
+  });
+
+  it("excludes a no-commission item from the commission base but not from the subtotal", () => {
+    const result = computeTotals({
+      items: [
+        { unitPrice: 1000, lines: [] },
+        { unitPrice: 400, lines: [], isNoCommission: true },
+      ],
+      extraLines: [],
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    expect(result.subtotal).toBe(1400);
+    expect(result.commission).toEqual({ base: "1000.00", ratePct: 5, amount: "50.00" });
+  });
+
+  it("excludes a no-commission option line from the commission base but not from the subtotal", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 1000, lines: [{ qty: 1, unitPrice: 400, isNoCommission: true }] }],
+      extraLines: [],
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    expect(result.subtotal).toBe(1400);
+    expect(result.commission).toEqual({ base: "1000.00", ratePct: 5, amount: "50.00" });
+  });
+
+  it("excludes a no-commission item AND a no-commission line together", () => {
+    const result = computeTotals({
+      items: [
+        { unitPrice: 1000, lines: [{ qty: 1, unitPrice: 400, isNoCommission: true }], isNoCommission: true },
+        { unitPrice: 2000, lines: [] },
+      ],
+      extraLines: [],
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    expect(result.subtotal).toBe(3400);
+    expect(result.commission).toEqual({ base: "2000.00", ratePct: 5, amount: "100.00" });
+  });
+
+  it("a quote entirely of no-commission items yields zero commission, not a negative number", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 1000, lines: [], isNoCommission: true }],
+      extraLines: [],
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    expect(result.commission).toEqual({ base: "0.00", ratePct: 5, amount: "0.00" });
+  });
+
+  it("clamps to zero rather than negative even when a document discount pushes the raw no-commission amount past the discounted total", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 1000, lines: [], isNoCommission: true }],
+      extraLines: [],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "50",
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    expect(result.taxableBase).toBe(500);
+    expect(result.commission?.base).toBe("0.00");
+    expect(result.commission?.amount).toBe("0.00");
+  });
+
+  it("the full no-commission amount is subtracted from the discounted total, not that item's own discounted share", () => {
+    // A document-level 10% discount applies to the WHOLE document, so a
+    // no-commission item's "discounted share" would be 90% of its own
+    // price -- but the owner was explicit this must use the FULL raw
+    // amount instead. Item 1,000 (commissionable) + item 500 (no
+    // commission) = 1,500 list, 10% off = 1,350 taxable. If the code wrongly
+    // prorated the no-commission item's share (500 * 0.9 = 450), the base
+    // would read 1,350 - 450 = 900. The correct base subtracts the full 500:
+    // 1,350 - 500 = 850.
+    const result = computeTotals({
+      items: [
+        { unitPrice: 1000, lines: [] },
+        { unitPrice: 500, lines: [], isNoCommission: true },
+      ],
+      extraLines: [],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "10",
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    expect(result.taxableBase).toBe(1350);
+    expect(result.commission?.base).toBe("850.00");
+  });
+
+  it("is null when no tier table is configured (commissionTiers omitted)", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 1000, lines: [] }],
+      extraLines: [],
+      taxRate: 0,
+    });
+    expect(result.commission).toBeNull();
+  });
+
+  it("is null when the tier table is explicitly empty (cleared by an admin)", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 1000, lines: [] }],
+      extraLines: [],
+      taxRate: 0,
+      commissionTiers: [],
+    });
+    expect(result.commission).toBeNull();
+  });
+
+  it("leaves every existing total unchanged when every flag is false/absent and no discount is given", () => {
+    const withoutFlags = computeTotals({
+      items: [{ unitPrice: 1000, lines: [{ qty: 1, unitPrice: 200 }] }],
+      extraLines: [{ qty: 1, unitPrice: 50 }],
+      taxRate: 10,
+    });
+    const withFalseFlags = computeTotals({
+      items: [{ unitPrice: 1000, lines: [{ qty: 1, unitPrice: 200, isNoCommission: false }], isNoCommission: false }],
+      extraLines: [{ qty: 1, unitPrice: 50 }],
+      taxRate: 10,
+    });
+    expect(withFalseFlags).toEqual(withoutFlags);
+    expect(withoutFlags.commission).toBeNull();
+  });
+});
+
+describe("validateCommissionTiers", () => {
+  it("accepts the default table", () => {
+    expect(validateCommissionTiers(DEFAULT_COMMISSION_TIERS)).toBeNull();
+  });
+
+  it("accepts an empty table (the 'admin cleared it' state)", () => {
+    expect(validateCommissionTiers([])).toBeNull();
+  });
+
+  it("rejects a table that doesn't start at 0%", () => {
+    const tiers: CommissionTier[] = [{ minPct: 1, maxPct: null, ratePct: 5 }];
+    expect(validateCommissionTiers(tiers)).toMatch(/start at 0/);
+  });
+
+  it("rejects a table with a gap between two tiers", () => {
+    const tiers: CommissionTier[] = [
+      { minPct: 0, maxPct: 5, ratePct: 5 },
+      { minPct: 6, maxPct: null, ratePct: 4 }, // 5.01-5.99% covered by nothing
+    ];
+    expect(validateCommissionTiers(tiers)).toMatch(/gap/);
+  });
+
+  it("rejects a table with a gap above the last tier (not left open-ended)", () => {
+    const tiers: CommissionTier[] = [{ minPct: 0, maxPct: 10, ratePct: 5 }];
+    expect(validateCommissionTiers(tiers)).toMatch(/gap/);
+  });
+
+  it("rejects a table with overlapping tiers", () => {
+    const tiers: CommissionTier[] = [
+      { minPct: 0, maxPct: 5, ratePct: 5 },
+      { minPct: 3, maxPct: null, ratePct: 4 }, // 3-5% claimed by both tiers
+    ];
+    expect(validateCommissionTiers(tiers)).toMatch(/overlap/);
+  });
+
+  it("rejects a table where an earlier tier (not the last) is left open-ended", () => {
+    const tiers: CommissionTier[] = [
+      { minPct: 0, maxPct: null, ratePct: 5 },
+      { minPct: 0.01, maxPct: null, ratePct: 4 },
+    ];
+    expect(validateCommissionTiers(tiers)).toMatch(/last tier/);
   });
 });

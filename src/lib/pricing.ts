@@ -27,6 +27,14 @@ export type EngineItemLine = {
   qty: number;
   unitPrice: number;
   listPrice?: number | null;
+  /** `Option.noCommission` — this option line earns the salesperson no
+   * commission (e.g. Installation/Training on the North America price
+   * list). See `EngineItem.isNoCommission` below for the full reasoning;
+   * the two flags are independent — a plain item can carry a no-commission
+   * option line, and a no-commission item can carry an ordinary one.
+   * Defaults to `false` when omitted, so every existing caller is
+   * unaffected. */
+  isNoCommission?: boolean;
 };
 
 /** A discount is either a percentage of its base or a fixed cash amount —
@@ -59,6 +67,15 @@ export type EngineItem = {
    * impossible. Defaults to `false` when omitted, so every existing caller
    * (and every ordinary product) is unaffected. */
   isCredit?: boolean;
+  /** `Product.noCommission` — this item earns the salesperson no commission
+   * at all, regardless of the document's discount tier. Read live off the
+   * joined product, same rule as `isCredit` above (see
+   * `Product.noCommission`'s doc comment in schema.prisma). Consumed only
+   * by the commission calculation (`PricingTotals.commission` below), never
+   * by the ordinary money math — an item's price still counts fully toward
+   * `subtotal`/`total` whether or not it earns commission. Defaults to
+   * `false` when omitted, so every existing caller is unaffected. */
+  isNoCommission?: boolean;
 };
 
 /** A freeform document-level line (e.g. delivery, install). No `listPrice`:
@@ -69,6 +86,137 @@ export type EngineExtraLine = {
   qty: number;
   unitPrice: number;
 };
+
+// ---------------------------------------------------------------------------
+// Commission tiers
+// ---------------------------------------------------------------------------
+
+/**
+ * One row of the admin-editable commission-rate table (Setting key
+ * "commission.tiers" — see `getCommissionTiers`, src/lib/queries/settings.ts,
+ * and `CommissionTiersForm`, the Settings → Preferences editor for it).
+ *
+ * A row covers the inclusive range `minPct..maxPct` of the document's own
+ * discount percentage (`documentConcession.effectivePct`, clamped to 0 —
+ * see `computeTotals`'s commission section) — e.g. the default table's
+ * second row, `{ minPct: 0.01, maxPct: 5, ratePct: 4.75 }`, means "a
+ * document discounted more than 0% and up to 5% earns 4.75% commission".
+ * `maxPct: null` marks the table's last row, "and above" — every
+ * percentage past the previous row's `maxPct` falls into it.
+ *
+ * The full table must cover 0% upward with no gap and no overlap — see
+ * `validateCommissionTiers`, which is what actually enforces that; this
+ * type itself doesn't (and can't) guarantee it.
+ */
+export type CommissionTier = {
+  minPct: number;
+  maxPct: number | null;
+  ratePct: number;
+};
+
+/**
+ * The commission table PathQuote ships with — admin-editable from then on,
+ * never re-applied automatically (see `getCommissionTiers`'s "ships
+ * pre-filled, until someone clears it" contract). Boundaries are inclusive
+ * at the top: exactly 5% earns 4.75%, 5.01% earns 4.5% — matching the
+ * owner's own table exactly.
+ */
+export const DEFAULT_COMMISSION_TIERS: CommissionTier[] = [
+  { minPct: 0, maxPct: 0, ratePct: 5 },
+  { minPct: 0.01, maxPct: 5, ratePct: 4.75 },
+  { minPct: 5.01, maxPct: 10, ratePct: 4.5 },
+  { minPct: 10.01, maxPct: 15, ratePct: 4.25 },
+  { minPct: 15.01, maxPct: null, ratePct: 4 },
+];
+
+/**
+ * Validates an admin-edited commission-rate table before it's saved (see
+ * `updateSetting`'s "commission.tiers" case, src/lib/actions/settings.ts).
+ * Returns a message naming the specific problem, or `null` when the table
+ * is fine to save.
+ *
+ * An empty table is deliberately valid — it's how an admin clears the table
+ * back to "no commission tiers configured", which `computeTotals` reports
+ * as `commission: null` and the builder shows as nothing at all (never a
+ * misleading $0.00 — see that field's doc comment). A *non-empty* table,
+ * though, must fully and exactly cover every possible discount percentage
+ * from 0% up, with no gap and no overlap: a hole here doesn't fail loudly,
+ * it just pays whatever rate `commissionRateForPct` happens to find next —
+ * silently the wrong rate, which is worse than rejecting the save outright.
+ *
+ * Ranges are read from the array in the order given (each tier's `minPct`
+ * must pick up exactly one hundredth of a percent past the previous tier's
+ * `maxPct`) rather than sorted here first — `CommissionTiersForm` always
+ * submits them in order with `minPct` derived from the row before, so an
+ * out-of-order table can only reach this function via a hand-crafted
+ * payload, and it fails the same contiguity check a genuine gap or overlap
+ * would; there's no need for a separate "not sorted" message.
+ */
+export function validateCommissionTiers(tiers: readonly CommissionTier[]): string | null {
+  if (tiers.length === 0) return null;
+
+  for (const tier of tiers) {
+    if (!Number.isFinite(tier.minPct) || tier.minPct < 0) {
+      return "Each tier's starting percentage must be 0 or greater.";
+    }
+    // `maxPct === minPct` is valid and deliberate for a single-point tier —
+    // the default table's first row, `{ minPct: 0, maxPct: 0 }`, covers
+    // exactly 0% and nothing else. Only a strictly *smaller* upper bound is
+    // a genuine mistake.
+    if (tier.maxPct !== null && (!Number.isFinite(tier.maxPct) || tier.maxPct < tier.minPct)) {
+      return "Each tier's upper bound must be greater than or equal to its starting percentage.";
+    }
+    if (!Number.isFinite(tier.ratePct) || tier.ratePct < 0 || tier.ratePct > 100) {
+      return "Each tier's rate must be between 0% and 100%.";
+    }
+  }
+
+  if (tiers[0].minPct !== 0) {
+    return "The first tier must start at 0%.";
+  }
+
+  for (let i = 0; i < tiers.length; i++) {
+    if (tiers[i].maxPct === null && i !== tiers.length - 1) {
+      return "Only the last tier may be left open-ended (no upper bound).";
+    }
+  }
+
+  const lastTier = tiers[tiers.length - 1];
+  if (lastTier.maxPct !== null) {
+    return `There is a gap above ${formatPct(lastTier.maxPct)}% — the last tier must be left open-ended.`;
+  }
+
+  for (let i = 1; i < tiers.length; i++) {
+    // Safe: every tier before the last has a non-null maxPct (enforced
+    // above), and this loop never reaches the last tier's predecessor slot
+    // without having already checked it.
+    const prevMaxPct = tiers[i - 1].maxPct as number;
+    const prevMaxHundredths = Math.round(prevMaxPct * 100);
+    const thisMinHundredths = Math.round(tiers[i].minPct * 100);
+    if (thisMinHundredths <= prevMaxHundredths) {
+      return `Tier ${i + 1} (starting at ${formatPct(tiers[i].minPct)}%) overlaps the tier before it.`;
+    }
+    if (thisMinHundredths > prevMaxHundredths + 1) {
+      return `There is a gap between ${formatPct(prevMaxPct)}% and ${formatPct(tiers[i].minPct)}%.`;
+    }
+  }
+
+  return null;
+}
+
+/** Looks up the commission rate for a discount percentage (already clamped
+ * to 0 or above by the caller — see `computeTotals`'s commission section)
+ * against an already-valid tier table (see `validateCommissionTiers`) — the
+ * last tier's `maxPct: null` guarantees a match always exists, so this
+ * never needs to report "no tier matched". */
+function commissionRateForPct(tiers: readonly CommissionTier[], pct: number): number {
+  for (const tier of tiers) {
+    if (tier.maxPct === null || pct <= tier.maxPct) return tier.ratePct;
+  }
+  // Unreachable for a table `validateCommissionTiers` accepted; kept so
+  // this always returns a number rather than `undefined` if it somehow is.
+  return tiers[tiers.length - 1].ratePct;
+}
 
 export type EngineInput = {
   items: EngineItem[];
@@ -92,6 +240,14 @@ export type EngineInput = {
    * "no ceiling" has to be its own state rather than a large number). */
   regionMaxMarkupPct?: number | null;
   taxRate: number;
+  /** The admin-edited commission-rate table (`getCommissionTiers`,
+   * src/lib/queries/settings.ts) — `null`/omitted/empty all mean the same
+   * thing, "no tiers configured", and `PricingTotals.commission` is `null`
+   * in every one of those cases (see that field's doc comment for why that
+   * matters). Not validated here — see `validateCommissionTiers`, run once
+   * when the table is saved (and again defensively by `getCommissionTiers`
+   * itself) rather than on every `computeTotals` call. */
+  commissionTiers?: CommissionTier[] | null;
 };
 
 /** Reported when an item's requested discount exceeds its cap. The engine
@@ -199,6 +355,27 @@ export type DocumentConcession = {
   };
 };
 
+/** `PricingTotals.commission` — see that field's doc comment for when it's
+ * `null` vs. present. */
+export type CommissionResult = {
+  /** The document's after-discount, pre-tax total (`taxableBase`), minus
+   * the raw (pre-discount) contribution of every item/option line flagged
+   * `isNoCommission` — see `computeTotals`'s commission section for the
+   * exact rule and why it's the *raw*, not the discounted, contribution.
+   * Never negative — clamped to 0 so a document made entirely of
+   * no-commission items reads as "no commission", not a negative number. */
+  base: string;
+  /** The rate `base` was multiplied by, looked up from `commissionTiers` by
+   * the document's own discount percentage (`documentConcession.effectivePct`,
+   * clamped to 0 — selling above list earns the 0% tier, never a negative
+   * rate). Exposed alongside `amount` so a caller can show "4.5%" next to
+   * the dollar figure without re-deriving the lookup. */
+  ratePct: number;
+  /** `base * ratePct / 100`, rounded half up like every other money value
+   * in this module. */
+  amount: string;
+};
+
 export type PricingTotals = {
   itemTotals: number[];
   /** Per item, the cash amount its own discount actually removed (0 for an
@@ -227,6 +404,16 @@ export type PricingTotals = {
   negativeSubtotal: boolean;
   /** See `DocumentConcession`'s doc comment — always present. */
   documentConcession: DocumentConcession;
+  /** The salesperson's commission on this document — see `CommissionResult`.
+   * `null` when `EngineInput.commissionTiers` is null/omitted/empty (no
+   * tier table configured), deliberately distinct from a `CommissionResult`
+   * with `amount: "0.00"` — a caller (the builder's Summary card) must show
+   * NOTHING in the unconfigured case, never a $0.00 that reads as "this
+   * quote earns no commission" when the real answer is "nobody has set up
+   * the rate table yet". See `getCommissionTiers`'s doc comment
+   * (src/lib/queries/settings.ts) for how that distinction is preserved
+   * all the way from the `Setting` row. */
+  commission: CommissionResult | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -507,6 +694,16 @@ export function computeTotals(input: EngineInput): PricingTotals {
   // itself (and therefore `PricingTotals.itemDiscounts`/`totalDiscountAmount`)
   // exactly like any other item's discount would, for display purposes.
   let itemDiscountConcessionCents = 0;
+  // The raw (pre-item-discount, pre-document-discount) contribution of
+  // every item/option line flagged `isNoCommission` — see the commission
+  // section below for why the RAW amount, not each one's own discounted
+  // share, is what gets subtracted from `taxableBaseCents`. Excluded for a
+  // credit item the same way `itemDiscountConcessionCents` is: a credit
+  // item's contribution to the document is already handled entirely
+  // through `creditItemsAbsCents`/`tradeIns`, so folding its raw amount in
+  // here too would double-count money that was never a "sale" to begin
+  // with.
+  let noCommissionCents = 0;
 
   const itemDiscountsCents: number[] = [];
   const itemTotalsCents = input.items.map((item, itemIndex) => {
@@ -524,6 +721,7 @@ export function computeTotals(input: EngineInput): PricingTotals {
       if (!isCredit) {
         concessionCents += (lineListPriceCents - lineUnitPriceCents) * line.qty;
         listValueCents += lineListPriceCents * line.qty;
+        if (line.isNoCommission) noCommissionCents += line.qty * lineUnitPriceCents;
       }
       return sum + line.qty * lineUnitPriceCents;
     }, 0);
@@ -554,6 +752,7 @@ export function computeTotals(input: EngineInput): PricingTotals {
 
     concessionCents += itemListPriceCents - itemUnitPriceCents;
     listValueCents += itemListPriceCents;
+    if (item.isNoCommission) noCommissionCents += itemUnitPriceCents;
     return itemMagnitudeCents;
   });
 
@@ -619,6 +818,40 @@ export function computeTotals(input: EngineInput): PricingTotals {
     },
   };
 
+  // Salesperson commission (see `CommissionResult`/`PricingTotals.commission`
+  // for the shape and the "null means unconfigured, never $0.00" rule).
+  //
+  //   commissionBase = taxableBase − (raw contribution of every item/line
+  //                    flagged isNoCommission)
+  //   rate           = commissionTiers, looked up by documentConcession's
+  //                    effectivePct (clamped to 0 — selling above list
+  //                    earns the 0% tier, not a negative rate)
+  //   commission     = commissionBase × rate
+  //
+  // `noCommissionCents` (accumulated above) is each flagged item/line's RAW
+  // amount — before ITS OWN item-level discount, and before the
+  // document-level discount — not the discounted share a proportional read
+  // would give it. The owner was explicit about this with a worked example
+  // (5 items, one flagged, only a document-level discount applied): the
+  // flagged item's full raw price is subtracted from the document's
+  // discounted total, not that item's own discounted slice of it. Do NOT
+  // "simplify" this to prorating the document discount across the flagged
+  // amount first — in practice the two read the same, because an item
+  // excluded from commission is, on every real price list this shipped
+  // against, also excluded from discounting in the first place; this is
+  // simply what the owner specified, and it's the simpler rule to compute
+  // and to explain besides.
+  const commissionBaseCents = Math.max(0, taxableBaseCents - noCommissionCents);
+  let commission: CommissionResult | null = null;
+  if (input.commissionTiers && input.commissionTiers.length > 0) {
+    const ratePct = commissionRateForPct(input.commissionTiers, Math.max(0, documentEffectivePct));
+    commission = {
+      base: fromCents(commissionBaseCents).toFixed(2),
+      ratePct,
+      amount: fromCents(percentOf(commissionBaseCents, ratePct)).toFixed(2),
+    };
+  }
+
   return {
     itemTotals: itemTotalsCents.map(fromCents),
     itemDiscounts: itemDiscountsCents.map(fromCents),
@@ -632,6 +865,7 @@ export function computeTotals(input: EngineInput): PricingTotals {
     violations,
     negativeSubtotal: subtotalCents < 0,
     documentConcession,
+    commission,
   };
 }
 

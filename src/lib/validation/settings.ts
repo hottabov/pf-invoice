@@ -2,12 +2,13 @@
 // imports from `@/lib/db` or any Prisma types — mirrors the style of
 // src/lib/validation/users.ts and src/lib/validation/regions.ts.
 import { z } from "zod";
+import { type CommissionTier, validateCommissionTiers } from "@/lib/pricing";
 
 /** Keys `updateSetting` (src/lib/actions/settings.ts) is allowed to write.
  * Kept as an array (rather than inlining string literals at each call site)
  * so a new setting only needs adding here plus a new schema/case in the
  * action's switch. */
-export const ALLOWED_SETTING_KEYS = ["quote.validityDays", "ui.showOptionIcons"] as const;
+export const ALLOWED_SETTING_KEYS = ["quote.validityDays", "ui.showOptionIcons", "commission.tiers"] as const;
 export type SettingKey = (typeof ALLOWED_SETTING_KEYS)[number];
 
 export function isAllowedSettingKey(key: string): key is SettingKey {
@@ -35,3 +36,49 @@ export const showOptionIconsSchema = z
   .enum(["true", "false"], { error: "Invalid value" })
   .transform((value) => value === "true");
 export type ShowOptionIconsInput = z.infer<typeof showOptionIconsSchema>;
+
+/** One row of the commission-rate table, as submitted by
+ * `CommissionTiersForm`'s hidden JSON input — structurally the same shape
+ * as `CommissionTier` (src/lib/pricing.ts), kept as its own schema (rather
+ * than a runtime cast) so a malformed row is a normal validation error, not
+ * a crash inside `validateCommissionTiers`. */
+const commissionTierRowSchema = z.object({
+  minPct: z.number().finite(),
+  maxPct: z.number().finite().nullable(),
+  ratePct: z.number().finite(),
+});
+
+/** Raw JSON text from `CommissionTiersForm`'s hidden input (read by
+ * `getCommissionTiers`, src/lib/queries/settings.ts) — parsed, checked
+ * against `commissionTierRowSchema` row by row, and then run through
+ * `validateCommissionTiers` (src/lib/pricing.ts) for the cross-row rules
+ * (starts at 0%, no gap, no overlap) a per-row schema can't express on its
+ * own. Mirrors `bankDetailsSchema`'s (src/lib/validation/regions.ts) JSON-
+ * text-then-parse-then-validate shape. An empty array is valid — see
+ * `validateCommissionTiers`'s doc comment for why clearing the table is a
+ * deliberately supported state, not an error. */
+export const commissionTiersSchema = z
+  .string()
+  .transform((value, ctx) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      ctx.addIssue({ code: "custom", message: "Commission tiers must be valid JSON" });
+      return z.NEVER;
+    }
+    const result = z.array(commissionTierRowSchema).safeParse(parsed);
+    if (!result.success) {
+      ctx.addIssue({
+        code: "custom",
+        message: result.error.issues[0]?.message ?? "Invalid commission tiers",
+      });
+      return z.NEVER;
+    }
+    return result.data;
+  })
+  .superRefine((tiers, ctx) => {
+    const error = validateCommissionTiers(tiers);
+    if (error) ctx.addIssue({ code: "custom", message: error });
+  });
+export type CommissionTiersInput = CommissionTier[];
