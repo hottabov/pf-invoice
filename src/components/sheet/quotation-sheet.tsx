@@ -356,7 +356,12 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
                     <div className="pq-item-name">
                       {item.name} <span className="pq-item-code">{item.code}</span>
                     </div>
-                    {item.description ? <div className="pq-item-desc">{item.description}</div> : null}
+                    {item.descriptionHtml ? (
+                      <div
+                        className="pq-item-desc pq-block-body"
+                        dangerouslySetInnerHTML={{ __html: item.descriptionHtml }}
+                      />
+                    ) : null}
                   </td>
                   <td className="pq-col-qty" />
                   <td className="pq-col-amount pq-amount" />
@@ -1046,6 +1051,12 @@ const SHEET_CSS = `
     color: #666666;
     font-size: 10px;
     margin-top: 2px;
+  }
+  .pq-item-desc.pq-block-body p {
+    margin: 0 0 4px 0;
+  }
+  .pq-item-desc.pq-block-body p:last-child {
+    margin-bottom: 0;
   }
   .pq-option-row td {
     border-bottom: none;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isHtmlContent, sanitizeRichText, renderStoredRichText, toEditorHtml } from "../src/lib/rich-text";
+import { isHtmlContent, sanitizeRichText, renderStoredRichText, toEditorHtml, sanitizeIfHtml } from "../src/lib/rich-text";
 
 // Pure module — no @/lib/db import, so this never needs DATABASE_URL set
 // (same reasoning as tests/markdown.test.ts).
@@ -122,5 +122,25 @@ describe("renderStoredRichText", () => {
     // and it goes through renderMarkdown's own escaping.
     const out = renderStoredRichText("Use a < b to compare");
     expect(out).toContain("&lt; b");
+  });
+});
+
+describe("sanitizeIfHtml", () => {
+  it("sanitizes HTML content, stripping a script tag", () => {
+    const out = sanitizeIfHtml("<p>Hi</p><script>alert(1)</script>");
+    expect(out).not.toContain("<script");
+    expect(out).toContain("<p>Hi</p>");
+  });
+
+  it("returns plain text/legacy markdown unchanged (not run through renderMarkdown)", () => {
+    // Unlike renderStoredRichText, this is a write-boundary helper: legacy
+    // content is stored exactly as typed, same as before the RichTextEditor
+    // existed — only actual editor-produced HTML gets sanitized.
+    expect(sanitizeIfHtml("Ships with mounting bracket")).toBe("Ships with mounting bracket");
+    expect(sanitizeIfHtml("**bold** markdown")).toBe("**bold** markdown");
+  });
+
+  it("returns an empty string unchanged", () => {
+    expect(sanitizeIfHtml("")).toBe("");
   });
 });

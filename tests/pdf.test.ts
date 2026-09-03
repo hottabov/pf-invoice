@@ -111,6 +111,7 @@ function baseDocSheetItem(
     code: "X-5180",
     name: "X-5180 Cutting System",
     description: null,
+    descriptionHtml: null,
     unitPrice: "175000.00",
     discountMode: "PERCENT" as const,
     discountValue: null,
@@ -319,6 +320,24 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
     expect(summaryStart).toBeGreaterThan(-1);
     expect(summaryHtml).toContain("MTS — Machine Transfer System");
     expect(summaryHtml).toContain("Automated transfer of cut fabric off the table");
+  });
+
+  it("renders a product's rich-text description as formatted HTML in the Investment Summary, not escaped tag soup", async () => {
+    const data = baseQuotationData({
+      items: [
+        baseDocSheetItem({
+          code: "X-5180",
+          descriptionHtml: "<p>Ships with a <strong>mounting bracket</strong>.</p>",
+        }),
+      ],
+    });
+    const html = await renderQuotationHtml(data);
+    const summaryStart = html.indexOf('class="pq-section pq-summary-section"');
+    const summaryHtml = html.slice(summaryStart);
+
+    // The real bold tag renders as a real tag, not HTML-escaped entities.
+    expect(summaryHtml).toContain("<strong>mounting bracket</strong>");
+    expect(summaryHtml).not.toContain("&lt;strong&gt;");
   });
 
   it("adds a per-item subtotal row (base + options) only when the item has options", async () => {

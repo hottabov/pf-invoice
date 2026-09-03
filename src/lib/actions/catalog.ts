@@ -14,6 +14,7 @@ import {
   conflictGroupNameSchema,
 } from "@/lib/validation/catalog";
 import { IMAGE_URL_PATTERN } from "@/lib/uploads";
+import { sanitizeIfHtml } from "@/lib/rich-text";
 
 export type ActionResult = { error?: string };
 
@@ -35,6 +36,15 @@ function isUniqueConstraintError(error: unknown): boolean {
 }
 
 const CODE_EXISTS_ERROR = "That code already exists — choose a different one.";
+
+/** `Product.description` is now written by the `RichTextEditor`
+ * (product-form.tsx), same HTML-storage story as `ContentBlock.body` — see
+ * `sanitizeIfHtml`'s doc comment. `parsed.data.description` is `undefined`
+ * when the field was left blank (see `descriptionSchema` in
+ * validation/catalog.ts), which becomes `null` on the row exactly as before. */
+function sanitizeProductDescription(description: string | undefined): string | null {
+  return description === undefined ? null : sanitizeIfHtml(description);
+}
 
 function readProductForm(formData: FormData) {
   return {
@@ -76,7 +86,7 @@ export async function createProduct(seriesId: string, formData: FormData): Promi
         code: parsed.data.code,
         seriesId: series.id,
         name: parsed.data.name,
-        description: parsed.data.description ?? null,
+        description: sanitizeProductDescription(parsed.data.description),
         active: parsed.data.active,
         sortOrder: parsed.data.sortOrder,
       },
@@ -111,7 +121,7 @@ export async function updateProduct(productId: string, formData: FormData): Prom
       data: {
         code: parsed.data.code,
         name: parsed.data.name,
-        description: parsed.data.description ?? null,
+        description: sanitizeProductDescription(parsed.data.description),
         active: parsed.data.active,
         sortOrder: parsed.data.sortOrder,
       },

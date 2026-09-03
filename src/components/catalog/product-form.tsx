@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FieldRow, fieldInputClass } from "@/components/ui-kit";
-import { cn } from "@/lib/utils";
+import { RichTextEditor } from "@/components/ui-kit/rich-text-editor";
+import { toEditorHtml } from "@/lib/rich-text";
 import type { ActionResult } from "@/lib/actions/catalog";
 
 export type ProductFormValues = {
@@ -40,6 +41,14 @@ export function ProductForm({
     (_prevState: ActionResult, formData: FormData) => action(formData),
     initialState
   );
+  // `defaultValues.description` may still be a legacy plain-text/markdown
+  // row — `toEditorHtml` normalizes it to HTML once, for the editor's
+  // initial mount only (same pattern `ContentBlockForm` uses for its Body
+  // field). From then on `description` state is always HTML, submitted via
+  // the hidden input below since the editor has no native form element of
+  // its own. `updateProduct`/`createProduct` sanitize on write, so this
+  // component doesn't need to.
+  const [description, setDescription] = useState(() => toEditorHtml(defaultValues.description));
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -68,17 +77,19 @@ export function ProductForm({
           />
         </FieldRow>
 
-        <FieldRow label="Description" htmlFor="product-description" className="lg:col-span-2">
-          <textarea
-            id="product-description"
-            name="description"
-            defaultValue={defaultValues.description}
-            maxLength={2000}
-            rows={4}
-            disabled={readOnly}
-            className={cn(fieldInputClass, "h-auto min-h-24 py-2")}
-          />
-        </FieldRow>
+        <div className="flex flex-col gap-1.5 lg:col-span-2">
+          {/* Not a `<label htmlFor>` — its target isn't a single labelable
+              form control (Tiptap's contentEditable surface plus a row of
+              toolbar buttons), so a plain heading avoids a dangling `for`
+              reference to nothing — same reasoning as ContentBlockForm's
+              Body field. */}
+          <span className="text-sm font-medium text-brand-dark">Description</span>
+          {/* The editor itself has no native form control `FormData` can
+              read — this hidden input is what actually submits
+              `description`. */}
+          <input type="hidden" name="description" value={description} />
+          <RichTextEditor value={description} onChange={setDescription} disabled={readOnly} />
+        </div>
 
         <label className="flex h-11 items-center gap-2 text-sm font-medium text-brand-dark">
           <input

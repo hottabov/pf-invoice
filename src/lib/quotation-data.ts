@@ -335,6 +335,27 @@ export function dedupeOptionCode(code: string | null, name: string): string | nu
   return code;
 }
 
+/**
+ * `DocSheetItem` plus its description rendered to HTML — the investment
+ * summary's counterpart to `QuotationOptionRow.descriptionHtml` (same
+ * reasoning: `DocumentItem.description` is a snapshot of the catalogue
+ * product's own `description`, which — since the `RichTextEditor` replaced
+ * ProductForm's plain textarea — can carry admin-authored markup, not just
+ * plain text). `description` itself stays on the type (inherited from
+ * `DocSheetItem`) rather than being replaced, so `toSheetData`'s own tests
+ * (which assert the raw, deduped string) are unaffected; only the sheet
+ * renders `descriptionHtml` now — see quotation-sheet.tsx.
+ */
+export type QuotationItemRow = DocSheetItem & {
+  /** `renderStoredRichText(description)` — sanitizes already-HTML content
+   * (the common case, once a product's description has been saved through
+   * the editor at least once) or runs legacy plain-text/markdown through
+   * `renderMarkdown` (a description nobody has re-saved since the editor
+   * shipped). `null` exactly when `description` is `null` (already deduped
+   * against the item's `name` by `toSheetData`). */
+  descriptionHtml: string | null;
+};
+
 export type QuotationMachineSection = {
   itemId: string;
   /** The section's heading text — ALWAYS present, one consistent tier
@@ -449,7 +470,7 @@ export type QuotationData = {
    * section at all. */
   notesHtml: string | null;
   machineSections: QuotationMachineSection[];
-  items: DocSheetItem[];
+  items: QuotationItemRow[];
   extraLines: DocSheetLine[];
   totals: DocSheetTotals;
   /** `terms.*` blocks, sorted by `sortOrder` (matches seed order: delivery,
@@ -742,7 +763,10 @@ export function buildQuotationData(
     preparedBy: sheet.preparedBy,
     notesHtml,
     machineSections,
-    items: sheet.items,
+    items: sheet.items.map((item) => ({
+      ...item,
+      descriptionHtml: item.description ? renderStoredRichText(item.description) : null,
+    })),
     extraLines: sheet.extraLines,
     totals: sheet.totals,
     termsSections,

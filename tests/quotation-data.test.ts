@@ -1054,3 +1054,47 @@ describe("buildQuotationData — preparedBy / notesHtml", () => {
     expect(data.notesHtml).toBeNull();
   });
 });
+
+// A product's own `description` is snapshotted onto `DocumentItem.description`
+// when it's added to a quote (see `addItem`), and — since ProductForm now
+// edits it with the `RichTextEditor` — can carry admin-authored HTML, not
+// just plain text. `data.items[i].descriptionHtml` (consumed by the
+// Investment Summary in quotation-sheet.tsx) is where that gets rendered
+// through the same `renderStoredRichText` path every other stored body does.
+describe("buildQuotationData — item descriptionHtml", () => {
+  it("renders a legacy plain-text item description through renderMarkdown", () => {
+    const doc = baseDoc({
+      items: [baseItem({ name: "X-5180 Cutting System", description: "Ships with mounting bracket" })],
+    });
+    const data = buildQuotationData(doc, []);
+    expect(data.items[0].descriptionHtml).toBe("<p>Ships with mounting bracket</p>");
+  });
+
+  it("sanitizes an HTML item description (from the RichTextEditor) rather than passing it through unsanitized", () => {
+    const doc = baseDoc({
+      items: [
+        baseItem({
+          name: "X-5180 Cutting System",
+          description: "<p>Hi</p><script>alert(1)</script>",
+        }),
+      ],
+    });
+    const data = buildQuotationData(doc, []);
+    expect(data.items[0].descriptionHtml).toContain("<p>Hi</p>");
+    expect(data.items[0].descriptionHtml).not.toContain("<script");
+  });
+
+  it("is null when the item has no description", () => {
+    const doc = baseDoc({ items: [baseItem({ description: null })] });
+    const data = buildQuotationData(doc, []);
+    expect(data.items[0].descriptionHtml).toBeNull();
+  });
+
+  it("is null when the description is redundant with the item's own name (deduped by toSheetData)", () => {
+    const doc = baseDoc({
+      items: [baseItem({ name: "X-5180 Cutting System", description: "X-5180 Cutting System" })],
+    });
+    const data = buildQuotationData(doc, []);
+    expect(data.items[0].descriptionHtml).toBeNull();
+  });
+});

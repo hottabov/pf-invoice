@@ -118,3 +118,18 @@ export function sanitizeRichText(html: string): string {
 export function renderStoredRichText(stored: string): string {
   return isHtmlContent(stored) ? sanitizeRichText(stored) : renderMarkdown(stored);
 }
+
+/**
+ * The write-boundary counterpart to `renderStoredRichText`: sanitizes `value`
+ * if it's HTML, otherwise returns it unchanged (legacy markdown/plain text
+ * is stored as-is, exactly as it always was — sanitization only ever applies
+ * to markup a `RichTextEditor` could actually have produced). Used by every
+ * server action that persists a `RichTextEditor`-backed column
+ * (`ContentBlock.body`/`Document.notes` via updateContentBlock/
+ * setDocumentNotes, `Product.description` via createProduct/updateProduct)
+ * so the allowlist is enforced once, the same way, everywhere a stored value
+ * is untrusted-ish editor output rather than assumed clean.
+ */
+export function sanitizeIfHtml(value: string): string {
+  return isHtmlContent(value) ? sanitizeRichText(value) : value;
+}
