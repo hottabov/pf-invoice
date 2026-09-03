@@ -15,6 +15,7 @@ import {
   EmptyState,
 } from "@/components/ui-kit";
 import { buttonVariants } from "@/components/ui/button";
+import { CatalogueSubnav } from "@/components/settings/catalogue-subnav";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Option conflict groups" };
@@ -32,8 +33,6 @@ export default async function ConflictGroupsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        backHref="/settings"
-        backLabel="Settings"
         title="Option conflict groups"
         description="Sets of options that can't be selected together on the same item — e.g. a set of knife tools where only one can be fitted. Two options conflict whenever they share a group."
         actions={
@@ -46,6 +45,8 @@ export default async function ConflictGroupsPage() {
           </Link>
         }
       />
+
+      <CatalogueSubnav active="option-conflict-groups" />
 
       {groups.length === 0 ? (
         <EmptyState

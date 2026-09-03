@@ -4,9 +4,12 @@ import { auth } from "@/auth";
 import { getUser } from "@/lib/queries/users";
 import { listActiveRegions } from "@/lib/queries/catalog";
 import { countActiveAdmins } from "@/lib/queries/users";
+import { getCatalogVisibilityTree } from "@/lib/queries/catalog-visibility-admin";
 import { updateUser, setUserPassword, setUserAvatar } from "@/lib/actions/users";
+import { setCatalogVisibility } from "@/lib/actions/catalog-visibility";
 import { EditUserForm } from "@/components/users/edit-user-form";
 import { SetPasswordForm } from "@/components/users/set-password-form";
+import { CatalogVisibilityEditor } from "@/components/settings/catalog-visibility-editor";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE, Avatar } from "@/components/ui-kit";
 import { ImageUpload } from "@/components/catalog/image-upload";
 import { isAdminRole } from "@/lib/roles";
@@ -34,6 +37,12 @@ export default async function EditUserPage({ params }: { params: Promise<Params>
     countActiveAdmins(),
   ]);
   if (!user) notFound();
+
+  // Only fetched once we know the user exists — the whole-catalogue tree
+  // (see getCatalogVisibilityTree's own comment) is the more expensive of
+  // this page's reads, so there's no point running it in the Promise.all
+  // above only to throw it away on a 404.
+  const visibilitySeries = await getCatalogVisibilityTree(user.id);
 
   const isSelf = session.user.id === user.id;
   const isLastActiveAdmin = isAdminRole(user.role) && user.active && activeAdminCount <= 1;
@@ -86,6 +95,13 @@ export default async function EditUserPage({ params }: { params: Promise<Params>
           isSelf={isSelf}
           isLastActiveAdmin={isLastActiveAdmin}
         />
+      </SectionCard>
+
+      <SectionCard
+        title="Catalogue visibility"
+        description="Checking hides a series or product from this user's own catalogue everywhere they'd meet it — the item picker, catalogue browsing, and adding it to a quote. Another user is unaffected. A quote that already has a now-hidden item keeps it, unchanged."
+      >
+        <CatalogVisibilityEditor userId={user.id} series={visibilitySeries} action={setCatalogVisibility} />
       </SectionCard>
 
       <SectionCard

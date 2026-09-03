@@ -35,8 +35,6 @@ export default async function UsersPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        backHref="/settings"
-        backLabel="Settings"
         title="Users"
         description="Everyone with access to PathQuote."
         actions={

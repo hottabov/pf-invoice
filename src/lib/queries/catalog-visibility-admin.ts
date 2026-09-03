@@ -1,11 +1,14 @@
 import { db } from "@/lib/db";
 
-// Admin-only reads for the /settings/catalog-visibility editor — unfiltered,
-// unlike everything in src/lib/queries/catalog-visibility.ts: an ADMIN
-// managing visibility needs to see the *whole* catalogue and every user
-// regardless of what's currently hidden, not the filtered view a MANAGER
-// gets. Kept as its own module so the query-filtering half of this feature
-// (commit 1) never has to depend on admin-UI-only reads.
+// Admin-only reads for the catalogue-visibility editor on a user's own
+// settings page (/settings/users/[userId] — moved there from the now-removed
+// standalone /settings/catalog-visibility list by "feat: settings gets its
+// own navigation") — unfiltered, unlike everything in
+// src/lib/queries/catalog-visibility.ts: an admin managing visibility needs
+// to see the *whole* catalogue regardless of what's currently hidden, not
+// the filtered view a MANAGER gets. Kept as its own module so the
+// query-filtering half of this feature never has to depend on admin-UI-only
+// reads.
 
 export type UserVisibilitySummary = {
   id: string;
@@ -19,13 +22,17 @@ export type UserVisibilitySummary = {
  * Every user in the system (active and inactive, like `listUsers` in
  * src/lib/queries/users.ts — an admin might as well set up visibility for a
  * user before reactivating them), each with how many `CatalogVisibility`
- * rows they have — feeds the /settings/catalog-visibility index list so an
- * admin can see at a glance which users have anything hidden at all before
- * opening one. Lists every role, ADMIN included, even though an ADMIN's own
- * hidden rows are never actually read (`catalogVisibilityUserId` always
- * resolves an ADMIN to "see everything") — same unfiltered "every X in the
- * system" shape `listUsers`/`listRegionsAdmin` already use, not a new rule
- * about who's excluded.
+ * rows they have. Previously fed the standalone /settings/catalog-visibility
+ * index list; that route is gone (catalogue visibility now lives on the user
+ * it describes — see /settings/users/[userId] — since an admin no longer
+ * needs a parallel list to find the same person twice), but this query is
+ * kept as-is per that change's own scope (routing and placement only) in
+ * case a future screen wants an at-a-glance "who has anything hidden" view
+ * again. Lists every role, ADMIN included, even though an ADMIN's own hidden
+ * rows are never actually read (`catalogVisibilityUserId` always resolves an
+ * ADMIN to "see everything") — same unfiltered "every X in the system" shape
+ * `listUsers`/`listRegionsAdmin` already use, not a new rule about who's
+ * excluded.
  */
 export async function listUsersWithHiddenCounts(): Promise<UserVisibilitySummary[]> {
   const users = await db.user.findMany({

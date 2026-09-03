@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { isAdminRole } from "@/lib/roles";
 import { listContentBlocks } from "@/lib/queries/content";
 import { PageHeader, SectionCard, StatusBadge, EmptyState, fieldInputClass } from "@/components/ui-kit";
+import { CatalogueSubnav } from "@/components/settings/catalogue-subnav";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Content blocks" };
@@ -61,11 +62,11 @@ export default async function ContentBlocksPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        backHref="/settings"
-        backLabel="Settings"
         title="Content blocks"
         description="Reusable quote text — machine descriptions, options, terms, and conditions."
       />
+
+      <CatalogueSubnav active="content" />
 
       <form method="GET" className="sm:w-80">
         <div className="relative">

@@ -76,7 +76,9 @@ export async function setCatalogVisibility(
     ),
   ]);
 
-  revalidatePath(`/settings/catalog-visibility/${user.id}`);
-  revalidatePath("/settings/catalog-visibility");
+  // Catalogue visibility lives on the user's own settings page now (see
+  // "feat: settings gets its own navigation") — there is no longer a
+  // separate /settings/catalog-visibility route to revalidate.
+  revalidatePath(`/settings/users/${user.id}`);
   return {};
 }

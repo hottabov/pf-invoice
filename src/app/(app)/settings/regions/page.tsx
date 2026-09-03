@@ -32,8 +32,6 @@ export default async function RegionsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        backHref="/settings"
-        backLabel="Settings"
         title="Regions"
         description="Currency, tax, and legal-entity details used to build documents."
         actions={
