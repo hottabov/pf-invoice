@@ -75,6 +75,11 @@ export const productSchema = z.object({
   name: nameSchema,
   description: descriptionSchema,
   active: checkboxBooleanSchema,
+  // Whether a salesperson earns no commission on this product — same
+  // checkbox contract as `active` above. Defaults to false via
+  // `checkboxBooleanSchema` itself treating an absent/unchecked box as
+  // false, matching the column's own `@default(false)`.
+  noCommission: checkboxBooleanSchema,
   sortOrder: sortOrderSchema,
 });
 

@@ -43,7 +43,7 @@ export default async function NewProductPage({ params }: { params: Promise<Param
       <SectionCard>
         <ProductForm
           action={createProduct.bind(null, series.id)}
-          defaultValues={{ code: "", name: "", description: "", active: true, sortOrder: 0 }}
+          defaultValues={{ code: "", name: "", description: "", active: true, noCommission: false, sortOrder: 0 }}
           submitLabel="Create product"
         />
       </SectionCard>

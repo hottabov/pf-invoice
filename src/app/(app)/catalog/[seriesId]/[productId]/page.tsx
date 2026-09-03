@@ -84,6 +84,7 @@ export default async function ProductEditorPage({ params }: { params: Promise<Pa
               name: product.name,
               description: product.description ?? "",
               active: product.active,
+              noCommission: product.noCommission,
               sortOrder: product.sortOrder,
             }}
             submitLabel="Save changes"

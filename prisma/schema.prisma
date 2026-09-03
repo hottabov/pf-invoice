@@ -175,6 +175,18 @@ model Product {
   // Migration z16_product_is_credit adds this column with its default, so
   // every existing product is unaffected.
   isCredit          Boolean               @default(false)
+  // True when a salesperson earns no commission on this product -- named
+  // for what it means to the reader ("this line pays no commission"), not
+  // "commissionable: false" (a double negative once it's unchecked in the
+  // UI) and not prefixed "is" like isCredit above, since `active` already
+  // set this model's convention for a plain descriptive boolean name. Read
+  // live off the joined product, same rule as isCredit (see
+  // EngineItem.isNoCommission's doc comment in src/lib/pricing.ts) rather
+  // than snapshotted onto DocumentItem, so changing it in the catalogue
+  // takes effect on every quote that reads the item afterwards. Migration
+  // z25_no_commission adds this column with its default, so every existing
+  // product is unaffected.
+  noCommission      Boolean               @default(false)
   prices            Price[]
   compat            OptionCompatibility[]
   docItems          DocumentItem[]
@@ -190,6 +202,12 @@ model Option {
   imageUrl         String?
   active           Boolean               @default(true)
   sortOrder        Int                   @default(0)
+  // Same flag, same reasoning, as Product.noCommission above -- an option
+  // line (e.g. Installation/Training on the North America price list) can
+  // be excluded from commission independently of the item it's attached
+  // to. Migration z25_no_commission adds this column with its default, so
+  // every existing option is unaffected.
+  noCommission     Boolean               @default(false)
   prices           Price[]
   compat           OptionCompatibility[]
   // Which OptionConflictGroup(s) this option belongs to -- see that model's

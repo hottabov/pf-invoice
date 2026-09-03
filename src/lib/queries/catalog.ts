@@ -351,6 +351,7 @@ export type ProductDetail = {
   name: string;
   description: string | null;
   active: boolean;
+  noCommission: boolean;
   sortOrder: number;
   imageUrl: string | null;
   series: SeriesDetail;
@@ -383,6 +384,7 @@ export async function getProductDetailById(productId: string): Promise<ProductDe
     name: product.name,
     description: product.description,
     active: product.active,
+    noCommission: product.noCommission,
     sortOrder: product.sortOrder,
     imageUrl: product.imageUrl,
     series: {
@@ -407,6 +409,7 @@ export type OptionDetail = {
   shortDescription: string | null;
   attributeSchema: unknown;
   active: boolean;
+  noCommission: boolean;
   sortOrder: number;
   imageUrl: string | null;
   prices: RegionPriceRow[];
@@ -455,6 +458,7 @@ export async function getOptionDetailById(optionId: string): Promise<OptionDetai
     shortDescription: option.shortDescription,
     attributeSchema: option.attributeSchema,
     active: option.active,
+    noCommission: option.noCommission,
     sortOrder: option.sortOrder,
     imageUrl: option.imageUrl,
     prices: toRegionPriceRows(regions, option.prices),

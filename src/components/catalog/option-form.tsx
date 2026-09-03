@@ -12,6 +12,7 @@ export type OptionFormValues = {
   shortDescription: string;
   attributeSchema: string;
   active: boolean;
+  noCommission: boolean;
   sortOrder: number;
 };
 
@@ -108,6 +109,17 @@ export function OptionForm({
             className="size-4 rounded border-slate-300 accent-brand disabled:cursor-not-allowed"
           />
           Active
+        </label>
+
+        <label className="flex h-11 items-center gap-2 text-sm font-medium text-brand-dark">
+          <input
+            name="noCommission"
+            type="checkbox"
+            defaultChecked={defaultValues.noCommission}
+            disabled={readOnly}
+            className="size-4 rounded border-slate-300 accent-brand disabled:cursor-not-allowed"
+          />
+          No commission
         </label>
 
         <FieldRow label="Sort order" htmlFor="option-sort-order" hint="Lower numbers list first.">

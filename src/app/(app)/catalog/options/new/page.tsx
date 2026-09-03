@@ -31,6 +31,7 @@ export default async function NewOptionPage() {
             shortDescription: "",
             attributeSchema: "",
             active: true,
+            noCommission: false,
             sortOrder: 0,
           }}
           submitLabel="Create option"

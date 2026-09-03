@@ -87,6 +87,7 @@ export default async function OptionEditorPage({ params }: { params: Promise<Par
                 ? JSON.stringify(option.attributeSchema, null, 2)
                 : "",
               active: option.active,
+              noCommission: option.noCommission,
               sortOrder: option.sortOrder,
             }}
             submitLabel="Save changes"

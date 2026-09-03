@@ -54,6 +54,7 @@ function readProductForm(formData: FormData) {
     name: formData.get("name"),
     description: formData.get("description"),
     active: formData.get("active"),
+    noCommission: formData.get("noCommission"),
     sortOrder: formData.get("sortOrder"),
   };
 }
@@ -90,6 +91,7 @@ export async function createProduct(seriesId: string, formData: FormData): Promi
         name: parsed.data.name,
         description: sanitizeProductDescription(parsed.data.description),
         active: parsed.data.active,
+        noCommission: parsed.data.noCommission,
         sortOrder: parsed.data.sortOrder,
       },
     });
@@ -125,6 +127,7 @@ export async function updateProduct(productId: string, formData: FormData): Prom
         name: parsed.data.name,
         description: sanitizeProductDescription(parsed.data.description),
         active: parsed.data.active,
+        noCommission: parsed.data.noCommission,
         sortOrder: parsed.data.sortOrder,
       },
     });
@@ -241,6 +244,7 @@ export async function createOption(formData: FormData): Promise<ActionResult> {
           ? { attributeSchema: parsed.data.attributeSchema as Prisma.InputJsonValue }
           : {}),
         active: parsed.data.active,
+        noCommission: parsed.data.noCommission,
         sortOrder: parsed.data.sortOrder,
       },
     });
@@ -278,6 +282,7 @@ export async function updateOption(optionId: string, formData: FormData): Promis
             ? Prisma.DbNull
             : (parsed.data.attributeSchema as Prisma.InputJsonValue),
         active: parsed.data.active,
+        noCommission: parsed.data.noCommission,
         sortOrder: parsed.data.sortOrder,
       },
     });
