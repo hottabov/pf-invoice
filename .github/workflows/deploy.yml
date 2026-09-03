@@ -77,7 +77,22 @@ jobs:
             adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
           });
 
-          const expected = { regions: 3, series: 10, products: 67 };
+          // Derived from the seed data itself, not hardcoded. A literal count
+          // here is a second source of truth for a number that changes every
+          // time the catalogue does, and it drifted exactly that way: removing
+          // Punchline and adding the trade-in product updated the seed and its
+          // tests, but not this file, so deploy failed on a stale 67. What
+          // this step is actually for is proving the seed reached the database
+          // intact — so it asks the seed what to expect.
+          const catalog = require("./prisma/seed-data/catalog.json");
+          const expected = {
+            // Regions live in prisma/seed-lib.ts (TypeScript, not requirable
+            // from this plain CJS script) and change far more rarely than the
+            // catalogue, so this one stays literal.
+            regions: 3,
+            series: catalog.series.length,
+            products: catalog.series.reduce((n, s) => n + s.products.length, 0),
+          };
 
           async function main() {
             const [regions, series, products] = await Promise.all([
