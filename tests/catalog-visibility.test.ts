@@ -182,6 +182,7 @@ describe("a hidden product already on a document still renders and totals identi
       name: "X-Calibre 100",
       description: null,
       unitPrice: "50000.00",
+      listPrice: "50000.00",
       discountMode: "PERCENT",
       discountValue: null,
       discountAmount: "0.00",

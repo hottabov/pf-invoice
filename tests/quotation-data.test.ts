@@ -158,6 +158,7 @@ function baseItem(overrides: Partial<QuotationItemInput> = {}): QuotationItemInp
     name: "M5180 Cutting System",
     description: null,
     unitPrice: "175000.00",
+    listPrice: "175000.00",
     discountMode: "PERCENT",
     discountValue: null,
     discountAmount: "0.00",

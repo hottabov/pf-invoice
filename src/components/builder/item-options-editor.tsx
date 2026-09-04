@@ -96,6 +96,7 @@ export function ItemOptionsEditor({
   showOptionIcons = true,
   readOnly = false,
   lockedCodes,
+  startClosed = false,
 }: {
   itemId: string;
   currentLines: CurrentLine[];
@@ -111,6 +112,11 @@ export function ItemOptionsEditor({
    * inert -- and `save` re-submits them untouched, so opening this panel and
    * saving can never drop them. */
   lockedCodes?: Set<string>;
+  /** Keep the panel closed even for an item with no options yet. Set for an
+   * EasyLoader: its modules come from the builder above, so an open list of
+   * pickable options is an invitation to do the wrong thing -- what is left
+   * in here is accessories, which are looked for deliberately. */
+  startClosed?: boolean;
   /** "ui.showOptionIcons" app setting (see `getShowOptionIcons`,
    * src/lib/queries/settings.ts), read server-side and threaded down through
    * ItemsList/ItemsSection. Gates only the small per-option icon in this
@@ -124,7 +130,7 @@ export function ItemOptionsEditor({
   // is one the salesperson is about to configure — the panel opens itself
   // rather than costing a click. An item that already has options stays
   // closed, so reopening a built-up quote isn't a wall of open editors.
-  const [open, setOpen] = useState(currentLines.length === 0 && !readOnly);
+  const [open, setOpen] = useState(currentLines.length === 0 && !readOnly && !startClosed);
   const [selected, setSelected] = useState<Map<string, SelectionState>>(() =>
     selectionsFromLines(currentLines)
   );

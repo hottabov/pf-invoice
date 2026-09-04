@@ -55,6 +55,13 @@ export type ToSheetItemInput = {
   name: string;
   description: string | null;
   unitPrice: string;
+  /** `DocumentItem.listPrice` — the catalogue price snapshotted when this
+   * item was added, which is not always what is being charged (a manual
+   * price edit moves `unitPrice` and leaves this alone). Read here for one
+   * question only: whether the product has a price of its own at all. See
+   * `ItemBreakdown.assembledFromOptions`. Null on a row added before the
+   * column existed. */
+  listPrice: string | null;
   discountMode: "PERCENT" | "AMOUNT";
   discountValue: string | null;
   /** The item discount resolved to a cash amount (0.00 when unset) — same
@@ -253,6 +260,26 @@ export type ItemBreakdown = {
   /** The machine on its own, with no options folded in — a plain 2dp decimal
    * string ready for `formatMoney`. */
   basePrice: string;
+  /**
+   * The product cannot be sold on its own: it has no catalogue price, because
+   * it *is* its options. The EasyLoader is the case this exists for — a table
+   * assembled from 1.2 metre modules, where the machine line is genuinely
+   * free and every part of it is priced as an option.
+   *
+   * Renderers hide the base-price row when this is set. Not because a zero is
+   * untidy, but because the row carries nothing: the item's name and
+   * description are already printed in the caller's own header row above it,
+   * so at 0 the row is a duplicate of the heading with a misleading number
+   * attached — a reader sees "$0" against a machine and reasonably concludes
+   * something is broken or being given away.
+   *
+   * Decided by the *catalogue* price, not the charged one, and that
+   * distinction is the whole point. A machine a salesperson hand-zeroed as a
+   * giveaway keeps its row and its "$0", because there that figure is the
+   * message. Only a product the price list itself prices at nothing is
+   * assembled rather than discounted.
+   */
+  assembledFromOptions: boolean;
   options: Array<{
     name: string;
     /** The option's own catalog code (e.g. "MTS"), or `null` when it has
@@ -590,13 +617,27 @@ export function dedupeDescription(name: string, description: string | null): str
 export function buildItemBreakdown(
   item: Pick<
     ToSheetItemInput,
-    "unitPrice" | "discountMode" | "discountValue" | "discountAmount" | "total" | "lines" | "isCredit"
+    | "unitPrice"
+    | "listPrice"
+    | "discountMode"
+    | "discountValue"
+    | "discountAmount"
+    | "total"
+    | "lines"
+    | "isCredit"
   >,
   showOptionPrices: boolean
 ): ItemBreakdown {
+  // Requires options to be present: an assembled product with none is a
+  // half-built machine, and hiding its row too would leave the item with no
+  // rows at all rather than showing the reader that something is unfinished.
+  const assembledFromOptions =
+    item.listPrice !== null && Number(item.listPrice) === 0 && item.lines.length > 0;
+
   return {
     qty: 1,
     basePrice: signedLineTotal(item.isCredit, 1, item.unitPrice),
+    assembledFromOptions,
     options: item.lines.map((line) => ({
       name: line.name,
       code: line.code,

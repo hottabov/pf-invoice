@@ -42,6 +42,7 @@ function baseItem(overrides: Partial<ToSheetItemInput> = {}): ToSheetItemInput {
     name: "EasyLoader 2020",
     description: null,
     unitPrice: "1000.00",
+    listPrice: "1000.00",
     discountMode: "PERCENT",
     discountValue: null,
     discountAmount: "0.00",

@@ -129,6 +129,7 @@ function baseDocSheetItem(
       buildItemBreakdown(
         {
           unitPrice: merged.unitPrice,
+          listPrice: merged.unitPrice,
           discountMode: merged.discountMode,
           discountValue: merged.discountValue,
           discountAmount: "0.00",
@@ -513,6 +514,7 @@ describe("renderQuotationHtml — investment summary: base price, options, subto
             breakdown: {
               qty: 1,
               basePrice: "175000.00",
+              assembledFromOptions: false,
               options: [{ name: "MTS", code: "MTS", description: null, qty: 1, lineTotal: null }],
               discount: null,
               subtotal: "215425.00",

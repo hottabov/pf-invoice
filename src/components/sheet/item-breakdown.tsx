@@ -23,12 +23,15 @@ import type { ItemBreakdown } from "@/lib/sheet-data";
  * click handlers, to make each price editable in place.
  *
  * Rules:
- * - The base price row always renders, labelled with `code`, with a bare
- *   quantity (`breakdown.qty` — always 1 today, a product line is always one
- *   machine) in the same column shape the option rows use, so the machine
- *   reads as the first line of its own list rather than a differently
- *   formatted heading. The quantity renders regardless of `showPrices`; only
- *   the price itself is gated.
+ * - The base price row renders labelled with `code`, with a bare quantity
+ *   (`breakdown.qty` — always 1 today, a product line is always one machine)
+ *   in the same column shape the option rows use, so the machine reads as
+ *   the first line of its own list rather than a differently formatted
+ *   heading. The quantity renders regardless of `showPrices`; only the price
+ *   itself is gated. The one exception is a product assembled from its own
+ *   options (`breakdown.assembledFromOptions` — see its doc comment), where
+ *   the row is dropped entirely: it would show a machine at $0 directly
+ *   under a heading that already names that machine.
  * - Every option row always renders — `code`/name (as "`code` — `name`" when
  *   `code` is set, plain `name` otherwise, exactly this component's old
  *   hand-rolled `OptionRow` formatting), its own `description` underneath
@@ -77,15 +80,17 @@ export function ItemBreakdownRows({
   const baseNegative = isNegativeAmount(breakdown.basePrice);
   return (
     <>
-      <tr className="pq-option-row">
-        <td className="pq-col-item pq-option-indent">
-          <div className="pq-option-name">{code}</div>
-        </td>
-        <td className={baseNegative && showPrices ? "pq-col-qty pq-negative" : "pq-col-qty"}>{breakdown.qty}</td>
-        <td className={baseNegative && showPrices ? "pq-col-amount pq-amount pq-negative" : "pq-col-amount pq-amount"}>
-          {showPrices ? formatMoney(breakdown.basePrice, currency) : null}
-        </td>
-      </tr>
+      {breakdown.assembledFromOptions ? null : (
+        <tr className="pq-option-row">
+          <td className="pq-col-item pq-option-indent">
+            <div className="pq-option-name">{code}</div>
+          </td>
+          <td className={baseNegative && showPrices ? "pq-col-qty pq-negative" : "pq-col-qty"}>{breakdown.qty}</td>
+          <td className={baseNegative && showPrices ? "pq-col-amount pq-amount pq-negative" : "pq-col-amount pq-amount"}>
+            {showPrices ? formatMoney(breakdown.basePrice, currency) : null}
+          </td>
+        </tr>
+      )}
       {breakdown.options.map((option, index) => {
         const optionNegative = option.lineTotal !== null && isNegativeAmount(option.lineTotal);
         return (

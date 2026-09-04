@@ -196,6 +196,7 @@ export function ItemsList({
 
       {optimisticItems.map((item, index) => {
         const compatKey = item.productId ?? (item.seriesId ? `series:${item.seriesId}` : null);
+        const isEasyLoader = resolveForm(item.code)?.id === "easyloader";
         const isDragging = draggingId === item.id;
         const isDropTarget = dropTargetId === item.id && draggingId !== item.id;
         const collapsed = isCollapsed(item.id);
@@ -377,6 +378,21 @@ export function ItemsList({
                   />
                 ) : null}
 
+                {/* On an EasyLoader these two swap places. Its builder is
+                    where the machine is assembled and priced, so it comes
+                    first and opens itself; the options panel holds only the
+                    accessories by then, and starts closed rather than
+                    inviting a manager to pick modules the builder owns. */}
+                <ProductionSpecEditor
+                  itemId={item.id}
+                  itemCode={item.code}
+                  spec={(item.productionSpec ?? {}) as Record<string, unknown>}
+                  hasOtherMachines={machineCount > 1}
+                  screenSideImages={screenSideImages}
+                  readOnly={readOnly}
+                  defaultOpen={isEasyLoader && !readOnly}
+                />
+
                 <ItemOptionsEditor
                   itemId={item.id}
                   currentLines={item.lines
@@ -387,20 +403,8 @@ export function ItemsList({
                   setOptionsAction={setItemOptionsAction}
                   showOptionIcons={showOptionIcons}
                   readOnly={readOnly}
-                  lockedCodes={
-                    resolveForm(item.code)?.id === "easyloader"
-                      ? derivedEasyLoaderCodes(item.code)
-                      : undefined
-                  }
-                />
-
-                <ProductionSpecEditor
-                  itemId={item.id}
-                  itemCode={item.code}
-                  spec={(item.productionSpec ?? {}) as Record<string, unknown>}
-                  hasOtherMachines={machineCount > 1}
-                  screenSideImages={screenSideImages}
-                  readOnly={readOnly}
+                  lockedCodes={isEasyLoader ? derivedEasyLoaderCodes(item.code) : undefined}
+                  startClosed={isEasyLoader}
                 />
 
                 {/* A credit item (item.isCredit — the TRADE-IN product) is

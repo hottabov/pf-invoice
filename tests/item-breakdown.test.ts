@@ -12,6 +12,7 @@ function baseItem(overrides: Partial<ToSheetItemInput> = {}): ToSheetItemInput {
     name: "EasyLoader 2020",
     description: null,
     unitPrice: "1000.00",
+    listPrice: "1000.00",
     discountMode: "PERCENT",
     discountValue: null,
     discountAmount: "0.00",
@@ -222,5 +223,55 @@ describe("toSheetData — item.breakdown", () => {
     });
     expect(options[1]).toMatchObject({ code: "OPT-2", description: null });
     expect(options[2]).toMatchObject({ code: null, description: null });
+  });
+
+  // An EasyLoader has no price of its own -- it is a table assembled from
+  // 1.2m modules, every one of which is an option. The base-price row is
+  // dropped for such a product, because at $0 it says nothing the heading
+  // above it has not already said, and reads as though the machine were
+  // being given away.
+  describe("assembledFromOptions", () => {
+    const modules = [
+      { id: "line-1", code: "EL-2020 Drive Module (first 1.2M)", name: "Drive Module", description: null, qty: 1, unitPrice: "4050.00" },
+      { id: "line-2", code: "EL-2020 Additional 1.2M lengths", name: "Additional 1.2M", description: null, qty: 4, unitPrice: "1200.00" },
+    ];
+
+    it("is set for a product the catalogue itself prices at nothing", () => {
+      const doc = baseDoc({
+        items: [baseItem({ unitPrice: "0.00", listPrice: "0.00", lines: modules, total: "8850.00" })],
+      });
+      expect(toSheetData(doc).items[0].breakdown.assembledFromOptions).toBe(true);
+    });
+
+    it("is NOT set for a machine a salesperson hand-zeroed", () => {
+      // The catalogue still prices it, so the $0 is a decision someone made
+      // and the row is where the customer reads it.
+      const doc = baseDoc({
+        items: [baseItem({ unitPrice: "0.00", listPrice: "175000.00", lines: modules, total: "8850.00" })],
+      });
+      expect(toSheetData(doc).items[0].breakdown.assembledFromOptions).toBe(false);
+    });
+
+    it("is NOT set for an assembled product with nothing in it yet", () => {
+      // Hiding the row here would leave the item with no rows at all, which
+      // hides the fact that the machine is unfinished rather than free.
+      const doc = baseDoc({
+        items: [baseItem({ unitPrice: "0.00", listPrice: "0.00", lines: [], total: "0.00" })],
+      });
+      expect(toSheetData(doc).items[0].breakdown.assembledFromOptions).toBe(false);
+    });
+
+    it("is NOT set for an ordinary priced machine", () => {
+      const doc = baseDoc({ items: [baseItem({ lines: modules })] });
+      expect(toSheetData(doc).items[0].breakdown.assembledFromOptions).toBe(false);
+    });
+
+    it("is NOT set when the list price was never recorded", () => {
+      // A row from before the column existed. Unknown is not zero.
+      const doc = baseDoc({
+        items: [baseItem({ unitPrice: "0.00", listPrice: null, lines: modules, total: "8850.00" })],
+      });
+      expect(toSheetData(doc).items[0].breakdown.assembledFromOptions).toBe(false);
+    });
   });
 });

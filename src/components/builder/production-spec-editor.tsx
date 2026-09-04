@@ -115,6 +115,11 @@ type Props = {
    * no money — see `setProductionSpec`); the table layout does not, because
    * the modules it is built from are what the customer is charged. */
   readOnly?: boolean;
+  /** Render the panel already open. Set for an EasyLoader, where this panel
+   * is not a set of extra questions but the thing that builds and prices the
+   * machine — leaving it behind a disclosure would hide the only place a
+   * manager can put money on that item. */
+  defaultOpen?: boolean;
 };
 
 /**
@@ -144,10 +149,11 @@ export function ProductionSpecEditor({
   hasOtherMachines,
   screenSideImages,
   readOnly = false,
+  defaultOpen = false,
 }: Props) {
   const form = resolveForm(itemCode);
   const toast = useToast();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [draft, setDraft] = useState<Record<string, unknown>>(spec);
   const [error, setError] = useState<string | null>(null);
   // The side this card last set, while the offer to apply it to the rest of

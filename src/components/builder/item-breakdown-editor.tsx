@@ -72,18 +72,27 @@ export function ItemBreakdownEditor({
 
   return (
     <div className="flex flex-col gap-1 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-      <BreakdownRow
-        label={item.code}
-        qty={`Qty ${breakdown.qty}`}
-        displayAmount={breakdown.basePrice}
-        id={item.id}
-        unitPrice={item.unitPrice}
-        listPrice={item.listPrice}
-        currency={currency}
-        editable={!readOnly}
-        setAction={setItemUnitPriceAction}
-        resetAction={resetItemUnitPriceAction}
-      />
+      {/* Dropped for a product assembled from its own options (see
+          `ItemBreakdown.assembledFromOptions`) — an EasyLoader, today. The
+          row would read "$0" against a machine, and there is nothing here to
+          edit either: the price lives entirely in the modules the EasyLoader
+          builder writes, so a hand-typed base price would be money outside
+          that model. A machine a salesperson hand-zeroed is a different
+          thing and keeps both its row and its editor. */}
+      {breakdown.assembledFromOptions ? null : (
+        <BreakdownRow
+          label={item.code}
+          qty={`Qty ${breakdown.qty}`}
+          displayAmount={breakdown.basePrice}
+          id={item.id}
+          unitPrice={item.unitPrice}
+          listPrice={item.listPrice}
+          currency={currency}
+          editable={!readOnly}
+          setAction={setItemUnitPriceAction}
+          resetAction={resetItemUnitPriceAction}
+        />
+      )}
       {breakdown.options.map((option, index) => {
         const line = item.lines[index];
         return (
