@@ -1,5 +1,21 @@
 # Production Order Forms Implementation Plan
 
+> **Superseded, 2026-09-04 — production lines.** Everything below describing
+> `DocumentItem.lineGroup`, the Line selector, and the automatic propagation of
+> the operator screen side across a line is history. The owner found machines
+> in one line that legitimately face opposite ways (a cutter's screen on one
+> side, the conveyor and FabricPro controls on the other), so lines were
+> dropped entirely (migration `z29_drop_line_group`) and the side is now
+> *offered* to the rest of the quote rather than applied to it — see
+> `applyScreenSideToQuote`.
+>
+> **Superseded — the EasyLoader.** Its table-length options are no longer
+> picked by hand and reconciled against the drawn sections. The layout is the
+> input and the options are computed from it (`deriveEasyLoaderOptions`), so
+> the reconciliation gate this plan describes is gone: the mismatch it caught
+> can no longer be expressed. The machine itself now prices at 0, since every
+> part of it is an option.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Generate the Pathfinder workshop order forms (M-Series, EasyLoader, FabricPro) from a finalized quote as one print-ready PDF, one A4 page per form, with every derivable box already ticked.

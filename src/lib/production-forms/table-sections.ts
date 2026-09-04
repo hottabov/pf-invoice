@@ -1,31 +1,60 @@
 /**
- * An EasyLoader is a table, and its length is not a free-text opinion: it is
- * the sum of the `Additional 1.2M lengths` (conveyor) and `Static table 1.2M
- * lengths` (static) options actually sold. This module is the single place
- * that relates the two, so the builder, the finalize gate and the printed
- * form can never disagree about how long the table is.
+ * An EasyLoader is a table built from physical 1.2 metre modules, and this
+ * module is the single place that turns a drawn layout into the options the
+ * customer is charged for.
+ *
+ * The direction used to run the other way: a manager picked table-length
+ * options by hand, drew sections to match, and a reconciliation gate caught
+ * the cases where the two disagreed. The owner's instruction is that the
+ * layout is the input and the options are its consequence, so the gate is
+ * gone -- not relaxed, but unnecessary, since a mismatch can no longer be
+ * expressed.
+ *
+ * The rule that carries the price: a conveyor section needs a motor, and the
+ * motor lives in its first module. So each conveyor section is one Drive
+ * Module plus (n-1) plain 1.2m lengths. A static section has no motor at all
+ * and is n static lengths. Two conveyor sections mean two drive modules --
+ * they are two separate runs of table, each with its own drive.
  */
 
 /** Every table option is priced and counted per 1.2 metre unit. */
 export const SECTION_UNIT_M = 1.2;
 
-/**
- * 1.2 has no exact binary representation, so three units summed as floats
- * land near 3.5999999999999996 rather than 3.6. Compare in units, and allow
- * half a millimetre of slack when converting back.
- */
-const EPSILON_M = 0.0005;
+/** The most sections one EasyLoader can be split into. Four by the owner's
+ * instruction; note the printed order form still has three rows, so a fourth
+ * section has nowhere to print until that template is redrawn. */
+export const MAX_SECTIONS = 4;
 
-export type OptionQty = { code: string; qty: number };
 export type SectionSurface = "static" | "conveyor";
 export type Section = { lengthM: number; surface: SectionSurface };
 
-export type SoldTable = { conveyorUnits: number; staticUnits: number; totalM: number };
+/**
+ * The option-code suffixes that follow the product code. Every EasyLoader
+ * option is scoped to one width -- "EL-2420 Additional 1.2M lengths" -- and
+ * the part after the code is identical across widths, so a derived code is
+ * always `${itemCode} ${suffix}`.
+ *
+ * These strings must match `prisma/seed-data/catalog.json` exactly, and they
+ * are long because the catalogue's own codes are the full descriptions. A
+ * suffix that drifted would not be cosmetic: `setItemOptions` rejects a code
+ * the catalogue does not have, so the table simply could not be saved.
+ * tests/catalog.test.ts derives every kind for every width and checks the
+ * catalogue has all of them.
+ */
+export const EL_OPTION_SUFFIX = {
+  drive: "Drive Module (first 1.2M)",
+  conveyor: "Additional 1.2M lengths",
+  static: "Static table 1.2M lengths",
+  busbar: "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+  rail: "Travel Platform support rail. Per 1.2m",
+} as const;
 
-// Anchored on "Additional"/"Static table" so the per-1.2M busbar option --
-// "Electrical Busbar Per 1.2M" -- is not mistaken for table length.
-const CONVEYOR_OPTION = /Additional 1\.2M lengths$/i;
-const STATIC_OPTION = /Static table 1\.2M lengths$/i;
+export type ElOptionKind = keyof typeof EL_OPTION_SUFFIX;
+
+/** The catalogue code for one of this item's derived options. */
+export function elOptionCode(itemCode: string, kind: ElOptionKind): string {
+  return `${itemCode} ${EL_OPTION_SUFFIX[kind]}`;
+}
 
 /**
  * Converts a whole number of 1.2m units to metres. A plain
@@ -33,73 +62,98 @@ const STATIC_OPTION = /Static table 1\.2M lengths$/i;
  * every unit count here is a whole number of 1.2m lengths, so the true
  * value always has exactly one decimal digit -- round to it.
  */
-function unitsToM(units: number): number {
+export function unitsToM(units: number): number {
   return Math.round(units * SECTION_UNIT_M * 10) / 10;
 }
 
-export function tableLengthsFromOptions(options: OptionQty[]): SoldTable {
-  let conveyorUnits = 0;
-  let staticUnits = 0;
-
-  for (const option of options) {
-    if (CONVEYOR_OPTION.test(option.code)) conveyorUnits += option.qty;
-    else if (STATIC_OPTION.test(option.code)) staticUnits += option.qty;
-  }
-
-  return {
-    conveyorUnits,
-    staticUnits,
-    totalM: unitsToM(conveyorUnits + staticUnits),
-  };
+/** How many 1.2m modules a section's length is. Rounded rather than divided
+ * exactly: 1.2 has no exact binary representation, so a length assembled by
+ * repeated addition can sit a hair off the true multiple. */
+export function modulesIn(section: Section): number {
+  return Math.max(0, Math.round(section.lengthM / SECTION_UNIT_M));
 }
 
-export type Reconciliation = {
-  ok: boolean;
-  sold: SoldTable;
-  /** Units still unaccounted for. Negative means the layout claims more than was sold. */
-  remaining: { conveyorUnits: number; staticUnits: number };
-  problems: string[];
+export type LayoutTotals = {
+  /** One per conveyor section that has any modules at all. */
+  driveModules: number;
+  /** Conveyor modules after each section's first, which is its drive. */
+  conveyorModules: number;
+  staticModules: number;
+  /** Every physical module, whatever it is -- what the busbar and the
+   * travel-platform rail are counted per. */
+  totalModules: number;
+  totalM: number;
 };
 
-export function reconcileSections(sold: SoldTable, sections: Section[]): Reconciliation {
-  const problems: string[] = [];
+export function layoutTotals(sections: Section[]): LayoutTotals {
+  let driveModules = 0;
+  let conveyorModules = 0;
+  let staticModules = 0;
 
-  const used = { conveyorUnits: 0, staticUnits: 0 };
   for (const section of sections) {
-    const units = section.lengthM / SECTION_UNIT_M;
-    if (Math.abs(units - Math.round(units)) > EPSILON_M) {
-      problems.push(`Section length ${section.lengthM}m is not a multiple of 1.2m`);
-      continue;
+    const modules = modulesIn(section);
+    if (modules === 0) continue;
+    if (section.surface === "conveyor") {
+      driveModules += 1;
+      conveyorModules += modules - 1;
+    } else {
+      staticModules += modules;
     }
-    if (section.surface === "conveyor") used.conveyorUnits += Math.round(units);
-    else used.staticUnits += Math.round(units);
   }
 
-  const remaining = {
-    conveyorUnits: sold.conveyorUnits - used.conveyorUnits,
-    staticUnits: sold.staticUnits - used.staticUnits,
+  const totalModules = driveModules + conveyorModules + staticModules;
+  return { driveModules, conveyorModules, staticModules, totalModules, totalM: unitsToM(totalModules) };
+}
+
+export type DerivedOption = { optionCode: string; qty: number };
+
+/**
+ * The option lines an EasyLoader's layout adds up to. Anything with a
+ * quantity of zero is left out rather than written as a zero-quantity line,
+ * so a table with no static run simply has no static row.
+ *
+ * `fabricProCompatible` adds the electrical busbar and the travel-platform
+ * support rail, one of each per module -- including the static ones, which
+ * the FabricPro still has to travel over.
+ */
+export function deriveEasyLoaderOptions(
+  itemCode: string,
+  sections: Section[],
+  fabricProCompatible: boolean
+): DerivedOption[] {
+  const totals = layoutTotals(sections);
+  const derived: DerivedOption[] = [];
+
+  const push = (kind: ElOptionKind, qty: number) => {
+    if (qty > 0) derived.push({ optionCode: elOptionCode(itemCode, kind), qty });
   };
 
-  if (sold.conveyorUnits === 0 && sold.staticUnits === 0) {
-    problems.push(
-      "This EasyLoader has no table length: add Additional 1.2M lengths or Static table 1.2M lengths",
-    );
+  push("drive", totals.driveModules);
+  push("conveyor", totals.conveyorModules);
+  push("static", totals.staticModules);
+
+  if (fabricProCompatible) {
+    push("busbar", totals.totalModules);
+    push("rail", totals.totalModules);
   }
 
-  // No sections at all means "one undivided table", which is the common case
-  // and always consistent with whatever was sold.
-  if (sections.length > 0) {
-    if (remaining.conveyorUnits !== 0) {
-      problems.push(
-        `Conveyor sections total ${unitsToM(used.conveyorUnits)}m but ${unitsToM(sold.conveyorUnits)}m was sold`,
-      );
-    }
-    if (remaining.staticUnits !== 0) {
-      problems.push(
-        `Static sections total ${unitsToM(used.staticUnits)}m but ${unitsToM(sold.staticUnits)}m was sold`,
-      );
-    }
-  }
+  return derived;
+}
 
-  return { ok: problems.length === 0, sold, remaining, problems };
+/**
+ * Every option code this item's layout owns. Used to tell the manager's own
+ * selections (roll holder, sync feature, crate) apart from the derived rows
+ * when rewriting them, and to render the derived rows read-only in the
+ * options editor -- editing a number the builder recomputes on the next
+ * click would only ever be undone.
+ */
+export function derivedEasyLoaderCodes(itemCode: string): Set<string> {
+  return new Set(
+    (Object.keys(EL_OPTION_SUFFIX) as ElOptionKind[]).map((kind) => elOptionCode(itemCode, kind))
+  );
+}
+
+/** Whether `optionCode` is one `itemCode`'s layout owns. */
+export function isDerivedEasyLoaderOption(itemCode: string, optionCode: string): boolean {
+  return derivedEasyLoaderCodes(itemCode).has(optionCode);
 }

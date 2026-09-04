@@ -7,7 +7,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
 import { isAdminRole } from "@/lib/roles";
-import { companyWhereForUser, documentWhereForUser } from "@/lib/scope";
+import { companyWhereForUser, documentWhereForUser, type ScopeUser } from "@/lib/scope";
 import {
   compatibilityOrFilter,
   findConflictingSelection,
@@ -31,6 +31,12 @@ import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { getCommissionTiers } from "@/lib/queries/settings";
 import { formatMoney } from "@/lib/format";
 import { IMAGE_URL_PATTERN } from "@/lib/uploads";
+import { resolveForm } from "@/lib/production-forms/resolve";
+import { easyLoaderSpecSchema } from "@/lib/validation/production-spec";
+import {
+  deriveEasyLoaderOptions,
+  isDerivedEasyLoaderOption,
+} from "@/lib/production-forms/table-sections";
 import {
   customLineSchema,
   deliveryTermsSchema,
@@ -721,7 +727,22 @@ export async function setItemOptions(
   selections: OptionSelectionInput[]
 ): Promise<ActionResult> {
   const session = await requireSession();
+  return writeItemOptions(session.user, itemId, selections);
+}
 
+/**
+ * The body of `setItemOptions`, reachable by one other caller:
+ * `setEasyLoaderLayout`, which computes an EasyLoader's option lines from
+ * its table layout and then needs exactly these checks -- compatibility,
+ * pricing, conflicts, the delete/create/recalc transaction -- applied to
+ * them. Split out rather than duplicated so a derived selection can never be
+ * written under looser rules than a hand-picked one.
+ */
+async function writeItemOptions(
+  user: ScopeUser,
+  itemId: string,
+  selections: OptionSelectionInput[]
+): Promise<ActionResult> {
   const parsedItemId = idSchema.safeParse(itemId);
   if (!parsedItemId.success) return { error: NOT_FOUND_ERROR };
 
@@ -739,7 +760,7 @@ export async function setItemOptions(
   const item = await db.documentItem.findFirst({
     where: {
       id: parsedItemId.data,
-      document: { status: "DRAFT", ...documentWhereForUser(session.user) },
+      document: { status: "DRAFT", ...documentWhereForUser(user) },
     },
     include: { document: true, product: { include: { series: true } } },
   });
@@ -751,7 +772,7 @@ export async function setItemOptions(
     try {
       await db.$transaction(async (tx) => {
         await tx.documentLine.deleteMany({ where: { itemId: item.id, kind: "OPTION" } });
-        concessionWarning = (await recalcAndEnforce(item.documentId, tx, session.user.role)).warning;
+        concessionWarning = (await recalcAndEnforce(item.documentId, tx, user.role)).warning;
       });
     } catch (error) {
       if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
@@ -858,7 +879,7 @@ export async function setItemOptions(
           },
         });
       }
-      concessionWarning = (await recalcAndEnforce(item.documentId, tx, session.user.role)).warning;
+      concessionWarning = (await recalcAndEnforce(item.documentId, tx, user.role)).warning;
     });
   } catch (error) {
     if (error instanceof NegativeSubtotalError) return { error: NEGATIVE_SUBTOTAL_ERROR };
@@ -868,6 +889,91 @@ export async function setItemOptions(
 
   revalidatePath(`/documents/${item.documentId}`);
   return concessionWarning ? { warning: concessionWarning } : {};
+}
+
+/**
+ * Saves an EasyLoader's table layout and rewrites the option lines that
+ * layout adds up to.
+ *
+ * The EasyLoader is sold as a table assembled from 1.2 metre modules, and
+ * the machine itself now costs nothing: every part of it is an option. So a
+ * manager draws the table -- how many sections, how long each is, conveyor
+ * or static, whether a FabricPro has to run along it -- and the drive
+ * modules, lengths, busbar and rail follow from that. See
+ * `deriveEasyLoaderOptions` for the arithmetic.
+ *
+ * The manager's own EasyLoader options -- roll holder, sync feature, crate
+ * -- are kept exactly as they are. Only the derived family is replaced, so
+ * redrawing the table never silently drops an accessory that was sold with
+ * it.
+ *
+ * DRAFT-only, unlike `setProductionSpec`, which this otherwise resembles:
+ * that one writes facts the workshop needs and no money, while this one
+ * moves the price of the machine. Correcting a knife size on a finalized
+ * quote is housekeeping; re-pricing one is not.
+ */
+export async function setEasyLoaderLayout(itemId: string, spec: unknown): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedItemId = idSchema.safeParse(itemId);
+  if (!parsedItemId.success) return { error: NOT_FOUND_ERROR };
+
+  const item = await db.documentItem.findFirst({
+    where: {
+      id: parsedItemId.data,
+      document: { status: "DRAFT", ...documentWhereForUser(session.user) },
+    },
+    select: {
+      id: true,
+      code: true,
+      documentId: true,
+      lines: {
+        where: { kind: "OPTION" },
+        select: { code: true, qty: true, attributes: true },
+        orderBy: { sortOrder: "asc" },
+      },
+    },
+  });
+  if (!item) return { error: NOT_FOUND_ERROR };
+
+  if (resolveForm(item.code)?.id !== "easyloader") {
+    return { error: "This item is not an EasyLoader" };
+  }
+
+  const parsed = easyLoaderSpecSchema.safeParse(spec);
+  if (!parsed.success) return { error: flattenZodError(parsed.error) };
+
+  const derived = deriveEasyLoaderOptions(
+    item.code,
+    parsed.data.sections,
+    parsed.data.fabricProCompatible
+  );
+
+  // The manager's own picks first, in the order they were in, then the
+  // derived rows. Anything in the derived family that is already on the item
+  // is dropped here and re-added from `derived` -- that is what makes a
+  // section deleted in the builder disappear from the quote.
+  const kept = item.lines
+    .filter((line) => line.code !== null && !isDerivedEasyLoaderOption(item.code, line.code))
+    .map((line) => ({
+      optionCode: line.code as string,
+      qty: line.qty,
+      attributes: (line.attributes ?? undefined) as Record<string, unknown> | undefined,
+    }));
+
+  const written = await writeItemOptions(session.user, item.id, [...kept, ...derived]);
+  // The options are the price, so a layout that cannot be priced is not
+  // saved at all -- writing the spec anyway would leave the builder showing
+  // a table the quote does not charge for.
+  if (written.error) return written;
+
+  await db.documentItem.update({
+    where: { id: item.id },
+    data: { productionSpec: parsed.data as object },
+  });
+
+  revalidatePath(`/documents/${item.documentId}`);
+  return written;
 }
 
 // --- extra lines (Task D) ---------------------------------------------------

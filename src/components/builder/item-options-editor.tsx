@@ -95,12 +95,22 @@ export function ItemOptionsEditor({
   setOptionsAction,
   showOptionIcons = true,
   readOnly = false,
+  lockedCodes,
 }: {
   itemId: string;
   currentLines: CurrentLine[];
   compatibleOptions: CompatibleOption[];
   currency: string;
   setOptionsAction: (itemId: string, selections: OptionSelectionInput[]) => Promise<ActionResult>;
+  /** Option codes this item's own builder owns, and that a manager must not
+   * hand-edit here. Today that is the EasyLoader's table: its drive modules,
+   * lengths, busbar and rail are computed from the layout drawn in the
+   * production-spec panel (see `deriveEasyLoaderOptions`), so a quantity
+   * typed here would only survive until the next click of a section stepper.
+   * They are shown, and their quantity is shown, but the controls are
+   * inert -- and `save` re-submits them untouched, so opening this panel and
+   * saving can never drop them. */
+  lockedCodes?: Set<string>;
   /** "ui.showOptionIcons" app setting (see `getShowOptionIcons`,
    * src/lib/queries/settings.ts), read server-side and threaded down through
    * ItemsList/ItemsSection. Gates only the small per-option icon in this
@@ -123,6 +133,8 @@ export function ItemOptionsEditor({
   const [error, setError] = useState<string | null>(null);
 
   const chips = currentLines.filter((line): line is CurrentLine & { code: string } => Boolean(line.code));
+
+  const isLocked = (code: string) => lockedCodes?.has(code) ?? false;
 
   // Re-sync from the server-confirmed lines only at the moment the panel
   // opens — while it's open, the user's own edits are the source of truth
@@ -151,7 +163,7 @@ export function ItemOptionsEditor({
     setSelected((prev) => {
       const next = new Map(prev);
       for (const option of filteredOptions) {
-        if (next.has(option.code)) continue;
+        if (next.has(option.code) || isLocked(option.code)) continue;
         // Only the price reason applies here — conflicts aren't checked
         // against the batch being built up by this same click (that would
         // mean "select all" secretly picks a winner between two conflicting
@@ -166,10 +178,18 @@ export function ItemOptionsEditor({
   }
 
   function clearAll() {
-    setSelected(new Map());
+    setSelected((prev) => {
+      const next = new Map<string, SelectionState>();
+      // "Clear" means the manager's own picks, not the ones the builder
+      // computed -- those come back on the next save anyway, so removing
+      // them here would only flash them out and back.
+      for (const [code, state] of prev) if (isLocked(code)) next.set(code, state);
+      return next;
+    });
   }
 
   function toggle(code: string) {
+    if (isLocked(code)) return;
     setSelected((prev) => {
       const next = new Map(prev);
       if (next.has(code)) next.delete(code);
@@ -179,6 +199,7 @@ export function ItemOptionsEditor({
   }
 
   function setQty(code: string, qty: number) {
+    if (isLocked(code)) return;
     setSelected((prev) => {
       const current = prev.get(code);
       if (!current) return prev;
@@ -322,6 +343,7 @@ export function ItemOptionsEditor({
                       const conflictingWith = checked
                         ? null
                         : (option.conflictsWith.find((c) => selected.has(c.code)) ?? null);
+                      const locked = isLocked(option.code);
                       const disabledReason = isOptionDisabled(option.price, conflictingWith);
                       const priced = disabledReason === null || disabledReason.type !== "unpriced";
                       const attributeFields = parseAttributeFields(option.attributeSchema);
@@ -336,7 +358,7 @@ export function ItemOptionsEditor({
                             <input
                               type="checkbox"
                               checked={checked}
-                              disabled={disabledReason !== null}
+                              disabled={locked || disabledReason !== null}
                               onChange={() => toggle(option.code)}
                               className="mt-0.5 size-5 shrink-0 rounded border-slate-300 accent-brand"
                             />
@@ -370,7 +392,13 @@ export function ItemOptionsEditor({
                             </span>
                           </label>
 
-                          {checked ? (
+                          {checked && locked ? (
+                            <div className="mt-2 pl-[1.875rem] text-xs text-slate-500">
+                              Qty {state!.qty} — set by the table layout above
+                            </div>
+                          ) : null}
+
+                          {checked && !locked ? (
                             <div className="mt-2 flex flex-wrap items-center gap-3 pl-[1.875rem]">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs text-slate-500">Qty</span>

@@ -1,8 +1,11 @@
 import { z } from "zod";
+import { MAX_SECTIONS } from "../production-forms/table-sections";
 
 /**
  * Operator-screen side. Shared by every machine that has one, because a
- * cutter and its spreaders must agree -- see `lineGroup` in schema.prisma.
+ * cutter and its spreaders usually agree, though not always -- see
+ * `setProductionSpec` for why applying one side to the rest of the quote is
+ * offered rather than done.
  * Defaults to `-Y` -- material running right to left -- which the M-Series
  * form already prints as `(STD)`, so a manager who never opens the
  * production-spec panel still gets the correct standard rather than a blank
@@ -42,14 +45,18 @@ export const easyLoaderSpecSchema = z.object({
   ui: screenSideSchema,
   usage: z.enum(["onload", "offload"]).default("onload"),
   customWidthMm: z.number().int().positive().max(9999).optional(),
-  // No sections at all legitimately means "one undivided table" -- the
-  // common case -- so this defaults to empty rather than being required.
-  // What gates finalize is reconciling this against what was actually sold
-  // (see table-sections.ts), not whether the array is present.
+  // The table's physical layout, and now the thing the EasyLoader's option
+  // lines are computed from rather than checked against -- see
+  // `deriveEasyLoaderOptions`. An empty array is a table with no modules,
+  // which prices at nothing; the machine itself costs nothing, because every
+  // part of it is one of these.
   sections: z
     .array(z.object({ lengthM: z.number().positive().max(99), surface: z.enum(["static", "conveyor"]) }))
-    .max(3)
+    .max(MAX_SECTIONS)
     .default([]),
+  /** Adds the electrical busbar and the travel-platform support rail, one of
+   * each per 1.2m module, so a FabricPro can run the length of this table. */
+  fabricProCompatible: z.boolean().default(false),
   rollFeed: z
     .object({ qty: z.number().int().min(1).max(4), distancesMm: z.array(z.number().int().min(0)).max(4) })
     .optional(),

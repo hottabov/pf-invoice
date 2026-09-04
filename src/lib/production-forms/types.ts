@@ -1,12 +1,10 @@
 import type { z } from "zod";
-import type { OptionQty } from "./table-sections";
 
 /** One quote item, flattened for form rendering. */
 export type FormItem = {
   id: string;
   code: string;
   name: string;
-  lineGroup: number;
   spec: Record<string, unknown>;
   /** Option codes on this item, e.g. ["VRB-220", "MTS", "HFV-M"]. */
   optionCodes: string[];
@@ -15,10 +13,10 @@ export type FormItem = {
   /**
    * Option codes paired with their sold quantity, e.g.
    * [{ code: "EL-2420 Additional 1.2M lengths", qty: 6 }]. `optionCodes` is
-   * a flat list with no quantity, but `tableLengthsFromOptions` needs a
-   * count per option to know how many 1.2m table units were actually sold.
+   * a flat list with no quantity; a form that prints how many of something
+   * was sold needs the count too.
    */
-  optionQtys: OptionQty[];
+  optionQtys: { code: string; qty: number }[];
 };
 
 /** Everything a form needs that is not the item itself. */

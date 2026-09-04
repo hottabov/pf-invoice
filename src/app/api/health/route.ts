@@ -34,7 +34,7 @@ export async function GET() {
       },
     });
     await db.documentItem.findFirst({
-      select: { id: true, productionSpec: true, lineGroup: true, discountMode: true, discountValue: true },
+      select: { id: true, productionSpec: true, discountMode: true, discountValue: true },
     });
     await db.documentLine.findFirst({ select: { id: true, imageUrl: true } });
     await db.company.findFirst({ select: { id: true, industryId: true } });

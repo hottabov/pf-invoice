@@ -59,7 +59,6 @@ export function buildFormContexts(document: DocumentForForms): FormContext[] {
         id: item.id,
         code: item.code,
         name: item.name,
-        lineGroup: item.lineGroup,
         spec: (item.productionSpec ?? {}) as Record<string, unknown>,
         optionCodes: options.map((line) => line.code).filter((c): c is string => Boolean(c)),
         optionAttributes: Object.fromEntries(

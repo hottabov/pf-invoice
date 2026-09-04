@@ -13,6 +13,7 @@ import { ProductionSpecEditor } from "@/components/builder/production-spec-edito
 import { useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 import { resolveForm } from "@/lib/production-forms/resolve";
+import { derivedEasyLoaderCodes } from "@/lib/production-forms/table-sections";
 import type { ActionResult } from "@/lib/actions/documents";
 import type { BuilderItem, CompatibleOption } from "@/lib/queries/documents";
 import type { OptionSelectionInput } from "@/lib/validation/documents";
@@ -153,9 +154,9 @@ export function ItemsList({
     commitOrder(arrayMove(optimisticItems, index, targetIndex));
   }
 
-  // The line chip inside ProductionSpecEditor is noise on a single-machine
-  // quote (nothing to disambiguate), so it's only worth showing once the
-  // document actually holds two or more items a production form recognizes.
+  // The offer to apply a screen side to the rest of the quote is noise on a
+  // single-machine one, so it only appears once the document holds two or
+  // more items a production form recognizes.
   const machineCount = optimisticItems.filter((item) => resolveForm(item.code) !== null).length;
 
   function handleDrop(targetId: string) {
@@ -386,18 +387,20 @@ export function ItemsList({
                   setOptionsAction={setItemOptionsAction}
                   showOptionIcons={showOptionIcons}
                   readOnly={readOnly}
+                  lockedCodes={
+                    resolveForm(item.code)?.id === "easyloader"
+                      ? derivedEasyLoaderCodes(item.code)
+                      : undefined
+                  }
                 />
 
                 <ProductionSpecEditor
                   itemId={item.id}
                   itemCode={item.code}
-                  lineGroup={item.lineGroup}
                   spec={(item.productionSpec ?? {}) as Record<string, unknown>}
-                  optionQtys={item.lines
-                    .filter((line): line is typeof line & { code: string } => line.kind === "OPTION" && Boolean(line.code))
-                    .map((line) => ({ code: line.code, qty: line.qty }))}
-                  showLineChip={machineCount > 1}
+                  hasOtherMachines={machineCount > 1}
                   screenSideImages={screenSideImages}
+                  readOnly={readOnly}
                 />
 
                 {/* A credit item (item.isCredit — the TRADE-IN product) is

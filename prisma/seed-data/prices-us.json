@@ -94,14 +94,6 @@
       "amountUsd": 5850
     },
     {
-      "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
-      "amountUsd": 587
-    },
-    {
-      "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
-      "amountUsd": 587
-    },
-    {
       "code": "DRG-1",
       "amountUsd": 2674
     },
@@ -112,6 +104,14 @@
     {
       "code": "DRG-3",
       "amountUsd": 2674
+    },
+    {
+      "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
+      "amountUsd": 587
+    },
+    {
+      "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
+      "amountUsd": 587
     },
     {
       "code": "Driven- Electrically driven. Suit 28mm Carbide Octagonal blade.",
@@ -135,7 +135,7 @@
     },
     {
       "code": "EL-2020",
-      "amountUsd": 6936
+      "amountUsd": 0
     },
     {
       "code": "EL-2020 #ST620-2020 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
@@ -144,6 +144,10 @@
     {
       "code": "EL-2020 Additional 1.2M lengths",
       "amountUsd": 1337
+    },
+    {
+      "code": "EL-2020 Drive Module (first 1.2M)",
+      "amountUsd": 6936
     },
     {
       "code": "EL-2020 Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
@@ -163,23 +167,27 @@
     },
     {
       "code": "EL-2420",
-      "amountUsd": 7340
+      "amountUsd": 0
     },
     {
       "code": "EL-2420 Additional 1.2M lengths",
       "amountUsd": 1741
     },
     {
+      "code": "EL-2420 Drive Module (first 1.2M)",
+      "amountUsd": 7340
+    },
+    {
       "code": "EL-2420 Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
       "amountUsd": 209
     },
     {
-      "code": "EL-2420 Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
-      "amountUsd": 641
-    },
-    {
       "code": "EL-2420 ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
       "amountUsd": 1031
+    },
+    {
+      "code": "EL-2420 Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+      "amountUsd": 641
     },
     {
       "code": "EL-2420 Static table 1.2M lengths",
@@ -191,10 +199,18 @@
     },
     {
       "code": "EL-3220",
+      "amountUsd": 0
+    },
+    {
+      "code": "EL-3220 Drive Module (first 1.2M)",
       "amountUsd": 12480
     },
     {
       "code": "EL-4030",
+      "amountUsd": 0
+    },
+    {
+      "code": "EL-4030 Drive Module (first 1.2M)",
       "amountUsd": 12480
     },
     {
@@ -222,20 +238,20 @@
       "amountUsd": 12500
     },
     {
-      "code": "HDRF-220",
-      "amountUsd": 13900
-    },
-    {
-      "code": "HDRF-320",
-      "amountUsd": 15290
-    },
-    {
       "code": "HDRF-180 Crate- Wooden Crate for transport",
       "amountUsd": 1254
     },
     {
+      "code": "HDRF-220",
+      "amountUsd": 13900
+    },
+    {
       "code": "HDRF-220 Crate- Wooden Crate for transport",
       "amountUsd": 1400
+    },
+    {
+      "code": "HDRF-320",
+      "amountUsd": 15290
     },
     {
       "code": "HDRF-320 Crate- Wooden Crate for transport",

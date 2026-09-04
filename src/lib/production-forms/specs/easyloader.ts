@@ -1,5 +1,5 @@
 import { easyLoaderSpecSchema } from "@/lib/validation/production-spec";
-import { tableLengthsFromOptions } from "../table-sections";
+import { layoutTotals } from "../table-sections";
 import type { FormContext, FormSpec } from "../types";
 
 const CODE = /^EL-\d{4}$/;
@@ -44,11 +44,19 @@ export const easyLoaderSpec: FormSpec = {
   // not the presence of this field.
   requires: ["usage"],
 
-  // The table length options have no box of their own: the three section
-  // rows and the "Total Table is N m" line at M54 are how this form states
-  // them. Declaring them here keeps them off the Additional items sheet,
-  // which exists for things the form genuinely cannot express.
-  coversOptions: [/Additional 1\.2M lengths$/i, /Static table 1\.2M lengths$/i],
+  // The options the table layout is made of have no box of their own: the
+  // section rows and the "Total Table is N m" line at M54 are how this form
+  // states them. Declaring them here keeps them off the Additional items
+  // sheet, which exists for things the form genuinely cannot express. The
+  // busbar and the support rail are here for the same reason -- they are one
+  // per module of a table the form already draws.
+  coversOptions: [
+    /Drive Module \(first 1\.2M\)$/i,
+    /Additional 1\.2M lengths$/i,
+    /Static table 1\.2M lengths$/i,
+    /Electrical Busbar Per 1\.2M/i,
+    /Travel Platform support rail\. Per 1\.2m$/i,
+  ],
 
   values: [
     { cell: "G11", from: (c) => c.distributorName },
@@ -82,15 +90,15 @@ export const easyLoaderSpec: FormSpec = {
     })),
     // M54 is blank in the template, in the same notes column as the three
     // "(Multiple of 1.2m...)" annotations, one row below section 3. The
-    // total is derived from what was actually sold, not typed -- it is the
-    // one place any form prints something the paper form never had, but the
-    // workshop currently has to add up three section boxes by hand to get
-    // it. Omitted entirely when nothing was sold: printing "Total Table is
-    // 0 m" is worse than printing nothing.
+    // total is added up from the sections rather than typed -- it is the one
+    // place any form prints something the paper form never had, but the
+    // workshop otherwise has to add up the section boxes by hand to get it.
+    // Omitted entirely for an empty table: printing "Total Table is 0 m" is
+    // worse than printing nothing.
     {
       cell: "M54",
       from: (c) => {
-        const totalM = tableLengthsFromOptions(c.item.optionQtys).totalM;
+        const totalM = layoutTotals(sections(c)).totalM;
         return totalM > 0 ? `Total Table is ${totalM} m` : null;
       },
     },

@@ -5,7 +5,6 @@ import { buildFormContexts } from "@/lib/production-forms/context";
 import {
   buildPatches,
   missingRequirements,
-  reconcileEasyLoaderSections,
   resolveForm,
   unmatchedOptionCodes,
 } from "@/lib/production-forms/resolve";
@@ -55,15 +54,11 @@ export async function GET(request: Request, { params }: { params: Promise<Params
     const spec = resolveForm(ctx.item.code)!;
     const missing = missingRequirements(spec, ctx.item.spec);
 
-    // Belt and braces: finalize already refuses a mismatched EasyLoader (see
-    // validateEasyLoaderSections), but productionSpec can still be edited
-    // after finalize (it carries no commercial meaning -- see the comment on
-    // DocumentItem.productionSpec), so a form must never be handed to the
-    // workshop for a layout that no longer matches what was sold.
-    const reconciliation = reconcileEasyLoaderSections(ctx.item.code, ctx.item.spec, ctx.item.optionQtys);
-    const problems = [...missing, ...(reconciliation && !reconciliation.ok ? reconciliation.problems : [])];
-
-    return problems.length ? [{ itemId: ctx.item.id, code: ctx.item.code, missing: problems }] : [];
+    // The EasyLoader's table used to be checked against the options sold
+    // here as well. It no longer can disagree: the options are computed from
+    // the table (see `setEasyLoaderLayout`), so there are no two numbers left
+    // to reconcile.
+    return missing.length ? [{ itemId: ctx.item.id, code: ctx.item.code, missing }] : [];
   });
 
   if (blockers.length > 0) {

@@ -13,7 +13,6 @@ function item(overrides: Partial<FormItem> = {}): FormItem {
     id: "item1",
     code: "M5220",
     name: "M-Series",
-    lineGroup: 1,
     spec: { ui: "+Y", knifeSize: "1.5x5.0", drills: { required: false, detail: "" } },
     optionCodes: [],
     optionAttributes: {},
@@ -50,11 +49,11 @@ describe("resolveForm", () => {
     expect(resolveForm("NOPE-1")).toBeNull();
   });
 
-  // `setProductionSpec` propagates a screen side across the line to exactly
-  // the items this returns a form for. These are the codes that were in one
-  // real line and got written to before that gate existed -- three software
-  // modules and a cutter whose form has not been built yet. A screen side is
-  // a fact about a thing an operator stands in front of; none of these is.
+  // `applyScreenSideToQuote` writes a screen side to exactly the items this
+  // returns a form for. These are the codes that were in one real quote and
+  // got written to before that gate existed -- three software modules and a
+  // cutter whose form has not been built yet. A screen side is a fact about a
+  // thing an operator stands in front of; none of these is.
   it("does not match software modules or a cutter with no form yet", () => {
     for (const code of ["PTW(I)", "ANT-V5", "PDG", "X-10180"]) {
       expect(resolveForm(code)).toBeNull();
@@ -165,7 +164,7 @@ describe("missingRequirements", () => {
 
 describe("EasyLoader form", () => {
   const elItem = {
-    id: "i", code: "EL-2420", name: "EasyLoader 2420", lineGroup: 1,
+    id: "i", code: "EL-2420", name: "EasyLoader 2420",
     spec: { ui: "-Y", usage: "onload", sections: [{ lengthM: 2.4, surface: "static" }] },
     optionCodes: [], optionAttributes: {}, optionQtys: [],
   };
@@ -233,27 +232,34 @@ describe("EasyLoader form", () => {
     expect(unmatchedOptionCodes(resolveForm("EL-2420")!, ctx({ item: item as never }))).toEqual([]);
   });
 
-  it("prints the total table length at M54 from the options actually sold", () => {
+  // Added up from the sections rather than from the options sold: the
+  // options are now derived from the sections, so the layout is the only
+  // number there is.
+  it("prints the total table length at M54, added up from the sections", () => {
     const item = {
       ...elItem,
-      optionQtys: [
-        { code: "EL-2420 Additional 1.2M lengths", qty: 6 },
-        { code: "EL-2420 Static table 1.2M lengths", qty: 2 },
-      ],
+      spec: {
+        ...elItem.spec,
+        sections: [
+          { lengthM: 7.2, surface: "conveyor" },
+          { lengthM: 2.4, surface: "static" },
+        ],
+      },
     };
     const patches = buildPatches(resolveForm("EL-2420")!, ctx({ item: item as never }));
     expect(patches.find((p) => p.cell === "M54")?.value).toBe("Total Table is 9.6 m");
   });
 
-  it("omits the M54 total when nothing was sold", () => {
-    const patches = buildPatches(resolveForm("EL-2420")!, ctx({ item: elItem as never }));
+  it("omits the M54 total for a table with no modules", () => {
+    const item = { ...elItem, spec: { ...elItem.spec, sections: [] } };
+    const patches = buildPatches(resolveForm("EL-2420")!, ctx({ item: item as never }));
     expect(patches.find((p) => p.cell === "M54")).toBeUndefined();
   });
 });
 
 describe("FabricPro form", () => {
   const fpItem = {
-    id: "i", code: "FP-220", name: "FabricPro 220", lineGroup: 1,
+    id: "i", code: "FP-220", name: "FabricPro 220",
     spec: { ui: "+Y", travelPlatform: true, railLengthM: 6 },
     optionCodes: [], optionAttributes: {}, optionQtys: [],
   };
@@ -280,7 +286,7 @@ describe("FabricPro form", () => {
 
 describe("coversOptions", () => {
   const elItem = {
-    id: "i", code: "EL-2420", name: "EasyLoader 2420", lineGroup: 1,
+    id: "i", code: "EL-2420", name: "EasyLoader 2420",
     spec: { ui: "-Y", usage: "onload", sections: [] },
     optionCodes: ["EL-2420 Additional 1.2M lengths", "EL-2420 Static table 1.2M lengths"],
     optionQtys: [

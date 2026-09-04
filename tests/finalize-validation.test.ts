@@ -1,9 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   validateFinalizable,
-  validateEasyLoaderSections,
   type FinalizableDocument,
-  type FinalizableItem,
   type FinalizerRole,
 } from "../src/lib/validation/finalize";
 import type { DocumentConcession, EngineViolation } from "../src/lib/pricing";
@@ -158,89 +156,5 @@ describe("validateFinalizable", () => {
     expect(validateFinalizable(doc, noViolations, overCapConcession, ADMIN, REGION_NAME, CURRENCY)).toBe(
       "Select a client before finalizing"
     );
-  });
-});
-
-function elItem(overrides: Partial<FinalizableItem> = {}): FinalizableItem {
-  return {
-    code: "EL-2420",
-    productionSpec: { ui: "-Y", usage: "onload", sections: [] },
-    lines: [],
-    ...overrides,
-  };
-}
-
-describe("validateEasyLoaderSections", () => {
-  // There is no role parameter here at all: unlike the discount-cap check
-  // above, this rule has no ADMIN override (see the function's header
-  // comment) -- every test below applies equally regardless of who is
-  // finalizing.
-
-  it("blocks an EasyLoader sold with no table length at all", () => {
-    const result = validateEasyLoaderSections([elItem()]);
-    expect(result).toContain("EL-2420");
-    expect(result).toMatch(/before finalizing/i);
-  });
-
-  it("accepts an EasyLoader with no sections when the whole table was sold as one undivided run", () => {
-    const item = elItem({
-      lines: [{ kind: "OPTION", code: "EL-2420 Additional 1.2M lengths", qty: 6 }],
-    });
-    expect(validateEasyLoaderSections([item])).toBeNull();
-  });
-
-  it("accepts a layout whose sections reconcile with what was sold", () => {
-    const item = elItem({
-      productionSpec: { sections: [{ lengthM: 2.4, surface: "conveyor" }] },
-      lines: [{ kind: "OPTION", code: "EL-2420 Additional 1.2M lengths", qty: 2 }],
-    });
-    expect(validateEasyLoaderSections([item])).toBeNull();
-  });
-
-  it("blocks a layout whose sections disagree with what was sold, naming the item code", () => {
-    const item = elItem({
-      productionSpec: { sections: [{ lengthM: 1.2, surface: "conveyor" }] },
-      lines: [{ kind: "OPTION", code: "EL-2420 Additional 1.2M lengths", qty: 2 }],
-    });
-    const result = validateEasyLoaderSections([item]);
-    expect(result).toContain("EL-2420");
-  });
-
-  it("blocks a layout with the surfaces swapped even though the total matches", () => {
-    const item = elItem({
-      productionSpec: { sections: [{ lengthM: 2.4, surface: "static" }] },
-      lines: [{ kind: "OPTION", code: "EL-2420 Additional 1.2M lengths", qty: 2 }],
-    });
-    expect(validateEasyLoaderSections([item])).not.toBeNull();
-  });
-
-  it("ignores a non-EasyLoader item regardless of what its productionSpec contains", () => {
-    const item: FinalizableItem = {
-      code: "M5220",
-      productionSpec: { sections: [{ lengthM: 999, surface: "conveyor" }] },
-      lines: [],
-    };
-    expect(validateEasyLoaderSections([item])).toBeNull();
-  });
-
-  it("checks every EasyLoader item on the document, not just the first", () => {
-    const good = elItem({
-      lines: [{ kind: "OPTION", code: "EL-2420 Additional 1.2M lengths", qty: 3 }],
-    });
-    const bad = elItem({ code: "EL-2020" }); // no table length at all
-    expect(validateEasyLoaderSections([good, bad])).toContain("EL-2020");
-  });
-
-  it("ignores option lines that are not OPTION kind or carry no code", () => {
-    const item = elItem({
-      lines: [
-        { kind: "PRODUCT", code: "EL-2420 Additional 1.2M lengths", qty: 99 },
-        { kind: "OPTION", code: null, qty: 99 },
-      ],
-    });
-    // Neither line counts toward the table sold, so this is still "no table
-    // length at all" -- proof the filter in validateEasyLoaderSections is
-    // doing its job rather than accidentally counting everything.
-    expect(validateEasyLoaderSections([item])).not.toBeNull();
   });
 });

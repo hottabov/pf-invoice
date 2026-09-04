@@ -388,29 +388,29 @@
           "code": "EL-2020",
           "name": "EasyLoader 2020",
           "description": "2020mm width, to suit FM180/FabricPro-180. Base: drive module, first 1.2M.",
-          "price": 4050,
+          "price": 0,
           "needsReview": false
         },
         {
           "code": "EL-2420",
           "name": "EasyLoader 2420",
           "description": "2420mm width, to suit FM220/FabricPro220. Base: drive module, first 1.2M.",
-          "price": 4455,
+          "price": 0,
           "needsReview": false
         },
         {
           "code": "EL-3220",
           "name": "EasyLoader 3220",
           "description": "3220mm width, to suit Mx300, L320 & FabricPro300. Base: drive module, first 1.2M.",
-          "price": null,
-          "needsReview": true
+          "price": 0,
+          "needsReview": false
         },
         {
           "code": "EL-4030",
           "name": "EasyLoader 4030",
           "description": "4030mm width, to suit Mx390 & FabricPro390. Base: drive module, first 1.2M.",
-          "price": null,
-          "needsReview": true
+          "price": 0,
+          "needsReview": false
         }
       ]
     },
@@ -805,26 +805,6 @@
       ]
     },
     {
-      "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
-      "name": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
-      "description": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
-      "price": 730,
-      "needsReview": false,
-      "compatibleSeries": [
-        "L"
-      ]
-    },
-    {
-      "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
-      "name": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
-      "description": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
-      "price": 730,
-      "needsReview": false,
-      "compatibleSeries": [
-        "L"
-      ]
-    },
-    {
       "code": "DRG-1",
       "name": "Drag Knife- to suit standard Olfa 'snap-off' blade(#380010). Cutting angle 45deg. Maximum cutting depth 7mm",
       "description": "Drag Knife- to suit standard Olfa 'snap-off' blade(#380010). Cutting angle 45deg. Maximum cutting depth 7mm",
@@ -855,6 +835,26 @@
       "compatibleSeries": [
         "M",
         "X"
+      ]
+    },
+    {
+      "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
+      "name": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
+      "description": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 30 deg",
+      "price": 730,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
+      "name": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
+      "description": "Drag Knife Tool- Quick Release (to suit carbide knife 1.0mm x 7mm purchased seperately) 45 deg?",
+      "price": 730,
+      "needsReview": false,
+      "compatibleSeries": [
+        "L"
       ]
     },
     {
@@ -934,6 +934,17 @@
       ]
     },
     {
+      "code": "EL-2020 Drive Module (first 1.2M)",
+      "name": "Drive Module (first 1.2M)",
+      "description": "Drive Module (first 1.2M)",
+      "price": 4050,
+      "needsReview": false,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2020"
+      ]
+    },
+    {
       "code": "EL-2020 Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
       "name": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
       "description": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
@@ -1000,6 +1011,17 @@
       ]
     },
     {
+      "code": "EL-2420 Drive Module (first 1.2M)",
+      "name": "Drive Module (first 1.2M)",
+      "description": "Drive Module (first 1.2M)",
+      "price": 4455,
+      "needsReview": false,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-2420"
+      ]
+    },
+    {
       "code": "EL-2420 Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
       "name": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
       "description": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
@@ -1011,10 +1033,10 @@
       ]
     },
     {
-      "code": "EL-2420 Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
-      "name": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
-      "description": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
-      "price": 780,
+      "code": "EL-2420 ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+      "name": "ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+      "description": "ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
+      "price": 1080,
       "needsReview": false,
       "compatibleSeries": [],
       "compatibleProducts": [
@@ -1022,10 +1044,10 @@
       ]
     },
     {
-      "code": "EL-2420 ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
-      "name": "ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
-      "description": "ST620-2420 Roll Holder- Used to dispense perforated underlay paper. Mounted rear of EasyLoader on lower leg.",
-      "price": 1080,
+      "code": "EL-2420 Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+      "name": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+      "description": "Single Roll feed attachment (L & R clip attachment with cross bar & pair of keeper)",
+      "price": 780,
       "needsReview": false,
       "compatibleSeries": [],
       "compatibleProducts": [
@@ -1077,9 +1099,42 @@
       ]
     },
     {
+      "code": "EL-3220 Drive Module (first 1.2M)",
+      "name": "Drive Module (first 1.2M)",
+      "description": "Drive Module (first 1.2M)",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-3220"
+      ]
+    },
+    {
+      "code": "EL-3220 Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+      "name": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+      "description": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-3220"
+      ]
+    },
+    {
       "code": "EL-3220 Static table 1.2M lengths",
       "name": "Static table 1.2M lengths",
       "description": "Static table 1.2M lengths",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-3220"
+      ]
+    },
+    {
+      "code": "EL-3220 Travel Platform support rail. Per 1.2m",
+      "name": "Travel Platform support rail. Per 1.2m",
+      "description": "Travel Platform support rail. Per 1.2m",
       "price": null,
       "needsReview": true,
       "compatibleSeries": [],
@@ -1099,9 +1154,42 @@
       ]
     },
     {
+      "code": "EL-4030 Drive Module (first 1.2M)",
+      "name": "Drive Module (first 1.2M)",
+      "description": "Drive Module (first 1.2M)",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-4030"
+      ]
+    },
+    {
+      "code": "EL-4030 Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+      "name": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+      "description": "Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-4030"
+      ]
+    },
+    {
       "code": "EL-4030 Static table 1.2M lengths",
       "name": "Static table 1.2M lengths",
       "description": "Static table 1.2M lengths",
+      "price": null,
+      "needsReview": true,
+      "compatibleSeries": [],
+      "compatibleProducts": [
+        "EL-4030"
+      ]
+    },
+    {
+      "code": "EL-4030 Travel Platform support rail. Per 1.2m",
+      "name": "Travel Platform support rail. Per 1.2m",
+      "description": "Travel Platform support rail. Per 1.2m",
       "price": null,
       "needsReview": true,
       "compatibleSeries": [],
@@ -1229,21 +1317,21 @@
       ]
     },
     {
-      "code": "JetPen",
-      "name": "Jetpen Marking Tool (this replaces the standard marking tool)",
-      "description": "Jetpen Marking Tool (this replaces the standard marking tool)",
-      "price": 7500,
-      "needsReview": false,
-      "compatibleSeries": [
-        "L"
-      ]
-    },
-    {
       "code": "JTP",
       "name": "JetPen",
       "description": "Non-contact high speed ink marking.",
       "price": null,
       "needsReview": true,
+      "compatibleSeries": [
+        "L"
+      ]
+    },
+    {
+      "code": "JetPen",
+      "name": "Jetpen Marking Tool (this replaces the standard marking tool)",
+      "description": "Jetpen Marking Tool (this replaces the standard marking tool)",
+      "price": 7500,
+      "needsReview": false,
       "compatibleSeries": [
         "L"
       ]

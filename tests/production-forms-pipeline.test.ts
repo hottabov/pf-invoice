@@ -20,7 +20,6 @@ const ctx: FormContext = {
     id: "item1",
     code: "M5220",
     name: "M-Series",
-    lineGroup: 1,
     spec: { ui: "+Y", knifeSize: "1.5x5.0", drills: { required: true, detail: "2 x 6mm" } },
     optionCodes: ["MTS", "ABR-M"],
     optionAttributes: { MTS: { metres: 14 } },

@@ -7,7 +7,7 @@ import { requireAdmin, requireSession } from "@/lib/authz";
 import { isAdminRole } from "@/lib/roles";
 import { documentWhereForUser } from "@/lib/scope";
 import { idSchema } from "@/lib/validation/documents";
-import { validateFinalizable, validateEasyLoaderSections, type FinalizableDocument } from "@/lib/validation/finalize";
+import { validateFinalizable, type FinalizableDocument } from "@/lib/validation/finalize";
 import { recalcDocument } from "@/lib/actions/documents";
 import { allocateNumber, formatDocNumber } from "@/lib/numbering";
 import { getQuoteValidityDays } from "@/lib/queries/settings";
@@ -21,7 +21,7 @@ export type UnfinalizeResult = { ok: true } | { error: string };
 // the pure eligibility check without a second import — the implementation
 // lives in src/lib/validation/finalize.ts purely so it can be unit tested
 // without pulling in `@/lib/db` (see that file's header comment).
-export { validateFinalizable, validateEasyLoaderSections, type FinalizableDocument };
+export { validateFinalizable, type FinalizableDocument };
 
 // --- finalize ----------------------------------------------------------------
 
@@ -75,12 +75,6 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
     document.currency
   );
   if (validationError) return { error: validationError };
-
-  // Checked for every role, with no override -- see validateEasyLoaderSections's
-  // header comment for why this is not folded into the ADMIN-overridable
-  // discount-cap check above.
-  const sectionsError = validateEasyLoaderSections(document.items);
-  if (sectionsError) return { error: sectionsError };
 
   // An ADMIN is allowed to finalize over a discount-cap violation (see
   // validateFinalizable's header comment) — this is the "logged in report"

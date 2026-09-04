@@ -544,12 +544,6 @@ model DocumentItem {
   // lock: it carries no commercial meaning, so correcting a knife size must
   // not force an unfinalize/refinalize cycle that churns document numbering.
   productionSpec Json?
-  // Production line grouping. Items sharing a value share an operator-screen
-  // side -- a cutter, its EasyLoader and its FabricPro stand together and a
-  // mismatched side is a physical installation fault. Defaults to 1 so the
-  // single-line case never sees the field. See spec section 4.2 for why this
-  // is an Int rather than a ProductionLine table.
-  lineGroup      Int            @default(1)
   imageUrl       String?
   lines          DocumentLine[]
 

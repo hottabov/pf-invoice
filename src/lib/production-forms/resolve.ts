@@ -1,7 +1,6 @@
 import type { z } from "zod";
 import { missingKeys } from "@/lib/validation/production-spec";
 import { FORM_SPECS } from "./specs";
-import { reconcileSections, tableLengthsFromOptions, type OptionQty, type Reconciliation, type Section } from "./table-sections";
 import type { CellPatch } from "./xlsx-patch";
 import type { FormContext, FormSpec } from "./types";
 
@@ -77,28 +76,4 @@ export function unmatchedOptionCodes(spec: FormSpec, ctx: FormContext): string[]
   ];
 
   return ctx.item.optionCodes.filter((code) => !covered.some((pattern) => pattern.test(code)));
-}
-
-/**
- * An EasyLoader's table sections must reconcile against what was actually
- * sold (see table-sections.ts's header comment) -- `null` for every other
- * machine, since only the EasyLoader spec carries `sections` at all.
- * Centralised here, on top of the same `code`/`spec`/`optionQtys` primitives
- * every caller already has lying around, so the finalize gate (Task 5), the
- * production-forms route's blockers, and the builder's live remaining
- * indicator (Task 6) can never disagree about whether a layout is
- * consistent -- there would be no point gating finalize on a rule the panel
- * itself doesn't enforce, or vice versa.
- */
-export function reconcileEasyLoaderSections(
-  code: string,
-  spec: unknown,
-  optionQtys: OptionQty[],
-): Reconciliation | null {
-  if (resolveForm(code)?.id !== "easyloader") return null;
-
-  const record = (spec ?? {}) as { sections?: unknown };
-  const sections = Array.isArray(record.sections) ? (record.sections as Section[]) : [];
-
-  return reconcileSections(tableLengthsFromOptions(optionQtys), sections);
 }

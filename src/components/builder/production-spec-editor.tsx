@@ -1,65 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { ChevronDown, Minus, Plus, Settings2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { fieldInputClass, useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
-import { setItemLineGroup, setProductionSpec } from "@/lib/actions/production";
-import { reconcileEasyLoaderSections, resolveForm } from "@/lib/production-forms/resolve";
-import { SECTION_UNIT_M, tableLengthsFromOptions, type OptionQty, type Section } from "@/lib/production-forms/table-sections";
+import { applyScreenSideToQuote, setProductionSpec } from "@/lib/actions/production";
+import { setEasyLoaderLayout } from "@/lib/actions/documents";
+import { resolveForm } from "@/lib/production-forms/resolve";
+import {
+  layoutTotals,
+  modulesIn,
+  unitsToM,
+  MAX_SECTIONS,
+  type Section,
+} from "@/lib/production-forms/table-sections";
 import { resolveSpecImage, SCREEN_SIDES } from "@/lib/production-forms/spec-images";
 import { SpecDiagram } from "@/components/builder/spec-diagram";
 
 /**
- * Replaces one table section, dropping any trailing section left with no
- * length. The form prints three section rows and the schema caps the array
- * at three, so a cleared section must shrink the array rather than leave a
- * zero-length hole the renderer would tick a surface box for.
+ * Writes one section's module count, dropping any trailing section left
+ * empty. A section with no modules is not a zero-length section, it is a
+ * section that isn't there -- and `deriveEasyLoaderOptions` would otherwise
+ * be handed a run of nothing to price.
  */
-function writeSection(sections: Section[], index: number, next: Section): Section[] {
+function writeSection(sections: Section[], index: number, modules: number, surface: Section["surface"]): Section[] {
   const copy = [...sections];
-  copy[index] = next;
-  while (copy.length > 0 && !copy[copy.length - 1]?.lengthM) copy.pop();
-  return copy.filter(Boolean);
-}
-
-/**
- * Steps a section length by one 1.2m unit, snapping to the nearest exact
- * multiple first -- a plain `current + SECTION_UNIT_M` compounds the float
- * error 1.2 already carries (see table-sections.ts) after a few clicks, and
- * clamps at 0 rather than going negative.
- */
-function stepLength(current: number, direction: 1 | -1): number {
-  const units = Math.round(current / SECTION_UNIT_M) + direction;
-  return Math.max(0, Math.round(units * SECTION_UNIT_M * 10) / 10);
-}
-
-/** "3 sections left (3.6 m conveyor)" / "1 section over (1.2 m static)" --
- * the friendly, per-surface phrasing the live indicator uses while the
- * section rows are open. `units` is signed: positive is unallocated,
- * negative is over-allocated (reconcileSections' convention). */
-function remainingLabel(units: number, surface: string): string {
-  const count = Math.abs(units);
-  const metres = (count * SECTION_UNIT_M).toFixed(1);
-  const noun = count === 1 ? "section" : "sections";
-  return units > 0 ? `${count} ${noun} left (${metres} m ${surface})` : `${count} ${noun} over (${metres} m ${surface})`;
-}
-
-/**
- * "Also updated screen side on M5220, EL-2020 and 1 more" — what the toast
- * says when a screen-side change propagated across the line.
- *
- * Names two machines and counts the rest. A line can hold several, and the
- * point of the message is that something moved off-screen, not a manifest of
- * what — the cards themselves now show their new side (they re-sync on the
- * revalidate this write triggers), so the toast only has to point at them.
- */
-function propagationMessage(codes: string[]): string {
-  const shown = codes.slice(0, 2).join(", ");
-  const rest = codes.length - 2;
-  return rest > 0
-    ? `Also updated screen side on ${shown} and ${rest} more`
-    : `Also updated screen side on ${shown}`;
+  while (copy.length <= index) copy.push({ lengthM: 0, surface: "conveyor" });
+  copy[index] = { lengthM: unitsToM(modules), surface };
+  while (copy.length > 0 && modulesIn(copy[copy.length - 1]!) === 0) copy.pop();
+  return copy;
 }
 
 const KNIFE_SIZES = ["1.5x5.0", "1.5x7.0", "2.0x7.0"] as const;
@@ -96,25 +66,44 @@ function CompactField({
   );
 }
 
+/** A compact −/+ stepper. Markup mirrors the option-quantity control in
+ * item-options-editor.tsx: a 36px square inside a 44px tap target. */
+function Stepper({
+  label,
+  onClick,
+  disabled,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="group focus-ring flex size-11 shrink-0 items-center justify-center rounded-lg disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      <span
+        aria-hidden="true"
+        className="flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors md:group-hover:bg-slate-50"
+      >
+        {children}
+      </span>
+    </button>
+  );
+}
+
 type Props = {
   itemId: string;
   itemCode: string;
-  lineGroup: number;
   spec: Record<string, unknown>;
-  /**
-   * This item's OPTION lines as code+qty pairs. Needed only for the
-   * EasyLoader branch: `tableLengthsFromOptions`/`reconcileEasyLoaderSections`
-   * derive what table was actually sold from exactly this shape, so the
-   * summary line and live remaining indicator below reconcile against the
-   * same numbers the finalize gate and the production-forms route check.
-   * Ignored for every other machine.
-   */
-  optionQtys: OptionQty[];
-  /** Show the line chip only when the document holds more than one machine
-   * (see `resolveForm(item.code) !== null` count in ItemsList) — on a
-   * single-machine quote every item is implicitly "line 1" and the selector
-   * is pure noise. */
-  showLineChip: boolean;
+  /** True when the quote holds another machine the screen side could also
+   * apply to — see the offer this panel shows after the side changes. */
+  hasOtherMachines: boolean;
   /** `value -> imageUrl` for the "screenSide" `SpecImage` field (see
    * src/lib/queries/spec-images.ts's `getSpecImages`), fetched once per page
    * load and threaded down here the same way `showOptionIcons` is (see
@@ -122,6 +111,10 @@ type Props = {
    * renders `SpecDiagram`'s placeholder box instead of a broken image —
    * expected until the owner uploads the real artwork. */
   screenSideImages: Record<string, string>;
+  /** A finalized quote. The screen side and usage stay editable (they carry
+   * no money — see `setProductionSpec`); the table layout does not, because
+   * the modules it is built from are what the customer is charged. */
+  readOnly?: boolean;
 };
 
 /**
@@ -132,43 +125,46 @@ type Props = {
  * an item `resolveForm` doesn't recognize (software/service rows), so it's
  * safe to mount unconditionally from `ItemsList`.
  *
- * Every field writes through `setProductionSpec` immediately (select
+ * For an EasyLoader this is also where the machine is *built*. An EasyLoader
+ * is a table assembled from 1.2 metre modules and the machine itself costs
+ * nothing, so drawing the table is what puts money on the quote: the drive
+ * modules, lengths, busbar and rail are written as option lines from this
+ * layout (see `setEasyLoaderLayout`). Nothing is picked twice — the option
+ * rows those produce are read-only in the options editor.
+ *
+ * Every other field writes through `setProductionSpec` immediately (select
  * `onChange`, text/number inputs `onBlur` — no separate Save button, mirrors
  * `ItemDiscountField`'s autosave-on-change feel without the debounce, since
- * these are discrete choices rather than free-typed text). `ui` (operator
- * screen side) is the one field with a side effect beyond this item: the
- * server propagates it to every machine sharing this item's `lineGroup` (a
- * cutter and its EasyLoader/FabricPro must agree, or the physical install is
- * wrong; software and service rows in the same line are left alone) — when
- * that happens, `setProductionSpec`'s `propagatedTo` names the siblings that
- * also changed, surfaced here as a toast so the salesperson isn't left
- * wondering why another card's field just moved.
+ * these are discrete choices rather than free-typed text).
  */
 export function ProductionSpecEditor({
   itemId,
   itemCode,
-  lineGroup,
   spec,
-  optionQtys,
-  showLineChip,
+  hasOtherMachines,
   screenSideImages,
+  readOnly = false,
 }: Props) {
   const form = resolveForm(itemCode);
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Record<string, unknown>>(spec);
   const [error, setError] = useState<string | null>(null);
+  // The side this card last set, while the offer to apply it to the rest of
+  // the quote is still standing. Null means no offer on screen.
+  const [offeredSide, setOfferedSide] = useState<string | null>(null);
+  const [applying, startApplying] = useTransition();
   // How many of this card's own writes are still in flight. Only used to
   // decide whether an incoming `spec` may overwrite `draft` -- see below.
   const [inFlight, setInFlight] = useState(0);
 
-  // This card's `spec` can change without this card having changed it:
-  // writing `ui` propagates the same screen side to every item in the line
-  // (see `setProductionSpec`), and the revalidate that follows re-renders
-  // each sibling with fresh props. A `useState(spec)` initializer runs only
-  // on mount, so a sibling went on showing the old side -- and its diagram
-  // -- until the page was reloaded, even though the toast and the database
-  // were both right. Adopt the server's value when it moves.
+  // This card's `spec` can change without this card having changed it: taking
+  // the offer to apply a screen side across the quote rewrites every other
+  // machine, and the revalidate that follows re-renders them with fresh
+  // props. A `useState(spec)` initializer runs only on mount, so a card went
+  // on showing the old side -- and its diagram -- until the page was
+  // reloaded, even though the toast and the database were both right. Adopt
+  // the server's value when it moves.
   //
   // Compared by value, not identity: every server render deserializes a new
   // object, so `!==` would fire on each refresh. And held back while one of
@@ -183,79 +179,74 @@ export function ProductionSpecEditor({
     setSyncedKey(specKey);
     setDraft(spec);
   }
-  // Most EasyLoaders are one undivided table, so the three section rows
-  // start hidden -- unless this item already has a split layout, in which
-  // case collapsing it by default would hide the one thing a returning
-  // manager most needs to see.
-  const [sectionsOpen, setSectionsOpen] = useState(
-    () => Array.isArray(spec.sections) && (spec.sections as unknown[]).length > 0
-  );
 
   if (!form) return null;
 
-  async function save(next: Record<string, unknown>) {
+  const isEasyLoader = form.id === "easyloader";
+
+  async function save(next: Record<string, unknown>, kind: "spec" | "layout") {
     setDraft(next);
     setError(null);
     setInFlight((n) => n + 1);
-    const result = await setProductionSpec(itemId, next);
+    // An EasyLoader's layout also rewrites its option lines and its price,
+    // so it goes through the documents action, which is DRAFT-gated. The
+    // screen side and usage do not, so they keep the looser path that stays
+    // available after finalize.
+    const result =
+      kind === "layout" ? await setEasyLoaderLayout(itemId, next) : await setProductionSpec(itemId, next);
     setInFlight((n) => n - 1);
     setError(result.error ?? null);
-    if (!result.error && result.propagatedTo && result.propagatedTo.length > 0) {
-      toast.success(propagationMessage(result.propagatedTo));
+    if (result.error) {
+      // The server rejected it, so `draft` is now showing something that was
+      // never saved. Put it back rather than leaving a table on screen that
+      // the quote does not charge for.
+      setDraft(spec);
     }
   }
 
-  async function changeLineGroup(next: number) {
-    const result = await setItemLineGroup(itemId, next);
-    if (result.error) toast.error(result.error);
+  function changeScreenSide(side: string) {
+    void save({ ...draft, ui: side }, "spec");
+    // Offered, never applied: the owner has machines that legitimately face
+    // opposite ways within one line (a cutter's screen on one side, the
+    // conveyor and FabricPro controls on the other), so this is the
+    // manager's call to make and not a rule to enforce.
+    setOfferedSide(hasOtherMachines ? side : null);
+  }
+
+  function applySideToQuote(side: string) {
+    startApplying(async () => {
+      const result = await applyScreenSideToQuote(itemId, side);
+      setOfferedSide(null);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      const applied = result.appliedTo ?? [];
+      toast.success(
+        applied.length === 0
+          ? `Every machine was already ${side}`
+          : `Screen side ${side} applied to ${applied.slice(0, 2).join(", ")}${
+              applied.length > 2 ? ` and ${applied.length - 2} more` : ""
+            }`
+      );
+    });
   }
 
   const missing = form.requires.filter((key) => draft[key] === undefined);
   const drills = draft.drills as { required?: boolean; detail?: string } | undefined;
   const sections = (draft.sections as Section[] | undefined) ?? [];
+  const fabricProCompatible = (draft.fabricProCompatible as boolean | undefined) ?? false;
+  const totals = layoutTotals(sections);
   // "Operator screen side" everywhere except the EasyLoader, whose printed
   // form calls the same +Y/-Y choice "Control Box Side".
-  const screenSideLabel = form.id === "easyloader" ? "Control Box Side" : "Operator screen side";
+  const screenSideLabel = isEasyLoader ? "Control Box Side" : "Operator screen side";
+  const currentSide = (draft.ui as string) ?? "-Y";
 
-  // EasyLoader-only: what the options actually sold add up to, the summary
-  // line derived from it, and (while the section rows are open) how much of
-  // it the drawn sections still leave unaccounted for. Computed unconditionally
-  // (cheap, pure) and only rendered inside the `form.id === "easyloader"` block.
-  const sold = tableLengthsFromOptions(optionQtys);
-  const soldParts = [
-    sold.conveyorUnits > 0 ? `${sold.conveyorUnits} × 1.2m conveyor` : null,
-    sold.staticUnits > 0 ? `${sold.staticUnits} × 1.2m static` : null,
+  const breakdown = [
+    totals.driveModules > 0 ? `${totals.driveModules} × drive module` : null,
+    totals.conveyorModules > 0 ? `${totals.conveyorModules} × 1.2m conveyor` : null,
+    totals.staticModules > 0 ? `${totals.staticModules} × 1.2m static` : null,
   ].filter((part): part is string => Boolean(part));
-  const soldSummary = sold.totalM > 0 ? `Table: ${sold.totalM} m (${soldParts.join(" + ")})` : null;
-
-  const reconciliation = reconcileEasyLoaderSections(itemCode, draft, optionQtys);
-  let remainingMessage: string | null = null;
-  let remainingBlocks = false;
-  if (reconciliation) {
-    if (sections.length === 0) {
-      // "No sections" legitimately means one undivided table -- nothing to
-      // report unless there's also nothing sold, and that case already has
-      // its own banner above the summary line.
-      remainingMessage = sold.totalM > 0 ? "No sections drawn — the whole table builds as one undivided run." : null;
-    } else if (!reconciliation.ok) {
-      const parts = [
-        reconciliation.remaining.conveyorUnits !== 0
-          ? remainingLabel(reconciliation.remaining.conveyorUnits, "conveyor")
-          : null,
-        reconciliation.remaining.staticUnits !== 0
-          ? remainingLabel(reconciliation.remaining.staticUnits, "static")
-          : null,
-      ].filter((part): part is string => Boolean(part));
-      // Falls back to reconcileSections' own message for a problem the
-      // per-surface phrasing above can't express, e.g. a legacy section
-      // length that isn't a whole 1.2m multiple (the stepper below can no
-      // longer create one, but old data may still carry one).
-      remainingMessage = parts.length > 0 ? parts.join(", ") : reconciliation.problems.join("; ");
-      remainingBlocks = true;
-    } else {
-      remainingMessage = `Sections match the ${sold.totalM} m sold.`;
-    }
-  }
 
   return (
     <div className="mt-3">
@@ -266,7 +257,14 @@ export function ProductionSpecEditor({
         className="focus-ring inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:border-brand/40 hover:bg-slate-50 active:bg-slate-100 sm:w-auto"
       >
         <Settings2 className="size-4 text-slate-500" aria-hidden="true" />
-        <span>{open ? "Close production spec" : "Production spec"}</span>
+        <span>
+          {open ? "Close" : isEasyLoader ? "EasyLoader builder" : "Production spec"}
+        </span>
+        {isEasyLoader && totals.totalM > 0 ? (
+          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+            {totals.totalM} m
+          </span>
+        ) : null}
         {missing.length > 0 ? (
           <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
             {missing.length} missing
@@ -280,21 +278,113 @@ export function ProductionSpecEditor({
 
       {open ? (
         <div className="mt-2 flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          {showLineChip ? (
-            <CompactField label="Line" htmlFor={`${itemId}-line`}>
-              <select
-                id={`${itemId}-line`}
-                value={lineGroup}
-                onChange={(e) => changeLineGroup(Number(e.target.value))}
-                className={cn(fieldInputClass, compactControlClass, "w-24")}
-              >
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </CompactField>
+          {isEasyLoader ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3">
+              <div>
+                <p className="text-sm font-medium text-brand-dark">Table layout</p>
+                <p className="text-xs text-slate-500">
+                  Each click adds one 1.2 m module. A conveyor run drives from its first module, so
+                  each one starts with a drive module.
+                </p>
+              </div>
+
+              {Array.from({ length: MAX_SECTIONS }, (_, index) => {
+                const section = sections[index];
+                const modules = section ? modulesIn(section) : 0;
+                const surface = section?.surface ?? "conveyor";
+                return (
+                  <div key={index} className="flex flex-wrap items-center gap-2">
+                    <span className="w-20 shrink-0 text-xs text-slate-500">Section {index + 1}</span>
+                    <div className="flex items-center gap-1.5">
+                      <Stepper
+                        label={`Remove a module from section ${index + 1}`}
+                        disabled={readOnly || modules === 0}
+                        onClick={() =>
+                          save(
+                            { ...draft, sections: writeSection(sections, index, modules - 1, surface) },
+                            "layout"
+                          )
+                        }
+                      >
+                        <Minus className="size-3.5" />
+                      </Stepper>
+                      <span
+                        className="w-24 shrink-0 text-center text-sm font-medium text-slate-700"
+                        aria-label={`Section ${index + 1} length`}
+                      >
+                        {modules === 0 ? "—" : `${unitsToM(modules).toFixed(1)} m`}
+                      </span>
+                      <Stepper
+                        label={`Add a module to section ${index + 1}`}
+                        disabled={readOnly}
+                        onClick={() =>
+                          save(
+                            { ...draft, sections: writeSection(sections, index, modules + 1, surface) },
+                            "layout"
+                          )
+                        }
+                      >
+                        <Plus className="size-3.5" />
+                      </Stepper>
+                    </div>
+                    <select
+                      aria-label={`Section ${index + 1} surface`}
+                      value={surface}
+                      disabled={readOnly}
+                      onChange={(e) =>
+                        save(
+                          {
+                            ...draft,
+                            sections: writeSection(
+                              sections,
+                              index,
+                              modules,
+                              e.target.value as Section["surface"]
+                            ),
+                          },
+                          "layout"
+                        )
+                      }
+                      className={cn(fieldInputClass, compactControlClass, "w-32")}
+                    >
+                      <option value="conveyor">Conveyor</option>
+                      <option value="static">Static</option>
+                    </select>
+                    {modules > 0 ? (
+                      <span className="text-xs text-slate-500">
+                        {modules} {modules === 1 ? "module" : "modules"}
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })}
+
+              <div className="border-t border-slate-100 pt-2">
+                {totals.totalModules > 0 ? (
+                  <p className="text-sm text-slate-600">
+                    Table: {totals.totalM} m ({breakdown.join(" + ")})
+                  </p>
+                ) : (
+                  <p className="text-sm text-destructive">
+                    No modules yet — this EasyLoader has nothing to price.
+                  </p>
+                )}
+              </div>
+
+              <label className="flex min-h-11 items-center gap-2.5 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={fabricProCompatible}
+                  disabled={readOnly}
+                  onChange={(e) => save({ ...draft, fabricProCompatible: e.target.checked }, "layout")}
+                  className={checkboxClass}
+                />
+                FabricPro compatible
+                <span className="text-xs text-slate-500">
+                  adds a busbar and a support rail per module
+                </span>
+              </label>
+            </div>
           ) : null}
 
           <CompactField label={screenSideLabel} htmlFor={`${itemId}-ui`}>
@@ -304,8 +394,8 @@ export function ProductionSpecEditor({
               // the M-Series form's printed "(STD)") -- shown preselected
               // here so a manager who never opens this panel still sees the
               // correct standard rather than a blank "—".
-              value={(draft.ui as string) ?? "-Y"}
-              onChange={(e) => save({ ...draft, ui: e.target.value })}
+              value={currentSide}
+              onChange={(e) => changeScreenSide(e.target.value)}
               className={cn(fieldInputClass, compactControlClass, "w-24")}
             >
               {SCREEN_SIDES.map((side) => (
@@ -322,10 +412,36 @@ export function ProductionSpecEditor({
                 SpecDiagram's own placeholder box until the owner uploads the
                 real artwork for this value (Settings -> Catalogue). */}
             <SpecDiagram
-              src={resolveSpecImage(screenSideImages, (draft.ui as string) ?? "-Y")}
-              alt={`${screenSideLabel}: ${(draft.ui as string) ?? "-Y"}`}
+              src={resolveSpecImage(screenSideImages, currentSide)}
+              alt={`${screenSideLabel}: ${currentSide}`}
             />
           </CompactField>
+
+          {offeredSide ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-brand/30 bg-white p-2">
+              <span className="text-sm text-slate-700">
+                Apply {offeredSide} to the other machines in this quote?
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={applying}
+                onClick={() => applySideToQuote(offeredSide)}
+                className="h-9"
+              >
+                {applying ? "Applying…" : "Apply"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={applying}
+                onClick={() => setOfferedSide(null)}
+                className="h-9"
+              >
+                Keep separate
+              </Button>
+            </div>
+          ) : null}
 
           {form.id === "m-series" ? (
             <>
@@ -333,7 +449,7 @@ export function ProductionSpecEditor({
                 <select
                   id={`${itemId}-knife-size`}
                   value={(draft.knifeSize as string) ?? ""}
-                  onChange={(e) => save({ ...draft, knifeSize: e.target.value })}
+                  onChange={(e) => save({ ...draft, knifeSize: e.target.value }, "spec")}
                   className={cn(fieldInputClass, compactControlClass, "w-32")}
                 >
                   <option value="">—</option>
@@ -350,7 +466,7 @@ export function ProductionSpecEditor({
                   id={`${itemId}-voltage`}
                   value={(draft.voltage as string) ?? ""}
                   onChange={(e) =>
-                    save({ ...draft, voltage: e.target.value === "" ? undefined : e.target.value })
+                    save({ ...draft, voltage: e.target.value === "" ? undefined : e.target.value }, "spec")
                   }
                   className={cn(fieldInputClass, compactControlClass, "w-28")}
                 >
@@ -369,7 +485,9 @@ export function ProductionSpecEditor({
                   <input
                     type="checkbox"
                     checked={drills?.required ?? false}
-                    onChange={(e) => save({ ...draft, drills: { required: e.target.checked, detail: "" } })}
+                    onChange={(e) =>
+                      save({ ...draft, drills: { required: e.target.checked, detail: "" } }, "spec")
+                    }
                     className={checkboxClass}
                   />
                   Drills required
@@ -381,7 +499,9 @@ export function ProductionSpecEditor({
                       type="text"
                       maxLength={22}
                       defaultValue={drills?.detail ?? ""}
-                      onBlur={(e) => save({ ...draft, drills: { required: true, detail: e.target.value } })}
+                      onBlur={(e) =>
+                        save({ ...draft, drills: { required: true, detail: e.target.value } }, "spec")
+                      }
                       className={cn(fieldInputClass, compactControlClass, "flex-1 min-w-[10rem]")}
                     />
                   </CompactField>
@@ -394,14 +514,14 @@ export function ProductionSpecEditor({
                   type="text"
                   maxLength={28}
                   defaultValue={(draft.specialNotes as string) ?? ""}
-                  onBlur={(e) => save({ ...draft, specialNotes: e.target.value })}
+                  onBlur={(e) => save({ ...draft, specialNotes: e.target.value }, "spec")}
                   className={cn(fieldInputClass, compactControlClass, "flex-1 min-w-[10rem]")}
                 />
               </CompactField>
             </>
           ) : null}
 
-          {form.id === "easyloader" ? (
+          {isEasyLoader ? (
             <>
               <CompactField label="Used as" htmlFor={`${itemId}-usage`}>
                 <select
@@ -409,7 +529,7 @@ export function ProductionSpecEditor({
                   // usage defaults to "onload" -- shown preselected for the
                   // same reason the screen side is, above.
                   value={(draft.usage as string) ?? "onload"}
-                  onChange={(e) => save({ ...draft, usage: e.target.value })}
+                  onChange={(e) => save({ ...draft, usage: e.target.value }, "spec")}
                   className={cn(fieldInputClass, compactControlClass, "w-32")}
                 >
                   <option value="onload">On load</option>
@@ -427,130 +547,18 @@ export function ProductionSpecEditor({
                     max={9999}
                     defaultValue={(draft.customWidthMm as number) ?? ""}
                     onBlur={(e) =>
-                      save({
-                        ...draft,
-                        customWidthMm: e.target.value === "" ? undefined : Number(e.target.value),
-                      })
+                      save(
+                        {
+                          ...draft,
+                          customWidthMm: e.target.value === "" ? undefined : Number(e.target.value),
+                        },
+                        "spec"
+                      )
                     }
                     className={cn(fieldInputClass, compactControlClass, "w-28")}
                   />
                 </CompactField>
               ) : null}
-
-              <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3">
-                {soldSummary ? (
-                  <p className="text-sm text-slate-600">{soldSummary}</p>
-                ) : (
-                  <p className="text-sm text-destructive">
-                    No table length sold yet — add Additional 1.2M lengths or Static table 1.2M lengths.
-                  </p>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setSectionsOpen((o) => !o)}
-                  aria-expanded={sectionsOpen}
-                  className="focus-ring inline-flex h-9 w-fit items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                >
-                  {sectionsOpen ? "Hide table sections" : "Manage table sections"}
-                  <ChevronDown
-                    className={cn("size-3.5 text-slate-400 transition-transform", sectionsOpen && "rotate-180")}
-                    aria-hidden="true"
-                  />
-                </button>
-
-                {sectionsOpen ? (
-                  <div className="flex flex-col gap-2 border-t border-slate-100 pt-2">
-                    {[0, 1, 2].map((index) => {
-                      const section = sections[index];
-                      return (
-                        <div key={index} className="flex flex-wrap items-center gap-2">
-                          <span className="w-20 shrink-0 text-xs text-slate-500">Section {index + 1}</span>
-                          <div className="flex items-center gap-1.5">
-                            {/* Stepper markup mirrors the option-quantity control in
-                                item-options-editor.tsx: a compact 36px square inside a
-                                44px tap target. Steps by 1.2m instead of 1 unit. */}
-                            <button
-                              type="button"
-                              aria-label={`Decrease section ${index + 1} length`}
-                              disabled={!section || section.lengthM <= 0}
-                              onClick={() =>
-                                save({
-                                  ...draft,
-                                  sections: writeSection(sections, index, {
-                                    lengthM: stepLength(section?.lengthM ?? 0, -1),
-                                    surface: section?.surface ?? "static",
-                                  }),
-                                })
-                              }
-                              className="group focus-ring flex size-11 shrink-0 items-center justify-center rounded-lg disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              <span
-                                aria-hidden="true"
-                                className="flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors md:group-hover:bg-slate-50"
-                              >
-                                <Minus className="size-3.5" />
-                              </span>
-                            </button>
-                            <span
-                              className="w-16 shrink-0 text-center text-sm font-medium text-slate-700"
-                              aria-label={`Section ${index + 1} length`}
-                            >
-                              {(section?.lengthM ?? 0).toFixed(1)} m
-                            </span>
-                            <button
-                              type="button"
-                              aria-label={`Increase section ${index + 1} length`}
-                              onClick={() =>
-                                save({
-                                  ...draft,
-                                  sections: writeSection(sections, index, {
-                                    lengthM: stepLength(section?.lengthM ?? 0, 1),
-                                    surface: section?.surface ?? "static",
-                                  }),
-                                })
-                              }
-                              className="group focus-ring flex size-11 shrink-0 items-center justify-center rounded-lg"
-                            >
-                              <span
-                                aria-hidden="true"
-                                className="flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors md:group-hover:bg-slate-50"
-                              >
-                                <Plus className="size-3.5" />
-                              </span>
-                            </button>
-                          </div>
-                          <select
-                            aria-label={`Section ${index + 1} surface`}
-                            value={section?.surface ?? "static"}
-                            disabled={!section}
-                            onChange={(e) =>
-                              save({
-                                ...draft,
-                                sections: writeSection(sections, index, {
-                                  lengthM: section?.lengthM ?? 0,
-                                  surface: e.target.value as Section["surface"],
-                                }),
-                              })
-                            }
-                            className={cn(fieldInputClass, compactControlClass, "w-32")}
-                          >
-                            <option value="static">Static</option>
-                            <option value="conveyor">Conveyor</option>
-                          </select>
-                        </div>
-                      );
-                    })}
-
-                    {remainingMessage ? (
-                      <p className={cn("text-xs", remainingBlocks ? "text-destructive" : "text-slate-500")}>
-                        {remainingMessage}
-                        {remainingBlocks ? " Finalize is blocked until this matches what was sold." : ""}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
             </>
           ) : null}
 
@@ -560,7 +568,7 @@ export function ProductionSpecEditor({
                 <input
                   type="checkbox"
                   checked={(draft.travelPlatform as boolean) ?? false}
-                  onChange={(e) => save({ ...draft, travelPlatform: e.target.checked })}
+                  onChange={(e) => save({ ...draft, travelPlatform: e.target.checked }, "spec")}
                   className={checkboxClass}
                 />
                 Travel platform
@@ -575,10 +583,10 @@ export function ProductionSpecEditor({
                   inputMode="decimal"
                   defaultValue={(draft.railLengthM as number) ?? ""}
                   onBlur={(e) =>
-                    save({
-                      ...draft,
-                      railLengthM: e.target.value === "" ? undefined : Number(e.target.value),
-                    })
+                    save(
+                      { ...draft, railLengthM: e.target.value === "" ? undefined : Number(e.target.value) },
+                      "spec"
+                    )
                   }
                   className={cn(fieldInputClass, compactControlClass, "w-28")}
                 />
@@ -596,10 +604,13 @@ export function ProductionSpecEditor({
                   inputMode="decimal"
                   defaultValue={(draft.powerRailLengthM as number) ?? ""}
                   onBlur={(e) =>
-                    save({
-                      ...draft,
-                      powerRailLengthM: e.target.value === "" ? undefined : Number(e.target.value),
-                    })
+                    save(
+                      {
+                        ...draft,
+                        powerRailLengthM: e.target.value === "" ? undefined : Number(e.target.value),
+                      },
+                      "spec"
+                    )
                   }
                   className={cn(fieldInputClass, compactControlClass, "w-28")}
                 />
@@ -609,7 +620,7 @@ export function ProductionSpecEditor({
                 <input
                   type="checkbox"
                   checked={(draft.exWorks as boolean) ?? false}
-                  onChange={(e) => save({ ...draft, exWorks: e.target.checked })}
+                  onChange={(e) => save({ ...draft, exWorks: e.target.checked }, "spec")}
                   className={checkboxClass}
                 />
                 Ex-Works
@@ -619,7 +630,7 @@ export function ProductionSpecEditor({
                 <input
                   type="checkbox"
                   checked={(draft.crate as boolean) ?? false}
-                  onChange={(e) => save({ ...draft, crate: e.target.checked })}
+                  onChange={(e) => save({ ...draft, crate: e.target.checked }, "spec")}
                   className={checkboxClass}
                 />
                 Crate required

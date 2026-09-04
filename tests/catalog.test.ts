@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import catalogData from '../prisma/seed-data/catalog.json';
+import { deriveEasyLoaderOptions } from '../src/lib/production-forms/table-sections';
 
 interface CatalogItem {
   code: string;
@@ -223,10 +224,53 @@ describe('Catalog Extraction Validation', () => {
       expect(l180?.price).toBe(135000);
     });
 
-    it('EL-2020 should have price 4050', () => {
+    // The EasyLoader itself is now free: it is assembled entirely from
+    // options, and the price it used to carry -- which was always the price
+    // of its first drive module, as its own description says -- moved to the
+    // "Drive Module (first 1.2M)" option the builder writes.
+    it('EL-2020 costs nothing, and its drive module carries the price it used to', () => {
       const el = catalog.series.find((s) => s.seriesCode === 'EL')!;
-      const el2020 = el.products.find((p) => p.code === 'EL-2020');
-      expect(el2020?.price).toBe(4050);
+      expect(el.products.find((p) => p.code === 'EL-2020')?.price).toBe(0);
+      expect(
+        catalog.options.find((o) => o.code === 'EL-2020 Drive Module (first 1.2M)')?.price
+      ).toBe(4050);
+    });
+
+    it('every EasyLoader width has a drive module option', () => {
+      for (const code of ['EL-2020', 'EL-2420', 'EL-3220', 'EL-4030']) {
+        const drive = catalog.options.find((o) => o.code === `${code} Drive Module (first 1.2M)`);
+        expect(drive, code).toBeDefined();
+        expect(drive?.compatibleProducts).toEqual([code]);
+      }
+    });
+
+    // The load-bearing one. The EasyLoader builder writes option codes it
+    // assembles from a product code and a fixed suffix, and `setItemOptions`
+    // rejects a code the catalogue does not have -- so a suffix that drifted
+    // from the catalogue would not be a cosmetic bug, it would be a table
+    // that cannot be saved at all. Derive a layout that uses every kind, for
+    // every width, and check the catalogue has all of them.
+    it('every code the EasyLoader builder can write exists in the catalogue', () => {
+      const codes = new Set(catalog.options.map((o) => o.code));
+      const layout = [
+        { lengthM: 3.6, surface: 'conveyor' as const },
+        { lengthM: 1.2, surface: 'static' as const },
+      ];
+      for (const width of ['EL-2020', 'EL-2420', 'EL-3220', 'EL-4030']) {
+        for (const { optionCode } of deriveEasyLoaderOptions(width, layout, true)) {
+          expect(codes.has(optionCode), optionCode).toBe(true);
+        }
+      }
+    });
+
+    it('every EasyLoader width has a busbar and a support rail for a FabricPro', () => {
+      for (const code of ['EL-2020', 'EL-2420', 'EL-3220', 'EL-4030']) {
+        const codes = catalog.options.map((o) => o.code);
+        expect(codes, code).toContain(
+          `${code} Electrical Busbar Per 1.2M Used for Fabric Pro automatic spreader.`
+        );
+        expect(codes, code).toContain(`${code} Travel Platform support rail. Per 1.2m`);
+      }
     });
 
     it('EF-4030 should have price 17540', () => {
@@ -250,11 +294,15 @@ describe('Catalog Extraction Validation', () => {
     // scripts/extract-catalog.ts) is a container product never sold on its
     // own -- its own price is a real, intentional 0, not a "TBD" gap, so
     // needsReview is false for it specifically.
-    it('every item should have a positive price OR be flagged needsReview (except the SERVICE container product)', () => {
+    it('every item should have a positive price OR be flagged needsReview (except the intentional zeros)', () => {
       allItems.forEach((item) => {
-        if (item.code === 'SERVICE') {
-          expect(item.price).toBe(0);
-          expect(item.needsReview).toBe(false);
+        // Two kinds of real, intentional 0. "SERVICE" is a container product
+        // never sold on its own. An EasyLoader is sold as the sum of its
+        // modules, every one of which is an option -- so the machine line
+        // itself is genuinely free, not a price nobody has filled in yet.
+        if (item.code === 'SERVICE' || /^EL-\d{4}$/.test(item.code)) {
+          expect(item.price, item.code).toBe(0);
+          expect(item.needsReview, item.code).toBe(false);
           return;
         }
         expect((item.price !== null && item.price > 0) || item.needsReview).toBe(true);
@@ -343,8 +391,13 @@ describe('Catalog Extraction Validation', () => {
     // 94 -> 97: the three HDRF crate options (HDRF-180/220/320 "Crate- Wooden
     // Crate for transport"), product-scoped like EasyLoader's own
     // accessories -- see MANUAL_OPTIONS in scripts/extract-catalog.ts.
-    it('should have exactly 97 global options', () => {
-      expect(catalog.options).toHaveLength(97);
+    // 97 -> 105: four "Drive Module (first 1.2M)" options, one per EasyLoader
+    // width, plus a busbar and a travel-platform rail for EL-3220 and EL-4030,
+    // which had neither -- the EasyLoader builder writes all of these from the
+    // table layout, so a width missing one would silently drop a line from
+    // the quote.
+    it('should have exactly 105 global options', () => {
+      expect(catalog.options).toHaveLength(105);
     });
 
     it('Crate-P no longer exists as an option', () => {

@@ -76,11 +76,21 @@ describe("easyLoaderSpecSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("rejects a fourth table section", () => {
+  it("accepts four table sections", () => {
     const result = easyLoaderSpecSchema.safeParse({
       ui: "-Y",
       usage: "onload",
       sections: new Array(4).fill({ lengthM: 1.2, surface: "static" }),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // Four is the owner's number, and the builder draws exactly four rows.
+  it("rejects a fifth table section", () => {
+    const result = easyLoaderSpecSchema.safeParse({
+      ui: "-Y",
+      usage: "onload",
+      sections: new Array(5).fill({ lengthM: 1.2, surface: "static" }),
     });
     expect(result.success).toBe(false);
   });
@@ -98,7 +108,12 @@ describe("easyLoaderSpecSchema", () => {
   it("defaults screen side to -Y and usage to onload, and sections to an undivided table, when parsing an empty spec", () => {
     const result = easyLoaderSpecSchema.safeParse({});
     expect(result.success).toBe(true);
-    expect(result.success && result.data).toEqual({ ui: "-Y", usage: "onload", sections: [] });
+    expect(result.success && result.data).toEqual({
+      ui: "-Y",
+      usage: "onload",
+      sections: [],
+      fabricProCompatible: false,
+    });
   });
 
   it("no longer accepts paperRollHolder or crate -- they moved to the quote as options", () => {
