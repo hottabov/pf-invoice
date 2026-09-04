@@ -41,12 +41,19 @@ export const DOCUMENT_HERO_TYPES = ["jpg", "png", "webp"] as const;
 
 /** Extensions a `SpecImage` diagram (e.g. the screen-side "+Y"/"-Y"
  * illustrations — see the model's own doc comment in schema.prisma) may use.
- * ADMIN-uploaded like `CATALOG_TYPES`, but deliberately kept raster-only
- * rather than reusing that allow-list: a spec diagram is a small inline
- * illustration next to a dropdown, not catalogue art, so there's no reason
- * to reopen the SVG-can-carry-script question for a new admin surface when
- * a plain photo/PNG covers the need. */
-export const SPEC_IMAGE_TYPES = ["jpg", "png", "webp"] as const;
+ *
+ * SVG is allowed here, unlike for avatars, quote-line photos and the hero
+ * image. Those three are uploaded by any signed-in user, so an SVG's ability
+ * to carry script would put a manager's file in front of other people's
+ * browsers. This purpose is ADMIN/DEVELOPER-only (see the route's
+ * `PURPOSE_CONFIG`) — the same trust level as `CATALOG_TYPES`, which has
+ * always accepted SVG for the same reason.
+ *
+ * A spec diagram is line art of a machine, drawn once and reproduced at 96px
+ * in the builder and at print resolution on the order forms. That is exactly
+ * what vector is for: one file that stays sharp in both places rather than a
+ * raster picked to suit whichever surface mattered more. */
+export const SPEC_IMAGE_TYPES = ["jpg", "png", "webp", "svg"] as const;
 
 export type UploadPurpose = "catalog" | "document-line" | "avatar" | "document-hero" | "spec-image";
 

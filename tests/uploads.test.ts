@@ -199,8 +199,18 @@ describe("upload purpose type sets", () => {
     }
   });
 
-  it("rejects SVG for a spec-image diagram", () => {
-    expect(() => assertAllowedType("svg", SPEC_IMAGE_TYPES)).toThrow(/not allowed/i);
+  // Spec diagrams take SVG, unlike the purposes any signed-in user can
+  // reach: this one is ADMIN/DEVELOPER-only, the same trust level the
+  // catalogue has always uploaded vector art under, and one drawing has to
+  // serve both the 96px builder box and print resolution on the order form.
+  it("accepts SVG for a spec-image diagram", () => {
+    expect(() => assertAllowedType("svg", SPEC_IMAGE_TYPES)).not.toThrow();
+  });
+
+  it("still rejects SVG for the purposes any signed-in user can upload to", () => {
+    for (const set of [DOCUMENT_LINE_TYPES, AVATAR_TYPES, DOCUMENT_HERO_TYPES]) {
+      expect(() => assertAllowedType("svg", set)).toThrow(/not allowed/i);
+    }
   });
 
   it("accepts jpg, png, and webp for a spec-image diagram", () => {

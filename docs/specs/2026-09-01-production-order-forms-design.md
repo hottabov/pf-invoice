@@ -259,6 +259,35 @@ Document (FINAL, QUOTE)
   └─ stream as Q-AU-2026-001-production-forms.pdf
 ```
 
+### 7a. Spec diagrams belong on the printed form — TODO
+
+Added 2026-09-03, after the builder gained them. The `SpecImage` table
+(migration `z28_spec_image`, model in `prisma/schema.prisma`) holds one image
+per `(field, value)` pair of a discrete production-spec choice — today only
+`screenSide`, i.e. the `+Y` and `-Y` illustrations the M-Series form prints as
+"Control Box Side".
+
+The builder shows the diagram beside the dropdown so a salesperson picking a
+side sees the machine rather than two letters. Ross asked for it because the
+mistake surfaces too late otherwise — *"by the time you get there, you're like,
+oh yeah, it's your order"* — and because the labels carry almost nothing for a
+reader whose English is not first.
+
+**The same image must print on the order form**, which is where the factory
+reads the choice. That is not wired up yet: the forms pipeline currently
+prints only the `+Y`/`-Y` text.
+
+Two things to know before doing it:
+
+- The images are **SVG-capable** (`SPEC_IMAGE_TYPES` in `src/lib/uploads.ts`),
+  deliberately, so one drawing serves both the 96px builder box and print
+  resolution. The forms path goes through LibreOffice rather than Chromium, so
+  check how it handles an SVG embedded in an `.xlsx` before assuming parity
+  with the quotation pipeline — rasterising at print DPI may be the simpler
+  answer there.
+- Lookup is `resolveSpecImage(images, value)` in
+  `src/lib/production-forms/spec-images.ts`, already pure and shared.
+
 No new infrastructure: the existing `gotenberg/gotenberg:8` container already provides the Chromium, LibreOffice and PDF-engines routes.
 
 Every template already prints to exactly one A4 sheet — `paperSize 9`, portrait, an explicit `print_area`, and `fitToPage` / `scale 80–91`. The "one form, one A4 page" requirement is satisfied by the templates themselves, not by our layout code.

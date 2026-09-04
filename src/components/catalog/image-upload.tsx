@@ -7,7 +7,21 @@ import { useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/catalog";
 
-const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp";
+const RASTER_TYPES = "image/jpeg,image/png,image/webp";
+
+/** What the file picker offers, per purpose. This only filters the dialog —
+ * `/api/uploads` re-checks the real bytes against its own allow-list either
+ * way — but the two must agree, or a picker either hides a file the server
+ * would have taken or offers one it will reject after the upload.
+ *
+ * SVG appears only where an ADMIN uploads: catalogue art (the default) and
+ * spec diagrams. See `SPEC_IMAGE_TYPES` in src/lib/uploads.ts for why the
+ * vector question is answered differently there than for the purposes any
+ * signed-in user can reach. */
+const ACCEPT_BY_PURPOSE: Record<string, string> = {
+  "spec-image": `${RASTER_TYPES},image/svg+xml`,
+};
+const DEFAULT_ACCEPT = `${RASTER_TYPES},image/svg+xml`;
 
 /**
  * Image preview + upload/remove controls for a product or option. Uploading
@@ -157,7 +171,7 @@ export function ImageUpload({
             {url ? "Replace image" : "Upload image"}
             <input
               type="file"
-              accept={ACCEPTED_TYPES}
+              accept={purpose ? (ACCEPT_BY_PURPOSE[purpose] ?? RASTER_TYPES) : DEFAULT_ACCEPT}
               onChange={handleFileChange}
               disabled={busy}
               aria-label="Upload image"
