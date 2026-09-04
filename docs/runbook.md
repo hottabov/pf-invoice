@@ -385,6 +385,56 @@ do not re-run `migrate deploy` blindly against a half-applied migration.
 - Confirm `/opt/pathquote` has no local commits/changes blocking
   `git pull --ff-only` (`git status` on the VPS).
 
+Read the log carefully before touching the secrets: two different SSH hops
+fail with similar-looking errors, and only one of them involves them at all.
+
+**`git@github.com: Permission denied (publickey)` during the deploy script**
+
+GitHub Actions reached the VPS fine — the script is running, and it is the
+VPS's own `git pull` that cannot authenticate *to GitHub*. The `VPS_SSH_KEY`
+secret is not involved.
+
+The tell is the host in the message. The pull is supposed to go through the
+`github-pf` alias in the deploy user's `~/.ssh/config`, which is what points
+it at `~/.ssh/pf_invoice_deploy`; a literal `git@github.com` means the alias
+was bypassed and ssh offered whatever default key it had. Renaming the
+repository is how this happens — the natural fix afterwards is
+`git remote set-url origin git@github.com:owner/name.git`, which quietly
+drops the alias.
+
+```bash
+cd /opt/pathquote
+git remote -v                                            # expect github-pf:...
+git remote set-url origin github-pf:hottabov/pathquote.git
+ssh -T github-pf                                         # should greet the repo
+```
+
+Belt and braces, so the next rename cannot reintroduce it — this binds the
+key to the repository rather than to the remote's spelling:
+
+```bash
+git config core.sshCommand "ssh -i ~/.ssh/pf_invoice_deploy -o IdentitiesOnly=yes"
+```
+
+**`Not possible to fast-forward, aborting` during the deploy script**
+
+`main` was force-pushed (history rewritten) and the VPS still holds the old
+commits, so there is no fast-forward path. `git pull` prints the old and new
+tips on its `forced update` line, which names the commit the VPS is stuck on.
+
+The VPS is a deployment checkout and must never hold work of its own, so the
+resolution is to discard its history, not to merge it:
+
+```bash
+cd /opt/pathquote
+git status --short          # MUST be empty; investigate anything listed
+git fetch origin
+git reset --hard origin/main
+```
+
+`.env` is git-ignored and survives this. Do not run `git clean` — nothing
+here needs it, and it reaches files the reset deliberately leaves alone.
+
 **Deploy workflow fails at `docker compose run --rm tools npx prisma migrate
 deploy` or the final health check**
 
@@ -398,6 +448,22 @@ code's Postgres *before* the new app code is started, and the whole script
 is `set -euo pipefail`, so a failed `migrate deploy` or a schema that still
 doesn't check out after the app starts stops the job — it will never report
 green while `schemaOk` is `false`.
+
+What the deploy does **not** do is seed. Migrations reshape the schema; the
+catalogue's own contents come from `prisma/seed-data/`, and nothing on this
+path reads them. So a release that adds or reprices a product or an option
+needs one more command on the VPS after the deploy goes green:
+
+```bash
+cd /opt/pathquote
+docker compose run --rm tools npm run db:seed
+```
+
+Skipping it is not cosmetic. The EasyLoader builder, for one, writes option
+codes it assembles from the product code (see `EL_OPTION_SUFFIX`), and
+`setItemOptions` rejects a code the database does not have — so an unseeded
+production would refuse to save an EasyLoader at all, with an error naming
+a code that exists perfectly well in the repository.
 
 - SSH in and repeat the same commands manually (`docker compose run --rm
   tools npx prisma migrate deploy`, then `curl -fsS
