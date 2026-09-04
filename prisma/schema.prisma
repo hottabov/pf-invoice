@@ -645,3 +645,30 @@ model SupportMessage {
 
   @@index([authorId])
 }
+
+// Admin-managed illustrations for a discrete production-spec choice (owner,
+// relaying Ross: "rather than showing plus or minus, show that image... to
+// someone in another language, they might get confused" -- a `+Y`/`-Y`
+// screen-side dropdown carries almost nothing to a reader whose English
+// isn't first). `field` names the spec key the diagram illustrates (the
+// `DocumentItem.productionSpec` JSON key -- see production-spec-editor.tsx;
+// today only "screenSide" is wired up, values "+Y"/"-Y") and `value` is one
+// of that field's discrete choices, so `(field, value)` is the smallest model
+// that binds one image to one exact answer -- `screenSide = "+Y"` and
+// `screenSide = "-Y"` are two different rows, two different pictures. Deliberately
+// generic rather than a `screenSideImageUrl` column on some settings
+// singleton: the owner asked for exactly one field wired up today (screen
+// side), but the same shape trivially extends to another discrete choice
+// (knife size, voltage) later by adding rows under a new `field`, no schema
+// change required -- see getSpecImages in src/lib/queries/spec-images.ts. No
+// row for a given (field, value) means "no diagram uploaded yet" -- the
+// builder falls back to a placeholder box, never a broken image.
+model SpecImage {
+  id        String   @id @default(cuid())
+  field     String
+  value     String
+  imageUrl  String
+  updatedAt DateTime @updatedAt
+
+  @@unique([field, value])
+}

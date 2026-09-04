@@ -39,7 +39,16 @@ export const AVATAR_TYPES = ["jpg", "png", "webp"] as const;
  * image (admin-only) this uploader isn't a trusted role. */
 export const DOCUMENT_HERO_TYPES = ["jpg", "png", "webp"] as const;
 
-export type UploadPurpose = "catalog" | "document-line" | "avatar" | "document-hero";
+/** Extensions a `SpecImage` diagram (e.g. the screen-side "+Y"/"-Y"
+ * illustrations — see the model's own doc comment in schema.prisma) may use.
+ * ADMIN-uploaded like `CATALOG_TYPES`, but deliberately kept raster-only
+ * rather than reusing that allow-list: a spec diagram is a small inline
+ * illustration next to a dropdown, not catalogue art, so there's no reason
+ * to reopen the SVG-can-carry-script question for a new admin surface when
+ * a plain photo/PNG covers the need. */
+export const SPEC_IMAGE_TYPES = ["jpg", "png", "webp"] as const;
+
+export type UploadPurpose = "catalog" | "document-line" | "avatar" | "document-hero" | "spec-image";
 
 /** A validation failure `saveUpload` can throw — wrong type or too large.
  * Callers (the /api/uploads route) turn this into a 400 with `.message`. */

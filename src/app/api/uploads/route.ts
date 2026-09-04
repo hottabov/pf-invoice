@@ -4,6 +4,7 @@ import {
   CATALOG_TYPES,
   DOCUMENT_HERO_TYPES,
   DOCUMENT_LINE_TYPES,
+  SPEC_IMAGE_TYPES,
   saveUpload,
   UploadValidationError,
   type UploadPurpose,
@@ -36,6 +37,10 @@ const PURPOSE_CONFIG: Record<UploadPurpose, { allowed: readonly string[]; adminO
   // as `document-line`: the document-scoped authorization lives in that
   // action, not here.
   "document-hero": { allowed: DOCUMENT_HERO_TYPES, adminOnly: false },
+  // A `SpecImage` diagram (e.g. the screen-side "+Y"/"-Y" illustrations) via
+  // `setSpecImage` (src/lib/actions/spec-images.ts) — Settings → Catalogue,
+  // ADMIN/DEVELOPER only.
+  "spec-image": { allowed: SPEC_IMAGE_TYPES, adminOnly: true },
 };
 
 function parsePurpose(raw: FormDataEntryValue | null): UploadPurpose {

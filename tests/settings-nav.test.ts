@@ -63,6 +63,10 @@ describe("activeSettingsNavHref", () => {
     expect(activeSettingsNavHref("/settings/option-conflict-groups/g1")).toBe("/settings/content");
   });
 
+  it("honours activePrefixes — spec diagrams also light up Catalogue", () => {
+    expect(activeSettingsNavHref("/settings/spec-images")).toBe("/settings/content");
+  });
+
   it("only matches at a segment boundary, not mid-segment", () => {
     // `/settings/users` must not swallow a hypothetical sibling whose path
     // merely starts with the same characters.

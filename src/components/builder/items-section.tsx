@@ -35,6 +35,7 @@ export function ItemsSection({
   setItemDescriptionAction,
   reorderItemsAction,
   showOptionIcons = true,
+  screenSideImages,
   readOnly = false,
 }: {
   documentId: string;
@@ -61,6 +62,8 @@ export function ItemsSection({
   /** "ui.showOptionIcons" app setting, read server-side by the builder page
    * and threaded down to `ItemOptionsEditor` — see its own doc comment. */
   showOptionIcons?: boolean;
+  /** See `ItemsList`'s own doc comment on the prop of the same name. */
+  screenSideImages: Record<string, string>;
   readOnly?: boolean;
 }) {
   return (
@@ -85,6 +88,7 @@ export function ItemsSection({
           setItemDescriptionAction={setItemDescriptionAction}
           reorderItemsAction={reorderItemsAction}
           showOptionIcons={showOptionIcons}
+          screenSideImages={screenSideImages}
           readOnly={readOnly}
         />
       )}

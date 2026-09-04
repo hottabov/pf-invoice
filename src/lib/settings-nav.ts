@@ -17,10 +17,10 @@ export type SettingsNavItem = {
    * section is ADMIN-or-DEVELOPER only, same as today (see isAdminRole). */
   adminOnly: boolean;
   /** Extra path prefixes (besides `href`) that should also mark this item
-   * active. Catalogue bundles two independent list pages — content blocks
-   * and option conflict groups — under one nav entry (see the section's own
-   * page for the in-page switcher between the two), so both need to light
-   * the same nav item up. */
+   * active. Catalogue bundles independent list pages — content blocks,
+   * option conflict groups, and spec diagrams — under one nav entry (see
+   * the section's own page for the in-page switcher between them), so each
+   * needs to light the same nav item up. */
   activePrefixes?: string[];
 };
 
@@ -33,7 +33,7 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     label: "Catalogue",
     icon: Package,
     adminOnly: true,
-    activePrefixes: ["/settings/option-conflict-groups"],
+    activePrefixes: ["/settings/option-conflict-groups", "/settings/spec-images"],
   },
   { href: "/settings/regions", label: "Regions", icon: MapPin, adminOnly: true },
   // Open to every signed-in user, same as Account/Preferences — a MANAGER

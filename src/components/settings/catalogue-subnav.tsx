@@ -4,18 +4,19 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { href: "/settings/content", label: "Content blocks" },
   { href: "/settings/option-conflict-groups", label: "Option conflict groups" },
+  { href: "/settings/spec-images", label: "Spec diagrams" },
 ] as const;
 
 /**
- * The Catalogue nav section bundles two independent list pages — content
- * blocks and option conflict groups — under one entry (see
- * src/lib/settings-nav.ts). This lets a user flip between the two without
+ * The Catalogue nav section bundles independent list pages — content
+ * blocks, option conflict groups, and spec diagrams — under one entry (see
+ * src/lib/settings-nav.ts). This lets a user flip between them without
  * detouring back through the outer settings nav, the same "no intermediate
  * card to click through" goal the settings redesign applies one level up.
- * Rendered by each of the two list pages themselves, immediately under
- * their `PageHeader`.
+ * Rendered by each of the list pages themselves, immediately under their
+ * `PageHeader`.
  */
-export function CatalogueSubnav({ active }: { active: "content" | "option-conflict-groups" }) {
+export function CatalogueSubnav({ active }: { active: "content" | "option-conflict-groups" | "spec-images" }) {
   return (
     <div role="tablist" aria-label="Catalogue" className="inline-flex w-fit flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
       {TABS.map((tab) => {

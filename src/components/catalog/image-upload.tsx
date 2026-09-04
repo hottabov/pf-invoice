@@ -47,10 +47,12 @@ export function ImageUpload({
    * that route's purpose-scoped allow-list) — omitted (the default) means
    * "catalog" there, which is what every existing product/option/region
    * caller of this component wants. Pass `"avatar"` for the account/user
-   * avatar editors, or `"document-hero"` for the builder's quotation setup
-   * image (src/components/builder/hero-image-section.tsx) — both need the
-   * raster-only allow-list and non-ADMIN permission those purposes grant. */
-  purpose?: "avatar" | "document-hero";
+   * avatar editors, `"document-hero"` for the builder's quotation setup
+   * image (src/components/builder/hero-image-section.tsx, non-ADMIN), or
+   * `"spec-image"` for the Settings → Catalogue spec-diagram editor
+   * (src/app/(app)/settings/spec-images/page.tsx, ADMIN-only like
+   * `"catalog"` but a narrower raster-only allow-list). */
+  purpose?: "avatar" | "document-hero" | "spec-image";
 }) {
   const [url, setUrl] = useState(currentUrl);
   const [uploading, setUploading] = useState(false);

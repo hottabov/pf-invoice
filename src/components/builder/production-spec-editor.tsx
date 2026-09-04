@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { setItemLineGroup, setProductionSpec } from "@/lib/actions/production";
 import { reconcileEasyLoaderSections, resolveForm } from "@/lib/production-forms/resolve";
 import { SECTION_UNIT_M, tableLengthsFromOptions, type OptionQty, type Section } from "@/lib/production-forms/table-sections";
+import { resolveSpecImage, SCREEN_SIDES } from "@/lib/production-forms/spec-images";
+import { SpecDiagram } from "@/components/builder/spec-diagram";
 
 /**
  * Replaces one table section, dropping any trailing section left with no
@@ -43,7 +45,6 @@ function remainingLabel(units: number, surface: string): string {
   return units > 0 ? `${count} ${noun} left (${metres} m ${surface})` : `${count} ${noun} over (${metres} m ${surface})`;
 }
 
-const SCREEN_SIDES = ["+Y", "-Y"] as const;
 const KNIFE_SIZES = ["1.5x5.0", "1.5x7.0", "2.0x7.0"] as const;
 const VOLTAGES = ["220V", "400V", "415V", "480V"] as const;
 
@@ -97,6 +98,13 @@ type Props = {
    * single-machine quote every item is implicitly "line 1" and the selector
    * is pure noise. */
   showLineChip: boolean;
+  /** `value -> imageUrl` for the "screenSide" `SpecImage` field (see
+   * src/lib/queries/spec-images.ts's `getSpecImages`), fetched once per page
+   * load and threaded down here the same way `showOptionIcons` is (see
+   * ItemsSection) rather than fetched per item. A value with no entry
+   * renders `SpecDiagram`'s placeholder box instead of a broken image —
+   * expected until the owner uploads the real artwork. */
+  screenSideImages: Record<string, string>;
 };
 
 /**
@@ -118,7 +126,15 @@ type Props = {
  * siblings that also changed, surfaced here as a toast so the salesperson
  * isn't left wondering why another card's field just moved.
  */
-export function ProductionSpecEditor({ itemId, itemCode, lineGroup, spec, optionQtys, showLineChip }: Props) {
+export function ProductionSpecEditor({
+  itemId,
+  itemCode,
+  lineGroup,
+  spec,
+  optionQtys,
+  showLineChip,
+  screenSideImages,
+}: Props) {
   const form = resolveForm(itemCode);
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -253,6 +269,17 @@ export function ProductionSpecEditor({ itemId, itemCode, lineGroup, spec, option
                 </option>
               ))}
             </select>
+            {/* Illustrates whichever side is currently selected -- Ross
+                (owner meeting): "rather than showing plus or minus, show
+                that image... to someone in another language, they might get
+                confused." The dropdown stays; this sits beside it in the
+                free space to the right (owner clarification). Falls back to
+                SpecDiagram's own placeholder box until the owner uploads the
+                real artwork for this value (Settings -> Catalogue). */}
+            <SpecDiagram
+              src={resolveSpecImage(screenSideImages, (draft.ui as string) ?? "-Y")}
+              alt={`${screenSideLabel}: ${(draft.ui as string) ?? "-Y"}`}
+            />
           </CompactField>
 
           {form.id === "m-series" ? (

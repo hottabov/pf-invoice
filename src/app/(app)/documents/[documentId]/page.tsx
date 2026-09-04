@@ -17,6 +17,7 @@ import { listActiveRegions } from "@/lib/queries/catalog";
 import { catalogVisibilityUserId } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { getQuoteValidityDays, getShowOptionIcons } from "@/lib/queries/settings";
+import { getSpecImages } from "@/lib/queries/spec-images";
 import { concessionCapMessage, markupCapMessage } from "@/lib/pricing";
 import {
   addCustomLine,
@@ -121,17 +122,23 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
   // `getItemPickerCatalog` needs the actual set, not a pending promise.
   const hiddenCatalogIds = await getHiddenCatalogIds(catalogVisibilityUserId(session.user));
 
-  const [companies, catalog, showOptionIcons, regions, orgDefaultValidityDays, formsDocument] = await Promise.all([
-    listClientPickerCompanies(session.user),
-    getItemPickerCatalog(document.regionCode, hiddenCatalogIds),
-    getShowOptionIcons(),
-    listActiveRegions(),
-    getQuoteValidityDays(),
-    // Separate, narrower payload (see `productionFormsInclude`) than
-    // `document` above -- `ProductionFormsSection` returns `null` itself for
-    // anything that isn't FINAL, so no status check is needed here.
-    getDocumentForForms(session.user, documentId),
-  ]);
+  const [companies, catalog, showOptionIcons, regions, orgDefaultValidityDays, formsDocument, screenSideImages] =
+    await Promise.all([
+      listClientPickerCompanies(session.user),
+      getItemPickerCatalog(document.regionCode, hiddenCatalogIds),
+      getShowOptionIcons(),
+      listActiveRegions(),
+      getQuoteValidityDays(),
+      // Separate, narrower payload (see `productionFormsInclude`) than
+      // `document` above -- `ProductionFormsSection` returns `null` itself
+      // for anything that isn't FINAL, so no status check is needed here.
+      getDocumentForForms(session.user, documentId),
+      // The screen-side diagrams (owner: illustrate +Y/-Y rather than
+      // leaving it as bare text) — fetched once per page load, same as
+      // `showOptionIcons`, and threaded down through ItemsSection/ItemsList
+      // to every item's ProductionSpecEditor.
+      getSpecImages("screenSide"),
+    ]);
 
   // Compatible options are preloaded once per distinct (productId, seriesId)
   // pair across the document's items (not once per item) — most documents
@@ -198,6 +205,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
             setItemDescriptionAction={setItemDescription}
             reorderItemsAction={reorderItems}
             showOptionIcons={showOptionIcons}
+            screenSideImages={screenSideImages}
             readOnly={!isDraft}
           />
 

@@ -75,6 +75,7 @@ export function ItemsList({
   setItemDescriptionAction,
   reorderItemsAction,
   showOptionIcons = true,
+  screenSideImages,
   readOnly = false,
 }: {
   documentId: string;
@@ -95,6 +96,11 @@ export function ItemsList({
   setItemDescriptionAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
   reorderItemsAction: (documentId: string, orderedItemIds: string[]) => Promise<ActionResult>;
   showOptionIcons?: boolean;
+  /** `value -> imageUrl` for the "screenSide" `SpecImage` field — see
+   * `ProductionSpecEditor`'s own doc comment on the prop of the same name.
+   * Fetched once per page load (src/lib/queries/spec-images.ts) and passed
+   * straight through to every item card, same as `showOptionIcons`. */
+  screenSideImages: Record<string, string>;
   readOnly?: boolean;
 }) {
   const router = useRouter();
@@ -395,6 +401,7 @@ export function ItemsList({
                     .filter((line): line is typeof line & { code: string } => line.kind === "OPTION" && Boolean(line.code))
                     .map((line) => ({ code: line.code, qty: line.qty }))}
                   showLineChip={machineCount > 1}
+                  screenSideImages={screenSideImages}
                 />
 
                 {/* A credit item (item.isCredit — the TRADE-IN product) is
