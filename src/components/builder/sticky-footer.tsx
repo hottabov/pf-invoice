@@ -69,8 +69,15 @@ export function DocumentTotals({
         <dt>Total</dt>
         <dd className="tabular-nums">{formatMoney(total, currency)}</dd>
       </div>
+      {/* Its own line below a second divider, same size/weight as Total —
+          not a footnote hanging off it — in a dark green (the
+          `--color-commission` token, src/app/globals.css) chosen specifically
+          so it can never be mistaken for the Total row just above it. */}
       {commission ? (
-        <p className="text-sm text-slate-500">Your commission is {formatMoney(commission.amount, currency)}</p>
+        <div className="text-commission flex justify-between border-t border-slate-200 pt-1.5 text-base font-semibold">
+          <dt>Your commission</dt>
+          <dd className="tabular-nums">{formatMoney(commission.amount, currency)}</dd>
+        </div>
       ) : null}
     </dl>
   );
