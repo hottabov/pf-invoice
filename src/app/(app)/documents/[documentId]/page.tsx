@@ -289,6 +289,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
                   taxAmount={document.taxAmount}
                   total={document.total}
                   currency={document.currency}
+                  commission={document.commission}
                 />
               </div>
               <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
@@ -334,6 +335,7 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
         taxAmount={document.taxAmount}
         total={document.total}
         currency={document.currency}
+        commission={document.commission}
         deleteAction={isDraft ? deleteDraft.bind(null, document.id) : undefined}
       />
     </div>

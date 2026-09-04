@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildFooterHtml, quotationPdfFilename, renderQuotationHtml } from "../src/lib/pdf";
 import { buildItemBreakdown } from "../src/lib/sheet-data";
+import { computeTotals, DEFAULT_COMMISSION_TIERS } from "../src/lib/pricing";
 import type { QuotationData } from "../src/lib/quotation-data";
 
 // Pure/rendering bits of the PDF pipeline only — `htmlToPdf` and
@@ -636,5 +637,79 @@ describe("renderQuotationHtml — Ex Works delivery terms", () => {
     const html = await renderQuotationHtml(baseQuotationData());
     expect(html).toContain("incl. GST 10%");
     expect(html).not.toContain("Ex Works");
+  });
+});
+
+// The commission a salesperson earns is internal-only (see CommissionResult's
+// doc comment, src/lib/pricing.ts) — it must never reach a customer-facing
+// render. `QuotationData` (this file's own `baseQuotationData`) has no
+// `commission` field at all, so the pipeline can't leak it by construction —
+// but that's exactly the property a careless future change (e.g. spreading
+// `document` straight into `QuotationData`, or copy-pasting the builder's
+// `DocumentTotals` block into a sheet component) could quietly break. This
+// test reproduces the owner's own worked example end to end — a real
+// document that DOES earn a real, non-trivial commission ($1,917, at the
+// pricing-engine level — see the "reproduces the owner's worked example"
+// test in tests/pricing.test.ts) — and asserts that figure, and the word
+// "commission" itself, never appear anywhere in the rendered quotation HTML.
+describe("renderQuotationHtml — commission never appears in the rendered quotation", () => {
+  it("does not render the owner's worked-example commission figure ($1,917) or the word 'commission'", async () => {
+    // Same document as the owner's example: 5 items (10,000 / 15,000 /
+    // 20,000 / 3,000 / 6,000), a 10% document discount -> $48,600, and (at
+    // the pricing-engine level, verified separately) a $1,917 commission.
+    const engineResult = computeTotals({
+      items: [
+        { unitPrice: 10000, lines: [] },
+        { unitPrice: 15000, lines: [] },
+        { unitPrice: 20000, lines: [] },
+        { unitPrice: 3000, lines: [] },
+        { unitPrice: 6000, lines: [], isNoCommission: true },
+      ],
+      extraLines: [],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "10",
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    // Confirms this test is actually exercising the $1,917 scenario it
+    // claims to, not a stale/wrong fixture.
+    expect(engineResult.commission).toEqual({ base: "42600.00", ratePct: 4.5, amount: "1917.00" });
+
+    const html = await renderQuotationHtml(
+      baseQuotationData({
+        items: [
+          baseDocSheetItem({ code: "ITEM-1", unitPrice: "10000.00", total: "10000.00" }),
+          baseDocSheetItem({ code: "ITEM-2", unitPrice: "15000.00", total: "15000.00" }),
+          baseDocSheetItem({ code: "ITEM-3", unitPrice: "20000.00", total: "20000.00" }),
+          baseDocSheetItem({ code: "ITEM-4", unitPrice: "3000.00", total: "3000.00" }),
+          baseDocSheetItem({ code: "ITEM-5", unitPrice: "6000.00", total: "6000.00" }),
+        ],
+        totals: {
+          currency: "AUD",
+          subtotal: "54000.00",
+          discountMode: "PERCENT",
+          discountValue: "10",
+          discountAmount: "5400.00",
+          taxName: "GST",
+          taxRate: "0",
+          taxAmount: "0.00",
+          total: "48600.00",
+          deliveryTerms: "DELIVERED",
+        },
+      })
+    );
+
+    // Sanity check: this really is the $48,600 document the commission was
+    // computed against, not an unrelated fixture that trivially passes.
+    expect(html).toContain("48,600");
+
+    expect(html).not.toContain("1,917");
+    expect(html).not.toContain("1917");
+    expect(html.toLowerCase()).not.toContain("commission");
+  });
+
+  it("never mentions 'commission' on an ordinary quotation either", async () => {
+    const html = await renderQuotationHtml(baseQuotationData({ items: [baseDocSheetItem()] }));
+    expect(html.toLowerCase()).not.toContain("commission");
   });
 });

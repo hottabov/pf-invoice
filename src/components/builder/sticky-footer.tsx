@@ -15,6 +15,13 @@ type TotalsProps = {
   taxAmount: string;
   total: string;
   currency: string;
+  /** The salesperson's commission on this document (`DocumentForBuilder.commission`,
+   * src/lib/queries/documents.ts) — internal-only, shown here (the builder)
+   * and NOWHERE else; see `CommissionResult`'s doc comment in
+   * src/lib/pricing.ts. `null`/omitted when no commission tier table is
+   * configured, in which case this renders nothing at all — never a
+   * misleading $0.00. */
+  commission?: { ratePct: number; amount: string } | null;
 };
 
 /**
@@ -22,6 +29,13 @@ type TotalsProps = {
  * (`StickyFooter`, below) and the desktop right-hand summary panel (see
  * `[documentId]/page.tsx`) so the two only ever differ in their
  * surrounding chrome, never in the numbers they show.
+ *
+ * Both of those call sites are internal-only (behind the builder's own
+ * session check) — this component must never be reused on a customer-facing
+ * surface (the quotation view/PDF go through an entirely separate pipeline,
+ * `buildQuotationData` -> `QuotationSheet`, which has no `commission` field
+ * at all) or the `commission` line below would leak a salesperson's payout
+ * to the customer.
  */
 export function DocumentTotals({
   taxName,
@@ -31,6 +45,7 @@ export function DocumentTotals({
   taxAmount,
   total,
   currency,
+  commission,
 }: TotalsProps) {
   return (
     <dl className="flex flex-col gap-1.5 text-sm">
@@ -54,6 +69,9 @@ export function DocumentTotals({
         <dt>Total</dt>
         <dd className="tabular-nums">{formatMoney(total, currency)}</dd>
       </div>
+      {commission ? (
+        <p className="text-sm text-slate-500">Your commission is {formatMoney(commission.amount, currency)}</p>
+      ) : null}
     </dl>
   );
 }
@@ -77,6 +95,7 @@ export function StickyFooter({
   taxAmount,
   total,
   currency,
+  commission,
   deleteAction,
 }: {
   status: DocumentStatus;
@@ -101,6 +120,7 @@ export function StickyFooter({
           taxAmount={taxAmount}
           total={total}
           currency={currency}
+          commission={commission}
         />
       </div>
     </div>

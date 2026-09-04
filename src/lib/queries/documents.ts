@@ -2,14 +2,14 @@ import type { DocumentStatus, LineKind, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { companyWhereForUser, documentWhereForUser, type ScopeUser } from "@/lib/scope";
 import { listProductsBySeries, listSeriesWithCounts } from "@/lib/queries/catalog";
-import { computeTotals, type DocumentConcession, type EngineInput } from "@/lib/pricing";
+import { computeTotals, type CommissionResult, type DocumentConcession, type EngineInput } from "@/lib/pricing";
 import { compatibilityOrFilter } from "@/lib/catalog-compat";
 import {
   isSeriesHidden,
   NO_HIDDEN_CATALOG_IDS,
   type HiddenCatalogIds,
 } from "@/lib/catalog-visibility";
-import { getQuoteValidityDays } from "@/lib/queries/settings";
+import { getQuoteValidityDays, getCommissionTiers } from "@/lib/queries/settings";
 
 // --- list -------------------------------------------------------------
 
@@ -300,6 +300,15 @@ export type DocumentForBuilder = {
    * it (e.g. an "exceeds cap" banner) without a second `computeTotals` run;
    * always present, `exceedsCap` is what a caller actually branches on. */
   documentConcession: DocumentConcession;
+  /** The salesperson's commission on this document — see `CommissionResult`
+   * in src/lib/pricing.ts. `null` when no commission tier table is
+   * configured (`getCommissionTiers`, src/lib/queries/settings.ts) — the
+   * builder must show nothing at all in that case, never a misleading
+   * $0.00 (see `CommissionResult`'s doc comment). Internal-only: this must
+   * never be threaded into `buildQuotationData`/`QuotationSheet` or any
+   * other customer-facing render — see the doc comment on those modules for
+   * why the two pipelines stay entirely separate. */
+  commission: CommissionResult | null;
   taxAmount: string;
   total: string;
   regionId: string;
@@ -472,8 +481,11 @@ export async function getDocumentForBuilder(
   if (!document) return null;
 
   // Resolved once here (not written back onto `document.validityDays`) —
-  // see `defaultValidityDays`'s doc comment above.
-  const defaultValidityDays = await getQuoteValidityDays();
+  // see `defaultValidityDays`'s doc comment above. `commissionTiers` is
+  // fetched alongside it for the same reason — a read-time default, never
+  // persisted onto the document itself (see `CommissionResult`'s doc
+  // comment on `DocumentForBuilder` for the null-vs-configured distinction).
+  const [defaultValidityDays, commissionTiers] = await Promise.all([getQuoteValidityDays(), getCommissionTiers()]);
 
   // Every OPTION line's icon in the quotation's unified options table (see
   // src/lib/quotation-data.ts's QuotationOptionRow) comes from the option's
@@ -490,13 +502,21 @@ export async function getDocumentForBuilder(
         .map((line) => line.refId)
     )
   );
-  const optionImages =
+  // `Option.noCommission` (see the commission section below) is read the
+  // same way — live off the option, not a line snapshot — so this one query
+  // covers both needs rather than adding a second round trip just for the
+  // flag.
+  const optionRows =
     optionRefIds.length > 0
-      ? await db.option.findMany({ where: { id: { in: optionRefIds } }, select: { id: true, imageUrl: true } })
+      ? await db.option.findMany({
+          where: { id: { in: optionRefIds } },
+          select: { id: true, imageUrl: true, noCommission: true },
+        })
       : [];
   const optionImageMap = new Map(
-    optionImages.filter((o): o is { id: string; imageUrl: string } => o.imageUrl !== null).map((o) => [o.id, o.imageUrl])
+    optionRows.filter((o): o is { id: string; imageUrl: string; noCommission: boolean } => o.imageUrl !== null).map((o) => [o.id, o.imageUrl])
   );
+  const optionNoCommissionMap = new Map(optionRows.map((o) => [o.id, o.noCommission]));
 
   // Item totals and the document discount amount aren't persisted per row
   // (recalcDocument only writes the document-level subtotal/tax/total) —
@@ -516,10 +536,19 @@ export async function getDocumentForBuilder(
       discountValue: item.discountValue !== null ? item.discountValue.toString() : null,
       maxDiscountPct: regionMaxDiscountPct,
       isCredit: item.product?.isCredit ?? false,
+      // `Product.noCommission`, read live off the joined product — same
+      // rule as `isCredit` above (see that field's own doc comment).
+      isNoCommission: item.product?.noCommission ?? false,
       lines: item.lines.map((line) => ({
         qty: line.qty,
         unitPrice: Number(line.unitPrice),
         listPrice: line.listPrice !== null ? Number(line.listPrice) : null,
+        // `Option.noCommission`, read live off `optionNoCommissionMap`
+        // (built above from the same query that resolves each line's
+        // icon) — every line here is kind OPTION with a non-null `refId`
+        // (see the doc comment on `optionRefIds` above), so this always
+        // finds a row once the option itself exists.
+        isNoCommission: line.refId !== null ? (optionNoCommissionMap.get(line.refId) ?? false) : false,
       })),
     })),
     extraLines: document.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
@@ -528,6 +557,7 @@ export async function getDocumentForBuilder(
     regionMaxDiscountPct,
     regionMaxMarkupPct,
     taxRate: Number(document.taxRate),
+    commissionTiers,
   };
   const totals = computeTotals(engineInput);
 
@@ -549,6 +579,7 @@ export async function getDocumentForBuilder(
     summarySubtotal: totals.grossSubtotal.toString(),
     summaryDiscountAmount: totals.totalDiscountAmount.toString(),
     documentConcession: totals.documentConcession,
+    commission: totals.commission,
     taxAmount: document.taxAmount.toString(),
     total: document.total.toString(),
     regionId: document.regionId,
