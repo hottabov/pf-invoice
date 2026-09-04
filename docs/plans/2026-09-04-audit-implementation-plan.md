@@ -270,7 +270,16 @@ CMD ["node", "server.js"]
 - [x] **3.1** `verify-db` злито в `ci` (`services: postgres`) — один runner, один `npm ci`
   замість двох. Job перейменовано на «Lint, typecheck, test, verify DB».
 - [x] **3.2** Доданий крок `prisma migrate diff … --exit-code` — ловить `schema.prisma`
-  без відповідної міграції за секунди, перед повільнішими migrate/seed.
+  без відповідної міграції.
+  **Виправлено після падіння run #33875029530:** Prisma 7 переписала інтерфейс команди —
+  `--to-schema-datamodel` → `--to-schema`, а `--shadow-database-url` прибрано зовсім
+  (`unknown or unexpected option`). Варіант `--from-migrations` тепер вимагає
+  `datasource.shadowDatabaseUrl` у `prisma.config.ts` плюс другу базу; узято
+  `--from-config-datasource --to-schema`, який порівнює вже змігровану БД зі схемою —
+  без зайвої бази і з сильнішою гарантією (перевіряє застосований результат, а не
+  повторне програвання міграцій). Крок переставлено **після** `Migrate`.
+  Прапорці перевірено локально проти недосяжної БД: невідомий прапорець падає до
+  з'єднання, валідний — на `P1001`.
 - [x] **3.3** Inline CJS-скрипт (60 рядків у YAML) → **`scripts/verify-seed.ts`** + npm-скрипт
   `db:verify-seed`. Під `tsx` він імпортує `seed-lib.ts`, тому `regions` тепер теж виводиться
   з даних, а не лишається літералом (саме через цю неможливість імпорту стара версія і

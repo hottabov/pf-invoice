@@ -50,19 +50,27 @@ jobs:
 
       - run: npm test
 
-      # Catches a schema.prisma edited without a matching migration — the
-      # failure mode behind the 2026-08-31 incident — in seconds, before the
-      # slower migrate/seed steps below get a chance to pass by accident.
-      - name: Schema matches migrations
-        run: >-
-          npx prisma migrate diff
-          --from-migrations prisma/migrations
-          --to-schema-datamodel prisma/schema.prisma
-          --shadow-database-url "$DATABASE_URL"
-          --exit-code
-
       - name: Migrate
         run: npm run db:migrate
+
+      # Catches a schema.prisma edited without a matching migration — the
+      # failure mode behind the 2026-08-31 incident. Compares the database the
+      # step above just migrated against schema.prisma; an empty diff proves
+      # the migrations reproduce the schema exactly. `--exit-code` makes a
+      # non-empty diff exit 2, failing the job.
+      #
+      # Prisma 7 rewrote this command's interface: `--to-schema-datamodel` is
+      # now `--to-schema`, and `--shadow-database-url` is gone entirely.
+      # Diffing `--from-migrations` would need `datasource.shadowDatabaseUrl`
+      # in prisma.config.ts plus a second database; diffing from the live
+      # datasource needs neither and checks the applied result rather than a
+      # replay of it.
+      - name: Migrations reproduce schema.prisma
+        run: >-
+          npx prisma migrate diff
+          --from-config-datasource
+          --to-schema prisma/schema.prisma
+          --exit-code
 
       - name: Seed (first run)
         run: npm run db:seed
