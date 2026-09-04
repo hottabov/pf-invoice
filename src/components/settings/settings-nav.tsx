@@ -2,13 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { visibleSettingsNavItems, type SettingsNavItem } from "@/lib/settings-nav";
+import { activeSettingsNavHref, visibleSettingsNavItems } from "@/lib/settings-nav";
 import { cn } from "@/lib/utils";
-
-function isActive(pathname: string, item: SettingsNavItem): boolean {
-  const prefixes = [item.href, ...(item.activePrefixes ?? [])];
-  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
 
 /**
  * The Settings area's own sub-navigation — a persistent list at `lg`+ (this
@@ -27,13 +22,17 @@ function isActive(pathname: string, item: SettingsNavItem): boolean {
 export function SettingsNav({ role }: { role: string }) {
   const pathname = usePathname();
   const items = visibleSettingsNavItems(role);
+  // Resolved once for the whole nav rather than per item: which item wins is
+  // a property of the item *set* (most specific prefix), not of any one of
+  // them on its own -- see activeSettingsNavHref.
+  const activeHref = activeSettingsNavHref(pathname, items);
 
   return (
     <nav aria-label="Settings sections" className="lg:w-56 lg:shrink-0">
       {/* Below lg: horizontally-scrollable pill row. */}
       <div role="tablist" aria-label="Settings sections" className="flex gap-2 overflow-x-auto pb-1 lg:hidden">
         {items.map((item) => {
-          const active = isActive(pathname, item);
+          const active = item.href === activeHref;
           const Icon = item.icon;
           return (
             <Link
@@ -59,7 +58,7 @@ export function SettingsNav({ role }: { role: string }) {
       {/* lg+: persistent vertical list. */}
       <div className="hidden flex-col gap-1 lg:flex">
         {items.map((item) => {
-          const active = isActive(pathname, item);
+          const active = item.href === activeHref;
           const Icon = item.icon;
           return (
             <Link

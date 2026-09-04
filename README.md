@@ -1,7 +1,6 @@
-# PF Invoice
+# PathQuote
 
-Repo: https://github.com/hottabov/pf-invoice
+Repo: https://github.com/hottabov/pathquote
 
-## Status
-
-Initialized. Project files to be added.
+Quotation system for Pathfinder cutting machines — multi-region price lists,
+configurable products and options, PDF quotations and production order forms.

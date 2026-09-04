@@ -52,3 +52,53 @@ export function visibleSettingsNavItems(role: string | null | undefined): Settin
   const admin = isAdminRole(role);
   return SETTINGS_NAV_ITEMS.filter((item) => admin || !item.adminOnly);
 }
+
+/**
+ * Length of the longest prefix on `item` that `pathname` sits under, or `-1`
+ * when none of them do. A prefix matches the path itself or anything below
+ * it (`/settings/users` also covers `/settings/users/<id>`), but only at a
+ * segment boundary — otherwise `/settings/user-groups` would look like a
+ * child of `/settings/users`.
+ */
+function navMatchLength(pathname: string, item: SettingsNavItem): number {
+  const prefixes = [item.href, ...(item.activePrefixes ?? [])];
+  let longest = -1;
+  for (const prefix of prefixes) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+      longest = Math.max(longest, prefix.length);
+    }
+  }
+  return longest;
+}
+
+/**
+ * The `href` of the single nav item that should read as active for
+ * `pathname`, or `null` when the path is outside Settings entirely.
+ *
+ * Most specific prefix wins, and that tie-break is the whole point: Account
+ * lives at `/settings`, the area root, so a plain "is this path under my
+ * href" test lights Account up on *every* settings page — the bug this
+ * replaced. Comparing match lengths lets `/settings/preferences` beat
+ * `/settings` without special-casing the root, and keeps working for a
+ * section's own nested routes (`/settings/users/<id>` stays on Users) and
+ * for `activePrefixes` (`/settings/option-conflict-groups` stays on
+ * Catalogue).
+ *
+ * Ties are impossible: two items would have to share an identical prefix,
+ * which would make them the same section.
+ */
+export function activeSettingsNavHref(
+  pathname: string,
+  items: SettingsNavItem[] = SETTINGS_NAV_ITEMS
+): string | null {
+  let activeHref: string | null = null;
+  let longest = -1;
+  for (const item of items) {
+    const length = navMatchLength(pathname, item);
+    if (length > longest) {
+      longest = length;
+      activeHref = item.href;
+    }
+  }
+  return activeHref;
+}

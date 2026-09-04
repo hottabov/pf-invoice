@@ -14,7 +14,7 @@ installed.
 1. Clone the repo to the path the deploy workflow expects:
 
    ```bash
-   git clone git@github.com:hottabov/pf-invoice.git /opt/pathquote
+   git clone git@github.com:hottabov/pathquote.git /opt/pathquote
    cd /opt/pathquote
    ```
 
@@ -97,7 +97,7 @@ installed.
 ## 2. GitHub repository secrets
 
 Add these under **Settings → Secrets and variables → Actions** on
-`github.com/hottabov/pf-invoice`. The `deploy` job in
+`github.com/hottabov/pathquote`. The `deploy` job in
 `.github/workflows/deploy.yml` reads them via `appleboy/ssh-action@v1`.
 
 | Secret        | Value                                                          |
