@@ -83,7 +83,10 @@ export function ItemDiscountField({
   }
 
   if (readOnly) {
-    if (!discountValue) return null;
+    // An explicit `0` discount must not read as a discount here either —
+    // same "must not print" rule as the customer-facing sheet (see
+    // `buildItemBreakdown` in src/lib/sheet-data.ts).
+    if (!discountValue || Number(discountValue) === 0) return null;
     const label = discountMode === "PERCENT" ? `${discountValue}%` : formatMoney(discountValue, currency);
     return <span className="text-xs text-slate-500">Discount: {label}</span>;
   }

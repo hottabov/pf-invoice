@@ -429,7 +429,13 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
               <span>Subtotal</span>
               <span>{formatMoney(totals.subtotal, totals.currency)}</span>
             </div>
-            {totals.discountValue !== null ? (
+            {/* An explicit `0` discount (as opposed to no discount set at
+                all, `discountValue === null`) must print nothing — a "Discount
+                0%" line invites the customer to haggle for one (owner: "this
+                gives the client room to negotiate"). Checking the numeric
+                value (not just non-null) is what catches the explicit-zero
+                case, for both PERCENT "0" and AMOUNT "0.00". */}
+            {totals.discountValue !== null && Number(totals.discountValue) !== 0 ? (
               <div className="pq-totals-row">
                 <span>
                   Discount {totals.discountMode === "PERCENT" ? `${totals.discountValue}%` : formatMoney(totals.discountValue, totals.currency)}

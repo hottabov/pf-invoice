@@ -278,6 +278,33 @@ describe("toSheetData — items and lines", () => {
     expect(withoutDiscount.items[0].discountValue).toBeNull();
   });
 
+  // Commit 1: an explicit `0` discount must not print — same rule as the
+  // document-level discount row (see quotation-sheet.tsx). `discountValue`
+  // itself still passes through untouched (asserted above — the raw stored
+  // value is not the thing being hidden), but `breakdown.discount` — what
+  // both the customer-facing sheet and the builder's ItemBreakdownEditor
+  // actually render off — must read `null` for an explicit zero exactly as
+  // it does for "no discount set at all".
+  it("an explicit 0 item discount renders no breakdown.discount row; a real discount still does", () => {
+    const explicitZero = toSheetData(
+      baseDoc({ items: [baseItem({ discountMode: "PERCENT", discountValue: "0", discountAmount: "0.00" })] })
+    );
+    expect(explicitZero.items[0].breakdown.discount).toBeNull();
+
+    const explicitZeroAmount = toSheetData(
+      baseDoc({ items: [baseItem({ discountMode: "AMOUNT", discountValue: "0.00", discountAmount: "0.00" })] })
+    );
+    expect(explicitZeroAmount.items[0].breakdown.discount).toBeNull();
+
+    const noDiscountAtAll = toSheetData(baseDoc({ items: [baseItem({ discountValue: null })] }));
+    expect(noDiscountAtAll.items[0].breakdown.discount).toBeNull();
+
+    const realDiscount = toSheetData(
+      baseDoc({ items: [baseItem({ discountMode: "PERCENT", discountValue: "15", discountAmount: "150.00" })] })
+    );
+    expect(realDiscount.items[0].breakdown.discount).toEqual({ mode: "PERCENT", value: "15", amount: "150.00" });
+  });
+
   it("computes each option line's lineTotal as qty * unitPrice", () => {
     const doc = baseDoc({
       items: [

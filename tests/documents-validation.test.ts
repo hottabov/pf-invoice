@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  creditUnitPriceSchema,
   customLineSchema,
   discountModeSchema,
   discountValueSchema,
@@ -11,6 +12,7 @@ import {
   optionalIdSchema,
   priceDisplaySchema,
   reorderSchema,
+  unitPriceSchema,
 } from "../src/lib/validation/documents";
 
 describe("idSchema", () => {
@@ -437,5 +439,58 @@ describe("notesSchema", () => {
 
   it("accepts a body at exactly the 5000 character bound", () => {
     expect(notesSchema.safeParse("a".repeat(5000)).success).toBe(true);
+  });
+});
+
+describe("unitPriceSchema", () => {
+  it("accepts a non-negative amount, with or without cents", () => {
+    expect(unitPriceSchema.safeParse("20000").success).toBe(true);
+    expect(unitPriceSchema.safeParse("20000.00").success).toBe(true);
+    expect(unitPriceSchema.safeParse("0").success).toBe(true);
+  });
+
+  it("rejects a negative amount -- an ordinary item's price has no minus-sign shorthand", () => {
+    const result = unitPriceSchema.safeParse("-20000");
+    expect(result.success).toBe(false);
+  });
+});
+
+// A credit item (Product.isCredit -- the TRADE-IN product) may be typed
+// with a leading minus, since the salesperson already sees the line as
+// negative on screen -- see this schema's own doc comment
+// (src/lib/validation/documents.ts) for why that's a reasonable mental
+// model there and nowhere else. The sign is always stripped before storage;
+// EngineItem.isCredit (src/lib/pricing.ts) is what actually applies it.
+describe("creditUnitPriceSchema", () => {
+  it("strips a leading minus and stores the positive amount", () => {
+    const result = creditUnitPriceSchema.safeParse("-20000");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe("20000");
+  });
+
+  it("strips a leading minus from a cents amount too", () => {
+    const result = creditUnitPriceSchema.safeParse("-20000.50");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe("20000.50");
+  });
+
+  it("still accepts a plain positive amount, unchanged", () => {
+    const result = creditUnitPriceSchema.safeParse("20000.00");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe("20000.00");
+  });
+
+  it("still accepts 0", () => {
+    const result = creditUnitPriceSchema.safeParse("0");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe("0");
+  });
+
+  it("rejects a non-numeric value", () => {
+    expect(creditUnitPriceSchema.safeParse("abc").success).toBe(false);
+  });
+
+  it("rejects more than 2 decimal places", () => {
+    expect(creditUnitPriceSchema.safeParse("-20000.999").success).toBe(false);
   });
 });

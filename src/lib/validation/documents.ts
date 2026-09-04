@@ -178,6 +178,28 @@ export const unitPriceSchema = z
   .regex(UNIT_PRICE_REGEX, "Enter a non-negative number with at most 2 decimal places");
 export type UnitPriceInput = z.infer<typeof unitPriceSchema>;
 
+/** `unitPriceSchema`'s one exception: a credit item's (`Product.isCredit` —
+ * the TRADE-IN product) own hand-set price (`setItemUnitPrice`, gated on
+ * `item.product?.isCredit` there). A salesperson entering a trade-in reads
+ * the row as already negative on screen, so typing `-20000` for it is a
+ * reasonable mental model, not a mistake worth interrupting them over — this
+ * schema allows one optional leading `-` on top of `UNIT_PRICE_REGEX`, and
+ * `setItemUnitPrice` strips it (taking the absolute value) before storing:
+ * the sign a credit item's amount prints with comes from `EngineItem.isCredit`
+ * alone, same as everywhere else in this app (see that field's doc comment in
+ * src/lib/pricing.ts for why the sign is deliberately kept out of the typed
+ * value), never from what was typed here. An ORDINARY item/option still goes
+ * through plain `unitPriceSchema` and rejects a negative outright — there, a
+ * minus really is a data-entry mistake (a negative price on a machine or an
+ * option is nonsensical), not an alternate way to type the same thing. */
+const CREDIT_UNIT_PRICE_REGEX = /^-?\d{1,9}(\.\d{1,2})?$/;
+export const creditUnitPriceSchema = z
+  .string()
+  .trim()
+  .regex(CREDIT_UNIT_PRICE_REGEX, "Enter a number with at most 2 decimal places")
+  .transform((value) => (value.startsWith("-") ? value.slice(1) : value));
+export type CreditUnitPriceInput = z.infer<typeof creditUnitPriceSchema>;
+
 /** One option selection from the item options editor: the option's code,
  * the quantity of it on the item, and (when the option carries an
  * `attributeSchema`) the freeform attribute values keyed by attribute

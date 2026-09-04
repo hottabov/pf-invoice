@@ -640,6 +640,86 @@ describe("renderQuotationHtml — Ex Works delivery terms", () => {
   });
 });
 
+// Commit 1: "if you don't set a discount, it doesn't appear in the letter,
+// that's good. But if you explicitly set 0, it says the discount is 0. This
+// gives the client room to negotiate." — an explicit `0` must read exactly
+// like no discount at all, at both the document level and the item level.
+describe("renderQuotationHtml — an explicit zero discount must not print", () => {
+  it("prints no document-level Discount row for an explicit 0%, but does for a real discount", async () => {
+    const zeroHtml = await renderQuotationHtml(
+      baseQuotationData({
+        totals: {
+          currency: "AUD",
+          subtotal: "1000.00",
+          discountMode: "PERCENT",
+          discountValue: "0",
+          discountAmount: "0.00",
+          taxName: "GST",
+          taxRate: "10",
+          taxAmount: "100.00",
+          total: "1100.00",
+          deliveryTerms: "DELIVERED",
+        },
+      })
+    );
+    expect(zeroHtml).not.toContain("Discount 0%");
+    expect(zeroHtml).not.toMatch(/Discount \d/);
+
+    const realHtml = await renderQuotationHtml(
+      baseQuotationData({
+        totals: {
+          currency: "AUD",
+          subtotal: "1000.00",
+          discountMode: "PERCENT",
+          discountValue: "10",
+          discountAmount: "100.00",
+          taxName: "GST",
+          taxRate: "10",
+          taxAmount: "90.00",
+          total: "990.00",
+          deliveryTerms: "DELIVERED",
+        },
+      })
+    );
+    expect(realHtml).toContain("Discount 10%");
+  });
+
+  it("prints no item-level discount row for an explicit 0%, but does for a real discount", async () => {
+    const zeroHtml = await renderQuotationHtml(
+      baseQuotationData({
+        items: [
+          baseDocSheetItem({
+            unitPrice: "1000.00",
+            discountMode: "PERCENT",
+            discountValue: "0",
+            total: "1000.00",
+          }),
+        ],
+      })
+    );
+    // The stylesheet embedded in every render always defines the
+    // `.pq-discount-row` CSS rule (static CSS, present whether or not any
+    // element uses the class) — so the assertion has to look for the class
+    // actually applied to an element, not just the bare class name
+    // appearing anywhere in the document.
+    expect(zeroHtml).not.toContain('class="pq-discount-row"');
+
+    const realHtml = await renderQuotationHtml(
+      baseQuotationData({
+        items: [
+          baseDocSheetItem({
+            unitPrice: "1000.00",
+            discountMode: "PERCENT",
+            discountValue: "15",
+            total: "850.00",
+          }),
+        ],
+      })
+    );
+    expect(realHtml).toContain('class="pq-discount-row"');
+  });
+});
+
 // The commission a salesperson earns is internal-only (see CommissionResult's
 // doc comment, src/lib/pricing.ts) — it must never reach a customer-facing
 // render. `QuotationData` (this file's own `baseQuotationData`) has no

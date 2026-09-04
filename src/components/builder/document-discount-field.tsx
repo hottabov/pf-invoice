@@ -62,7 +62,11 @@ export function DocumentDiscountField({
   }
 
   if (readOnly) {
-    if (!discountValue) return <p className="text-sm text-slate-700">No document discount applied.</p>;
+    // An explicit `0` discount reads the same as no discount at all — same
+    // "must not print" rule as the customer-facing sheet (see
+    // quotation-sheet.tsx).
+    if (!discountValue || Number(discountValue) === 0)
+      return <p className="text-sm text-slate-700">No document discount applied.</p>;
     const label = discountMode === "PERCENT" ? `${discountValue}% off the subtotal` : `${formatMoney(discountValue, currency)} off the subtotal`;
     return <p className="text-sm text-slate-700">{label}</p>;
   }

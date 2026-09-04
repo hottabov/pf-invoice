@@ -353,7 +353,13 @@ export type DocumentConcession = {
      * part of `subtotal` only (see `computeTotals`'s doc comment); a
      * no-commission line's charged price simply isn't in this figure at all,
      * which correctly shrinks the resulting concession rather than opening a
-     * loophole (the customer still pays that line's full charged price). */
+     * loophole (the customer still pays that line's full charged price).
+     * Conversely LARGER than a flat `discountValue`% of the plain `subtotal`
+     * whenever a credit item (`isCredit`) is present — `subtotal` is already
+     * net of every trade-in, so resolving the discount against the wider,
+     * credit-excluded base (see `documentDiscountBaseCents`) correctly grows
+     * the resulting concession back to what the discount actually represents,
+     * rather than letting part of it hide inside an untouched trade-in. */
     documentDiscount: string;
     /** Sum of every item's own discount amount — never negative. Same
      * no-commission carve-out as `documentDiscount` above, one level down:
@@ -655,6 +661,12 @@ export function capPct(mode: DiscountMode, value: string | null, baseCents: numb
  *   line's charged price is therefore identical before and after the
  *   document-level discount is applied — the customer pays its full charged
  *   price regardless of how deep a document discount cuts everything else.
+ *   A DISCOUNT MUST NOT ERODE A TRADE-IN: the same base is ALSO widened back
+ *   out by every credit item's magnitude (`creditItemsAbsCents`) before the
+ *   discount is resolved — see the inline comment at `documentDiscountBaseCents`
+ *   below for the worked example of why, left unwidened, a document discount
+ *   would silently come partly out of the trade-in credit instead of
+ *   entirely out of what the customer owes.
  * - taxAmount = taxableBase * taxRate/100.
  * - total = taxableBase + taxAmount.
  *
@@ -894,7 +906,32 @@ export function computeTotals(input: EngineInput): PricingTotals {
   // still passes straight through from `subtotalCents` to `taxableBaseCents`
   // unchanged (below), so a no-commission line's charged price is identical
   // before and after the document discount is applied.
-  const documentDiscountBaseCents = subtotalCents - noCommissionChargedCents;
+  //
+  // A DISCOUNT MUST NOT ERODE A TRADE-IN (same director's-ruling shape as
+  // the no-commission carve-out above, this time for `EngineItem.isCredit` —
+  // the owner's own words: "the discount works, but backwards"). A credit
+  // item's magnitude is *subtracted* from `subtotalCents` (see the items
+  // loop above, `return -itemMagnitudeCents`) — left as-is, a document-wide
+  // percentage discount would be computed against that already-net figure,
+  // which means part of the "discount" is actually coming out of the
+  // trade-in credit rather than out of what the customer owes: a 10% discount
+  // against a $50,000 sale netted against a $20,000 trade-in ($30,000 net)
+  // resolves to a $3,000 discount, not the $5,000 (10% of the full $50,000
+  // sale) the customer was promised — the missing $2,000 is $2,000 the
+  // trade-in silently lost, exactly the owner's "-20,000 trade-in becomes
+  // -18,000" example. `creditItemsAbsCents` (accumulated in the items loop
+  // above — every credit item's own post-discount magnitude, i.e. the exact
+  // positive amount that was subtracted into `subtotalCents`) is added back
+  // here, which cancels that item out of the base entirely — the discount is
+  // then resolved purely against the commissionable, non-credit part of the
+  // document, and `taxableBaseCents` below (subtotalCents minus that larger,
+  // correct discount) still nets the full, untouched trade-in on top, same
+  // as before. A credit item is never itself discounted here (its own
+  // `discountValue` is refused server-side — see `setItemDiscount` in
+  // src/lib/actions/documents.ts — and hidden in the builder), so this is
+  // purely about keeping it out of what the discount's *base* is measured
+  // against, not about the credit item's own math.
+  const documentDiscountBaseCents = subtotalCents + creditItemsAbsCents - noCommissionChargedCents;
   const discountAmountCents = discountCents(documentDiscountBaseCents, documentMode, documentValue);
   const totalDiscountAmountCents = itemDiscountTotalCents + discountAmountCents;
   const taxableBaseCents = subtotalCents - discountAmountCents;

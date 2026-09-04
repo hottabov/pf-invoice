@@ -596,8 +596,15 @@ export function buildItemBreakdown(
       // whole item on the rare/invalid case that it does.
       lineTotal: showOptionPrices ? signedLineTotal(item.isCredit, line.qty, line.unitPrice) : null,
     })),
+    // An explicit `0` discount (as opposed to no discount set at all,
+    // `discountValue === null`) must render nothing — same "no discount 0%
+    // haggling room" fault as the document-level discount row (see
+    // quotation-sheet.tsx) — checking the numeric value, not just non-null,
+    // is what catches it, for both PERCENT "0" and AMOUNT "0.00". Shared by
+    // the customer-facing sheet AND the builder's own `ItemBreakdownEditor`
+    // (both render off `breakdown.discount`), so this one change fixes both.
     discount:
-      item.discountValue !== null
+      item.discountValue !== null && Number(item.discountValue) !== 0
         ? { mode: item.discountMode, value: item.discountValue, amount: item.discountAmount }
         : null,
     // Already correctly signed by the pricing engine (`EngineItem.isCredit`,

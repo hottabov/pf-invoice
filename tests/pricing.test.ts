@@ -957,6 +957,115 @@ describe("EngineItem.isCredit (credit items -- the TRADE-IN product)", () => {
   });
 });
 
+// The owner: "the discount works, but backwards" -- a document-level
+// percentage discount used to be resolved against `subtotal`, which is
+// already NET of every credit item (a trade-in subtracts from it). That
+// meant part of the discount was silently coming out of the trade-in credit
+// itself rather than entirely out of what the customer owes -- see
+// `documentDiscountBaseCents`'s doc comment in src/lib/pricing.ts for the
+// exact mechanism and the worked numbers below.
+describe("a document discount must not erode a trade-in", () => {
+  it("a 10% document discount on a $50,000 sale with a $20,000 trade-in leaves the trade-in's own $20,000 untouched", () => {
+    const result = computeTotals({
+      items: [
+        { unitPrice: 50000, listPrice: 50000, lines: [] },
+        { unitPrice: 20000, listPrice: 20000, lines: [], isCredit: true },
+      ],
+      extraLines: [],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "10",
+      taxRate: 0,
+    });
+    // Pre-fix: subtotal (50,000 - 20,000 = 30,000) * 10% = 3,000 off ->
+    // taxableBase 27,000 (the trade-in effectively shrank to $18,000 worth
+    // of credit). Fixed: the discount is resolved against the $50,000 sale
+    // alone (documentDiscountBaseCents = subtotal(30,000) +
+    // creditItemsAbsCents(20,000) = 50,000), 10% of that is $5,000, and the
+    // full $20,000 trade-in still comes off on top -> 50,000 - 5,000 -
+    // 20,000 = 25,000.
+    expect(result.documentConcession.parts.documentDiscount).toBe("5000.00");
+    expect(result.taxableBase).toBe(25000);
+    expect(result.total).toBe(25000);
+    // The trade-in item's own itemTotal (what actually credits the
+    // customer) is untouched -- still exactly -20,000, never -18,000.
+    expect(result.itemTotals).toEqual([50000, -20000]);
+  });
+
+  it("an ordinary line still takes its full share of the document discount with a trade-in present", () => {
+    const result = computeTotals({
+      items: [
+        { unitPrice: 40000, listPrice: 40000, lines: [] },
+        { unitPrice: 10000, listPrice: 10000, lines: [] },
+        { unitPrice: 20000, listPrice: 20000, lines: [], isCredit: true },
+      ],
+      extraLines: [],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "5",
+      taxRate: 0,
+    });
+    // Base is the two ordinary items only: 40,000 + 10,000 = 50,000; 5% of
+    // that is 2,500.
+    expect(result.documentConcession.parts.documentDiscount).toBe("2500.00");
+    expect(result.taxableBase).toBe(27500); // 50,000 - 2,500 - 20,000
+  });
+
+  it("with no credit item present, the fix changes nothing (same result as before)", () => {
+    const result = computeTotals({
+      items: [{ unitPrice: 1000, listPrice: 1000, lines: [] }],
+      extraLines: [],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "10",
+      taxRate: 0,
+    });
+    expect(result.documentConcession.parts.documentDiscount).toBe("100.00");
+    expect(result.taxableBase).toBe(900);
+  });
+
+  it("a no-commission item and a credit item together: both carve-outs apply independently", () => {
+    const result = computeTotals({
+      items: [
+        { unitPrice: 40000, listPrice: 40000, lines: [] },
+        { unitPrice: 6000, listPrice: 6000, lines: [], isNoCommission: true },
+        { unitPrice: 20000, listPrice: 20000, lines: [], isCredit: true },
+      ],
+      extraLines: [],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "10",
+      taxRate: 0,
+    });
+    // Base is the commissionable, non-credit part only: 40,000 (the
+    // no-commission item and the credit item are both excluded). 10% of
+    // 40,000 = 4,000.
+    expect(result.documentConcession.parts.documentDiscount).toBe("4000.00");
+    // 40,000 + 6,000 - 4,000 - 20,000 = 22,000.
+    expect(result.taxableBase).toBe(22000);
+  });
+
+  it("the concession cap now measures the true discount, not the trade-in-shrunk one", () => {
+    // Same $50,000/$20,000/10% document as the first test above -- pre-fix
+    // this would have reported only a $3,000 discount concession; the true
+    // figure is $5,000.
+    const result = computeTotals({
+      items: [
+        { unitPrice: 50000, listPrice: 50000, lines: [] },
+        { unitPrice: 20000, listPrice: 20000, lines: [], isCredit: true },
+      ],
+      extraLines: [],
+      documentDiscountMode: "PERCENT",
+      documentDiscountValue: "10",
+      regionMaxDiscountPct: 100,
+      taxRate: 0,
+    });
+    expect(result.documentConcession.parts.documentDiscount).toBe("5000.00");
+    // tradeIns (20,000) + documentDiscount (5,000) = 25,000 concession,
+    // against a $50,000 list value (the credit item never adds to
+    // listValue) -- 50%.
+    expect(result.documentConcession.concession).toBe("25000.00");
+    expect(result.documentConcession.listValue).toBe("50000.00");
+    expect(result.documentConcession.effectivePct).toBeCloseTo(50, 5);
+  });
+});
+
 describe("markup ceiling (Region.maxMarkupPct)", () => {
   // Mirrors the discount-cap boundary tests above ("stays within the cap
   // just under the boundary" / "does not flag exceedsCap exactly at the

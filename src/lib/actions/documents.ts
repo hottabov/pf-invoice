@@ -46,6 +46,7 @@ import {
   reorderSchema,
   serialNumberSchema,
   unitPriceSchema,
+  creditUnitPriceSchema,
   validityDaysSchema,
   type DiscountModeInput,
   type OptionSelectionInput,
@@ -1210,6 +1211,21 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
  * with `listPrice = unitPrice` -- either way, this action never overwrites
  * an already-recorded `listPrice`, so a second edit measures against the
  * original catalogue price, not the previous manual one).
+ *
+ * A CREDIT ITEM MAY BE TYPED WITH A MINUS SIGN: the item is queried before
+ * the price is validated (unlike every other action in this file, which
+ * validates first) specifically so that check can pick the right schema —
+ * `creditUnitPriceSchema` (allows one leading `-`, then strips it) for a
+ * credit item (`item.product?.isCredit`), plain `unitPriceSchema` (rejects a
+ * negative outright) for an ordinary one. See `creditUnitPriceSchema`'s own
+ * doc comment (src/lib/validation/documents.ts) for why the two behave
+ * differently — the short version: a trade-in already reads as negative on
+ * screen, so `-20000` is a reasonable mental model for it and not worth
+ * interrupting the salesperson over, while a negative price on an ordinary
+ * item is a plain data-entry mistake. Either way the STORED value is always
+ * non-negative — the credit sign is applied only at render time, driven
+ * entirely by `EngineItem.isCredit` (see src/lib/pricing.ts), never by what
+ * was typed here.
  */
 export async function setItemUnitPrice(itemId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -1217,17 +1233,19 @@ export async function setItemUnitPrice(itemId: string, formData: FormData): Prom
   const parsedItemId = idSchema.safeParse(itemId);
   if (!parsedItemId.success) return { error: NOT_FOUND_ERROR };
 
-  const parsedValue = unitPriceSchema.safeParse(formData.get("unitPrice"));
-  if (!parsedValue.success) return { error: flattenZodError(parsedValue.error) };
-
   const item = await db.documentItem.findFirst({
     where: {
       id: parsedItemId.data,
       document: { status: "DRAFT", ...documentWhereForUser(session.user) },
     },
-    select: { id: true, documentId: true, unitPrice: true, listPrice: true },
+    select: { id: true, documentId: true, unitPrice: true, listPrice: true, product: { select: { isCredit: true } } },
   });
   if (!item) return { error: NOT_FOUND_ERROR };
+
+  const isCredit = item.product?.isCredit ?? false;
+  const priceSchema = isCredit ? creditUnitPriceSchema : unitPriceSchema;
+  const parsedValue = priceSchema.safeParse(formData.get("unitPrice"));
+  if (!parsedValue.success) return { error: flattenZodError(parsedValue.error) };
 
   let concessionWarning: string | undefined;
   try {
@@ -1488,14 +1506,16 @@ export async function setItemDescription(itemId: string, formData: FormData): Pr
  * the document's already-persisted `subtotal` column (items + extra lines,
  * computed by the last `recalcDocument`) — this action never touches
  * items/lines, so that figure is already exactly right — but then has every
- * no-commission item/line's charged amount subtracted out of it, mirroring
- * `computeTotals`'s own `documentDiscountBaseCents` (see its "a
- * no-commission line takes no discount" doc comment) so this pre-check is
- * comparing against the exact same base the engine will actually resolve
- * the discount against. Skipping that narrowing (comparing against the
+ * no-commission item/line's charged amount subtracted out of it, and every
+ * credit item's (`isCredit`) charged magnitude added back in, mirroring
+ * `computeTotals`'s own `documentDiscountBaseCents` exactly (see its "a
+ * discount must not erode a trade-in" doc comment for the credit half, and
+ * "a no-commission line takes no discount" for the other) so this pre-check
+ * is comparing against the exact same base the engine will actually resolve
+ * the discount against. Skipping either narrowing (comparing against the
  * plain, un-narrowed subtotal instead) would have the same AMOUNT-mode
- * under-reporting problem `setItemDiscount`'s own doc comment describes one
- * level down.
+ * under/over-reporting problem `setItemDiscount`'s own doc comment describes
+ * one level down.
  */
 export async function setDocumentDiscount(documentId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -1518,9 +1538,10 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
       region: true,
       // Only needed to narrow the cap check's base below (see this
       // function's own doc comment) — `product`/lines' `refId` are read to
-      // find every no-commission item/line's charged amount, the same
-      // "joined live" rule `computeTotals`'s inputs already follow.
-      items: { include: { lines: true, product: { select: { noCommission: true } } } },
+      // find every no-commission item/line's charged amount and every
+      // credit item's charged amount, the same "joined live" rule
+      // `computeTotals`'s inputs already follow.
+      items: { include: { lines: true, product: { select: { isCredit: true, noCommission: true } } } },
     },
   });
   if (!document) return { error: NOT_FOUND_ERROR };
@@ -1539,16 +1560,35 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
         : [];
     const optionNoCommissionMap = new Map(optionRows.map((o) => [o.id, o.noCommission]));
 
+    // Mirrors `computeTotals`'s `documentDiscountBaseCents` term-for-term:
+    // a no-commission item/line's charged amount is subtracted out (it takes
+    // no discount), and a credit item's charged magnitude is added back in
+    // (a discount must not erode a trade-in — see `computeTotals`'s doc
+    // comment) — `document.subtotal` is already net of every credit item
+    // (see `recalcDocument`), so without adding it back here the cap check
+    // would compare against the same too-small, trade-in-eroded base the
+    // engine itself no longer uses.
     let noCommissionChargedCents = 0;
+    let creditChargedCents = 0;
     for (const item of document.items) {
-      if (item.product?.noCommission) noCommissionChargedCents += toCents(item.unitPrice.toString());
+      const itemUnitPriceCents = toCents(item.unitPrice.toString());
+      if (item.product?.isCredit) {
+        // A credit item is never itself discounted (refused above, in this
+        // same action, and hidden in the builder), so its full charged
+        // amount — unitPrice plus any lines, though it should never carry
+        // any in practice — is exactly its magnitude in `document.subtotal`.
+        creditChargedCents +=
+          itemUnitPriceCents + item.lines.reduce((sum, line) => sum + line.qty * toCents(line.unitPrice.toString()), 0);
+        continue;
+      }
+      if (item.product?.noCommission) noCommissionChargedCents += itemUnitPriceCents;
       for (const line of item.lines) {
         const lineNoCommission = line.refId !== null ? (optionNoCommissionMap.get(line.refId) ?? false) : false;
         if (lineNoCommission) noCommissionChargedCents += line.qty * toCents(line.unitPrice.toString());
       }
     }
 
-    const subtotalCents = toCents(document.subtotal.toString()) - noCommissionChargedCents;
+    const subtotalCents = toCents(document.subtotal.toString()) + creditChargedCents - noCommissionChargedCents;
     const discount = discountCents(subtotalCents, parsedMode.data, parsedValue.data);
     const effPct = capPct(parsedMode.data, parsedValue.data, subtotalCents, discount);
     // Guarded on `subtotalCents > 0` the same way `computeTotals`'s own
