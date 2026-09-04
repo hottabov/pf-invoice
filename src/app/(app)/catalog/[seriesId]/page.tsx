@@ -124,10 +124,16 @@ export default async function SeriesProductsPage({ params }: { params: Promise<P
               <thead>
                 <tr className={tableHeadRowClassName}>
                   <th scope="col" className="px-4 py-3">
+                    <span className="sr-only">Image</span>
+                  </th>
+                  <th scope="col" className="px-4 py-3">
                     Code
                   </th>
                   <th scope="col" className="px-4 py-3">
                     Name
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Description
                   </th>
                   <th scope="col" className="px-4 py-3 text-right">
                     Price
@@ -172,18 +178,25 @@ function ProductRow({
   const href = `/catalog/${seriesId}/${p.id}`;
   return (
     <tr className={cn(tableRowClassName, p.active ? "" : "opacity-60")}>
+      <RowCell href={href}>
+        {/* Product photos are landscape (1280x768 as shot), so they get a
+            wider box than CatalogThumb's square default. Its own reserved
+            spacer (see CatalogThumb's doc comment) keeps every row's Code
+            column aligned even for products with no image yet. */}
+        <CatalogThumb src={p.imageUrl} width={64} />
+      </RowCell>
       <RowCell href={href} primary={`Open ${p.name}`}>
         <span aria-hidden="true" className="font-mono text-sm text-brand-dark">
           {p.code}
         </span>
       </RowCell>
       <RowCell href={href}>
-        <span className="flex items-center gap-2.5">
-          {/* Product photos are landscape (1280x768 as shot), so they get a
-              wider box than CatalogThumb's square default. */}
-          <CatalogThumb src={p.imageUrl} width={64} />
-          <span className="text-sm text-slate-700">{p.name}</span>
-        </span>
+        <span className="text-sm text-slate-700">{p.name}</span>
+      </RowCell>
+      <RowCell href={href}>
+        {p.description ? (
+          <span className="block max-w-[280px] truncate text-sm text-slate-500">{p.description}</span>
+        ) : null}
       </RowCell>
       <RowCell href={href} align="right">
         <PriceDisplay price={p.price} />
@@ -206,20 +219,23 @@ function ProductCard({
     <Link
       href={`/catalog/${seriesId}/${p.id}`}
       className={cn(
-        "focus-ring flex min-h-12 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-colors active:bg-slate-100",
+        "focus-ring flex min-h-12 gap-3 rounded-xl border border-slate-200 bg-white p-4 transition-colors active:bg-slate-100",
         p.active ? "" : "opacity-60"
       )}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="font-mono text-sm text-brand-dark">{p.code}</span>
-          {!p.active ? <InactiveBadge /> : null}
+      {/* Same reading order as the table row: image, then code, then name,
+          then description. */}
+      <CatalogThumb src={p.imageUrl} width={64} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="font-mono text-sm text-brand-dark">{p.code}</span>
+            {!p.active ? <InactiveBadge /> : null}
+          </div>
+          <PriceDisplay price={p.price} />
         </div>
-        <PriceDisplay price={p.price} />
-      </div>
-      <div className="flex items-center gap-2.5">
-        <CatalogThumb src={p.imageUrl} width={64} />
-        <p className="truncate text-sm text-slate-600">{p.name}</p>
+        <p className="truncate text-sm text-slate-700">{p.name}</p>
+        {p.description ? <p className="truncate text-xs text-slate-500">{p.description}</p> : null}
       </div>
     </Link>
   );

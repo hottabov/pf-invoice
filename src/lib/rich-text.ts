@@ -133,3 +133,41 @@ export function renderStoredRichText(stored: string): string {
 export function sanitizeIfHtml(value: string): string {
   return isHtmlContent(value) ? sanitizeRichText(value) : value;
 }
+
+/** A handful of named/numeric entities `renderMarkdown`/Tiptap output can
+ * produce that a reader actually needs decoded back to their character —
+ * deliberately not a general-purpose entity decoder (this module has no
+ * reason to handle arbitrary numeric code points; nothing it renders
+ * produces them). */
+const PLAIN_TEXT_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  "#39": "'",
+  nbsp: " ",
+};
+
+/**
+ * Strips a stored `Product.description` (rich text — HTML or legacy
+ * markdown, see this module's header comment) or a plain field like
+ * `Option.shortDescription` down to a single-line plain-text preview — for
+ * a catalogue list row, which shows a truncated one-line snippet, never the
+ * full rendered markup a product/option detail page does. Renders through
+ * `renderStoredRichText` first so both stored shapes are handled the same
+ * way, strips every tag, decodes the handful of entities that round-trip
+ * survives (`PLAIN_TEXT_ENTITIES`), then collapses all whitespace — including
+ * the newlines a plain textarea value can carry — to single spaces. Actual
+ * one-line ellipsis truncation is left to CSS (`truncate`) at the point of
+ * render, this function only ever removes markup/whitespace, never cuts the
+ * string short itself. `null`/empty collapses to `null` so a caller's
+ * `description ? <Cell/> : null` check stays a clean on/off switch.
+ */
+export function toPlainTextPreview(stored: string | null): string | null {
+  if (!stored) return null;
+  const html = renderStoredRichText(stored);
+  const withoutTags = html.replace(/<[^>]*>/g, " ");
+  const decoded = withoutTags.replace(/&(#39|amp|lt|gt|quot|nbsp);/g, (_match, entity: string) => PLAIN_TEXT_ENTITIES[entity] ?? "");
+  const text = decoded.replace(/\s+/g, " ").trim();
+  return text.length > 0 ? text : null;
+}

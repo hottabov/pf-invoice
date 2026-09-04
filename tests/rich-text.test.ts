@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { isHtmlContent, sanitizeRichText, renderStoredRichText, toEditorHtml, sanitizeIfHtml } from "../src/lib/rich-text";
+import {
+  isHtmlContent,
+  sanitizeRichText,
+  renderStoredRichText,
+  toEditorHtml,
+  sanitizeIfHtml,
+  toPlainTextPreview,
+} from "../src/lib/rich-text";
 
 // Pure module — no @/lib/db import, so this never needs DATABASE_URL set
 // (same reasoning as tests/markdown.test.ts).
@@ -142,5 +149,38 @@ describe("sanitizeIfHtml", () => {
 
   it("returns an empty string unchanged", () => {
     expect(sanitizeIfHtml("")).toBe("");
+  });
+});
+
+// Commit 2: catalogue list rows show a one-line description preview
+// (Product.description / Option.shortDescription), not the full rendered
+// rich text a detail page shows.
+describe("toPlainTextPreview", () => {
+  it("returns null for null, empty, or whitespace-only input", () => {
+    expect(toPlainTextPreview(null)).toBeNull();
+    expect(toPlainTextPreview("")).toBeNull();
+    expect(toPlainTextPreview("   ")).toBeNull();
+  });
+
+  it("strips tags from HTML content, leaving plain text", () => {
+    expect(toPlainTextPreview("<p>Hello <strong>world</strong></p>")).toBe("Hello world");
+  });
+
+  it("strips markup from legacy markdown content too", () => {
+    expect(toPlainTextPreview("## Title\n\nSome **bold** text.")).toBe("Title Some bold text.");
+  });
+
+  it("collapses internal whitespace/newlines to single spaces (a plain multi-line textarea value)", () => {
+    expect(toPlainTextPreview("Line one\nLine two\n\nLine three")).toBe("Line one Line two Line three");
+  });
+
+  it("decodes common HTML entities after stripping tags", () => {
+    expect(toPlainTextPreview("<p>Nuts &amp; bolts &mdash; not decoded, kept as-is</p>")).toContain("Nuts & bolts");
+  });
+
+  it("never leaves any tag markup in the result", () => {
+    const out = toPlainTextPreview("<h2>Spec</h2><ul><li>one</li><li>two</li></ul>");
+    expect(out).not.toMatch(/[<>]/);
+    expect(out).toBe("Spec one two");
   });
 });

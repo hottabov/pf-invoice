@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { db } from "@/lib/db";
+import { toPlainTextPreview } from "@/lib/rich-text";
 
 const DEFAULT_REGION_CODE = "AU";
 
@@ -97,6 +98,12 @@ export type ProductListItem = {
    * thumbnail beside the name via `CatalogThumb`. `null` when the product
    * has no image; unlike `SeriesDetail.imageUrl` there is no fallback. */
   imageUrl: string | null;
+  /** `Product.description`, reduced to a single-line plain-text preview via
+   * `toPlainTextPreview` (src/lib/rich-text.ts) — the list rows show a
+   * truncated one-line snippet, never the full rendered rich text a product
+   * detail page does. `null` when the product has no description, or when
+   * it's blank/whitespace-only. */
+  description: string | null;
 };
 
 export type SeriesDetail = {
@@ -157,6 +164,7 @@ async function seriesProductsResult(
         name: p.name,
         active: p.active,
         imageUrl: p.imageUrl,
+        description: toPlainTextPreview(p.description),
         price: price
           ? {
               amount: price.amount.toString(),
@@ -234,6 +242,14 @@ export type OptionListItem = {
   /** `Option.imageUrl` (raw, unresolved) — rendered as a thumbnail beside
    * the name by the options list, same as `ProductListItem.imageUrl`. */
   imageUrl: string | null;
+  /** `Option.shortDescription`, reduced to a single-line plain-text preview
+   * via `toPlainTextPreview` (src/lib/rich-text.ts) — same "truncated
+   * one-line snippet, not the full text" rule as `ProductListItem.description`.
+   * `shortDescription` is plain text already (no rich-text editor on the
+   * option form — see `OptionForm`), but still routed through the same
+   * helper so a multi-line textarea value collapses to one line the same
+   * way. `null` when the option has no description, or it's blank. */
+  description: string | null;
 };
 
 /**
@@ -282,6 +298,7 @@ export async function listOptions(params: {
       name: o.name,
       active: o.active,
       imageUrl: o.imageUrl,
+      description: toPlainTextPreview(o.shortDescription),
       price: price
         ? {
             amount: price.amount.toString(),

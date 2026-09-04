@@ -113,10 +113,16 @@ export default async function OptionsPage({
               <thead>
                 <tr className={tableHeadRowClassName}>
                   <th scope="col" className="px-4 py-3">
+                    <span className="sr-only">Image</span>
+                  </th>
+                  <th scope="col" className="px-4 py-3">
                     Code
                   </th>
                   <th scope="col" className="px-4 py-3">
                     Name
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Description
                   </th>
                   <th scope="col" className="px-4 py-3">
                     Compatible series
@@ -173,16 +179,23 @@ function OptionRow({ option: o }: { option: OptionListItem }) {
   const href = `/catalog/options/${o.id}`;
   return (
     <tr className={cn(tableRowClassName, o.active ? "" : "opacity-60")}>
+      <RowCell href={href}>
+        {/* Reserves its box even with no image — see CatalogThumb's doc
+            comment — so every row's Code column still lines up. */}
+        <CatalogThumb src={o.imageUrl} />
+      </RowCell>
       <RowCell href={href} primary={`Open ${o.name}`}>
         <span aria-hidden="true" className="font-mono text-sm text-brand-dark">
           {o.code}
         </span>
       </RowCell>
       <RowCell href={href}>
-        <span className="flex items-center gap-2.5">
-          <CatalogThumb src={o.imageUrl} />
-          <span className="text-sm text-slate-700">{o.name}</span>
-        </span>
+        <span className="text-sm text-slate-700">{o.name}</span>
+      </RowCell>
+      <RowCell href={href}>
+        {o.description ? (
+          <span className="block max-w-[240px] truncate text-sm text-slate-500">{o.description}</span>
+        ) : null}
       </RowCell>
       <RowCell href={href}>
         <CompatBadges seriesCodes={o.compatSeriesCodes} />
@@ -202,22 +215,25 @@ function OptionCard({ option: o }: { option: OptionListItem }) {
     <Link
       href={`/catalog/options/${o.id}`}
       className={cn(
-        "focus-ring flex min-h-12 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-colors active:bg-slate-100",
+        "focus-ring flex min-h-12 gap-3 rounded-xl border border-slate-200 bg-white p-4 transition-colors active:bg-slate-100",
         o.active ? "" : "opacity-60"
       )}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="font-mono text-sm text-brand-dark">{o.code}</span>
-          {!o.active ? <InactiveBadge /> : null}
+      {/* Same reading order as the table row: image, then code, then name,
+          then description. */}
+      <CatalogThumb src={o.imageUrl} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="font-mono text-sm text-brand-dark">{o.code}</span>
+            {!o.active ? <InactiveBadge /> : null}
+          </div>
+          <PriceDisplay price={o.price} />
         </div>
-        <PriceDisplay price={o.price} />
+        <p className="truncate text-sm text-slate-700">{o.name}</p>
+        {o.description ? <p className="truncate text-xs text-slate-500">{o.description}</p> : null}
+        <CompatBadges seriesCodes={o.compatSeriesCodes} />
       </div>
-      <div className="flex items-center gap-2.5">
-        <CatalogThumb src={o.imageUrl} />
-        <p className="truncate text-sm text-slate-600">{o.name}</p>
-      </div>
-      <CompatBadges seriesCodes={o.compatSeriesCodes} />
     </Link>
   );
 }
