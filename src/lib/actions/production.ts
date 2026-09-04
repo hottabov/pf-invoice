@@ -6,17 +6,19 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/authz";
 import { documentWhereForUser } from "@/lib/scope";
 import { idSchema } from "@/lib/validation/documents";
-import { specSchemaForCode } from "@/lib/production-forms/resolve";
+import { resolveForm, specSchemaForCode } from "@/lib/production-forms/resolve";
 
 export type ActionResult = { error?: string };
 
 export type SetProductionSpecResult = ActionResult & {
   /**
-   * Names of sibling items (same `lineGroup`) whose `ui` this call also
-   * changed -- present only when at least one sibling's screen side actually
-   * flipped, so the editor can toast exactly what else moved. See
-   * `setProductionSpec`'s doc comment for why the write itself is
-   * unconditional.
+   * Product codes of the sibling items (same `lineGroup`) whose `ui` this
+   * call also changed -- present only when at least one sibling's screen
+   * side actually flipped, so the editor can toast exactly what else moved.
+   *
+   * Codes, not names. A product name here can be the better part of a
+   * paragraph (the software modules carry their whole feature list as a
+   * name), and the toast that prints this is one line.
    */
   propagatedTo?: string[];
 };
@@ -45,9 +47,18 @@ function flattenZodError(error: z.ZodError): string {
  * requiring an unfinalize/refinalize cycle to correct a knife size would
  * churn document numbering for no gain. See spec section 4.1.
  *
- * `ui` is written to every item in the same `lineGroup`: a cutter and its
- * spreaders stand together and a mismatched operator-screen side is a
+ * `ui` is written to every *machine* in the same `lineGroup`: a cutter and
+ * its spreaders stand together and a mismatched operator-screen side is a
  * physical installation fault, not a cosmetic one.
+ *
+ * "Machine" here means an item `resolveForm` recognises. A screen side is a
+ * fact about a thing an operator stands in front of, and the line also holds
+ * software modules, service entries and accessories, which have no side and
+ * no form to print one on. They used to be written to anyway -- invisible in
+ * the builder, since those cards render no spec panel at all, but the toast
+ * named them, which is how this was noticed. Gating on the form rather than
+ * on a hand-kept list of series codes means the set widens on its own the day
+ * the X, L and EF forms are written.
  */
 export async function setProductionSpec(itemId: string, spec: unknown): Promise<SetProductionSpecResult> {
   const session = await requireSession();
@@ -79,16 +90,18 @@ export async function setProductionSpec(itemId: string, spec: unknown): Promise<
 
     const siblings = await tx.documentItem.findMany({
       where: { documentId: item.documentId, lineGroup: item.lineGroup, id: { not: item.id } },
+      select: { id: true, code: true, productionSpec: true },
     });
 
     for (const sibling of siblings) {
+      if (!resolveForm(sibling.code)) continue;
       const current = (sibling.productionSpec ?? {}) as Record<string, unknown>;
       if (current.ui === ui) continue;
       await tx.documentItem.update({
         where: { id: sibling.id },
         data: { productionSpec: { ...current, ui } },
       });
-      propagatedTo.push(`${sibling.name} (${sibling.code})`);
+      propagatedTo.push(sibling.code);
     }
   });
 

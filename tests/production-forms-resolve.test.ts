@@ -49,6 +49,17 @@ describe("resolveForm", () => {
   it("does not match an unknown code", () => {
     expect(resolveForm("NOPE-1")).toBeNull();
   });
+
+  // `setProductionSpec` propagates a screen side across the line to exactly
+  // the items this returns a form for. These are the codes that were in one
+  // real line and got written to before that gate existed -- three software
+  // modules and a cutter whose form has not been built yet. A screen side is
+  // a fact about a thing an operator stands in front of; none of these is.
+  it("does not match software modules or a cutter with no form yet", () => {
+    for (const code of ["PTW(I)", "ANT-V5", "PDG", "X-10180"]) {
+      expect(resolveForm(code)).toBeNull();
+    }
+  });
 });
 
 describe("specSchemaForCode", () => {

@@ -45,6 +45,23 @@ function remainingLabel(units: number, surface: string): string {
   return units > 0 ? `${count} ${noun} left (${metres} m ${surface})` : `${count} ${noun} over (${metres} m ${surface})`;
 }
 
+/**
+ * "Also updated screen side on M5220, EL-2020 and 1 more" — what the toast
+ * says when a screen-side change propagated across the line.
+ *
+ * Names two machines and counts the rest. A line can hold several, and the
+ * point of the message is that something moved off-screen, not a manifest of
+ * what — the cards themselves now show their new side (they re-sync on the
+ * revalidate this write triggers), so the toast only has to point at them.
+ */
+function propagationMessage(codes: string[]): string {
+  const shown = codes.slice(0, 2).join(", ");
+  const rest = codes.length - 2;
+  return rest > 0
+    ? `Also updated screen side on ${shown} and ${rest} more`
+    : `Also updated screen side on ${shown}`;
+}
+
 const KNIFE_SIZES = ["1.5x5.0", "1.5x7.0", "2.0x7.0"] as const;
 const VOLTAGES = ["220V", "400V", "415V", "480V"] as const;
 
@@ -120,11 +137,12 @@ type Props = {
  * `ItemDiscountField`'s autosave-on-change feel without the debounce, since
  * these are discrete choices rather than free-typed text). `ui` (operator
  * screen side) is the one field with a side effect beyond this item: the
- * server propagates it to every item sharing this item's `lineGroup` (a
+ * server propagates it to every machine sharing this item's `lineGroup` (a
  * cutter and its EasyLoader/FabricPro must agree, or the physical install is
- * wrong) — when that happens, `setProductionSpec`'s `propagatedTo` names the
- * siblings that also changed, surfaced here as a toast so the salesperson
- * isn't left wondering why another card's field just moved.
+ * wrong; software and service rows in the same line are left alone) — when
+ * that happens, `setProductionSpec`'s `propagatedTo` names the siblings that
+ * also changed, surfaced here as a toast so the salesperson isn't left
+ * wondering why another card's field just moved.
  */
 export function ProductionSpecEditor({
   itemId,
@@ -183,7 +201,7 @@ export function ProductionSpecEditor({
     setInFlight((n) => n - 1);
     setError(result.error ?? null);
     if (!result.error && result.propagatedTo && result.propagatedTo.length > 0) {
-      toast.success(`Also updated screen side on ${result.propagatedTo.join(", ")}`);
+      toast.success(propagationMessage(result.propagatedTo));
     }
   }
 
