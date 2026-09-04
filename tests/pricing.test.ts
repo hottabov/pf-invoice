@@ -1103,19 +1103,44 @@ describe("capPct", () => {
 });
 
 describe("commission calculation (PricingTotals.commission)", () => {
-  it("reproduces the owner's worked example to the cent", () => {
+  it("reproduces the owner's corrected worked example to the cent", () => {
     // Item 1  10,000
     // Item 2  15,000
     // Item 3  20,000
     // Item 4   3,000
-    // Item 5   6,000   (no commission)
     //         ------
-    //         54,000   list
+    //         48,000   commissionable list
+    // Item 5   6,000   (no commission, untouched by the discount -- Commit 1)
+    //         ------
+    //         54,000   list, all items
     //
-    // 10% discount -> 48,600 the customer pays
-    // commission base = 48,600 - 6,000 = 42,600
-    // 10% discount -> 4.5% rate
-    // commission = 42,600 x 4.5% = 1,917
+    // A 10% document discount now reaches only the 48,000 commissionable
+    // total (Commit 1 -- the no-commission item takes no percentage
+    // discount at all):
+    //   discount        = 48,000 x 10% = 4,800
+    //   customer pays    = (48,000 - 4,800) + 6,000 = 43,200 + 6,000 = 49,200
+    //   commission base  = 48,000 - 4,800 = 43,200 (list price of the
+    //                      no-commission item is subtracted separately below
+    //                      -- it was never part of the 48,000 commissionable
+    //                      total to begin with)
+    //   documentConcession.effectivePct = concession / listValue
+    //                    = 4,800 / 54,000 = 8.888...% -- NOT the flat 10%
+    //                      discount value, because the concession no longer
+    //                      includes any share of the no-commission item (it
+    //                      was never discounted). 8.89% still falls in the
+    //                      same "5.01-10% -> 4.5%" tier as a flat 10% would
+    //                      have, so the rate is unaffected here, but the two
+    //                      numbers are NOT the same thing in general.
+    //   rate             = 4.5% (tier for 8.888...%, same tier a flat 10%
+    //                      would also have landed in)
+    //   commission       = 43,200 x 4.5% = 1,944
+    //
+    // This differs from the original brief's worked figure ($1,917), which
+    // was computed by applying the 10% discount to the FULL 54,000
+    // (including the no-commission item) before subtracting that item's
+    // charged price. The owner's later, corrected instruction is that a
+    // no-commission line takes no discount in the first place, which is
+    // what this test (and the engine) now implement.
     const result = computeTotals({
       items: [
         { unitPrice: 10000, lines: [] },
@@ -1131,9 +1156,13 @@ describe("commission calculation (PricingTotals.commission)", () => {
       commissionTiers: DEFAULT_COMMISSION_TIERS,
     });
     expect(result.subtotal).toBe(54000);
-    expect(result.taxableBase).toBe(48600);
-    expect(result.documentConcession.effectivePct).toBe(10);
-    expect(result.commission).toEqual({ base: "42600.00", ratePct: 4.5, amount: "1917.00" });
+    // The customer pays 49,200 (43,200 discounted commissionable + 6,000
+    // untouched no-commission item), not 48,600 -- the no-commission item's
+    // full charged price passes through the document discount untouched.
+    expect(result.taxableBase).toBe(49200);
+    expect(result.documentConcession.parts.documentDiscount).toBe("4800.00");
+    expect(result.documentConcession.effectivePct).toBeCloseTo(8.888888888888889, 9);
+    expect(result.commission).toEqual({ base: "43200.00", ratePct: 4.5, amount: "1944.00" });
   });
 
   // Every tier boundary, both sides -- a tier table is nothing but
@@ -1226,7 +1255,16 @@ describe("commission calculation (PricingTotals.commission)", () => {
     expect(result.commission).toEqual({ base: "0.00", ratePct: 5, amount: "0.00" });
   });
 
-  it("clamps to zero rather than negative even when a document discount pushes the raw no-commission amount past the discounted total", () => {
+  it("a document discount can no longer push a wholly no-commission quote's taxableBase down at all (Commit 1)", () => {
+    // Before Commit 1, a 50% document discount reached every item
+    // regardless of isNoCommission, so a single no-commission item's
+    // taxableBase would have been cut in half (1,000 -> 500) and the
+    // commission-base clamp below would have been trivially satisfied by
+    // that halved figure. Now the no-commission item is entirely excluded
+    // from the document discount's base (documentDiscountBaseCents =
+    // subtotal(1000) - noCommissionCharged(1000) = 0), so the discount has
+    // nothing left to apply to and taxableBase stays the full 1,000 -- the
+    // clamp below is genuinely exercised by list price, not by a discount.
     const result = computeTotals({
       items: [{ unitPrice: 1000, lines: [], isNoCommission: true }],
       extraLines: [],
@@ -1235,20 +1273,18 @@ describe("commission calculation (PricingTotals.commission)", () => {
       taxRate: 0,
       commissionTiers: DEFAULT_COMMISSION_TIERS,
     });
-    expect(result.taxableBase).toBe(500);
+    expect(result.taxableBase).toBe(1000);
     expect(result.commission?.base).toBe("0.00");
     expect(result.commission?.amount).toBe("0.00");
   });
 
-  it("the full no-commission amount is subtracted from the discounted total, not that item's own discounted share", () => {
-    // A document-level 10% discount applies to the WHOLE document, so a
-    // no-commission item's "discounted share" would be 90% of its own
-    // price -- but the owner was explicit this must use the FULL raw
-    // amount instead. Item 1,000 (commissionable) + item 500 (no
-    // commission) = 1,500 list, 10% off = 1,350 taxable. If the code wrongly
-    // prorated the no-commission item's share (500 * 0.9 = 450), the base
-    // would read 1,350 - 450 = 900. The correct base subtracts the full 500:
-    // 1,350 - 500 = 850.
+  it("a no-commission item takes no document-level discount -- the commissionable item carries the whole discount instead", () => {
+    // Before Commit 1, a document-level 10% discount applied to the WHOLE
+    // 1,500 subtotal (150 off, taxableBase 1,350). Now the no-commission
+    // item (500) is carved out of the discount's base entirely --
+    // documentDiscountBaseCents = 1,500 - 500 = 1,000, so the discount is
+    // 10% of 1,000 = 100, not 150, and the no-commission item's own charged
+    // price (500) passes through completely untouched either way.
     const result = computeTotals({
       items: [
         { unitPrice: 1000, lines: [] },
@@ -1260,8 +1296,80 @@ describe("commission calculation (PricingTotals.commission)", () => {
       taxRate: 0,
       commissionTiers: DEFAULT_COMMISSION_TIERS,
     });
-    expect(result.taxableBase).toBe(1350);
-    expect(result.commission?.base).toBe("850.00");
+    expect(result.documentConcession.parts.documentDiscount).toBe("100.00");
+    // 1,500 - 100 = 1,400 (not the pre-Commit-1 1,350).
+    expect(result.taxableBase).toBe(1400);
+    // Commission base: taxableBase(1,400) - no-commission item's LIST
+    // price (500, defaults to its unitPrice) = 900.
+    expect(result.commission?.base).toBe("900.00");
+  });
+
+  it("the concession cap still catches a giveaway on a no-commission line (a hand-set price cut, not a discount)", () => {
+    const result = computeTotals({
+      items: [
+        { unitPrice: 10000, listPrice: 10000, lines: [] },
+        { unitPrice: 0, listPrice: 2000, lines: [], isNoCommission: true }, // given away
+      ],
+      extraLines: [],
+      regionMaxDiscountPct: 10,
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    // concession = (2000 - 0) price cut = 2000; listValue = 10000 + 2000 =
+    // 12000; effectivePct = 2000/12000*100 = 16.67%, above the 10% cap.
+    expect(result.documentConcession.concession).toBe("2000.00");
+    expect(result.documentConcession.listValue).toBe("12000.00");
+    expect(result.documentConcession.effectivePct).toBeCloseTo(16.666666666666668, 9);
+    expect(result.documentConcession.exceedsCap).toBe(true);
+  });
+
+  it("an item-level percentage discount on a wholly no-commission item is inert -- it does not apply at all", () => {
+    // Decision (see Commit 1's brief): item-level and document-level
+    // discounts are treated consistently -- neither reaches a no-commission
+    // line. A 50% item-level discount set on a no-commission item resolves
+    // to 0, not 500.
+    const result = computeTotals({
+      items: [
+        {
+          unitPrice: 1000,
+          listPrice: 1000,
+          discountMode: "PERCENT",
+          discountValue: "50",
+          lines: [],
+          isNoCommission: true,
+        },
+      ],
+      extraLines: [],
+      taxRate: 0,
+    });
+    expect(result.itemDiscounts).toEqual([0]);
+    expect(result.itemTotals).toEqual([1000]);
+    expect(result.violations).toEqual([]);
+  });
+
+  it("an item-level discount still applies to an ordinary line living on an otherwise no-commission item (the two flags are independent)", () => {
+    // The item itself is flagged no-commission, but carries one ordinary
+    // (non-no-commission) option line -- that line still receives its share
+    // of the item's own discount, matching how the document-level rule only
+    // ever carves out the specifically-flagged lines, never a whole item's
+    // ordinary content by association.
+    const result = computeTotals({
+      items: [
+        {
+          unitPrice: 1000, // excluded (item itself is flagged)
+          discountMode: "PERCENT",
+          discountValue: "10",
+          isNoCommission: true,
+          lines: [{ qty: 1, unitPrice: 500 }], // an ordinary line -- included
+        },
+      ],
+      extraLines: [],
+      taxRate: 0,
+    });
+    // discountBaseCents = 0 (item) + 500 (ordinary line) = 500; 10% of 500 = 50.
+    expect(result.itemDiscounts).toEqual([50]);
+    // base = 1000 + 500 = 1500; itemTotal = 1500 - 50 = 1450.
+    expect(result.itemTotals).toEqual([1450]);
   });
 
   it("is null when no tier table is configured (commissionTiers omitted)", () => {

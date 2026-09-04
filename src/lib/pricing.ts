@@ -70,11 +70,19 @@ export type EngineItem = {
   /** `Product.noCommission` — this item earns the salesperson no commission
    * at all, regardless of the document's discount tier. Read live off the
    * joined product, same rule as `isCredit` above (see
-   * `Product.noCommission`'s doc comment in schema.prisma). Consumed only
-   * by the commission calculation (`PricingTotals.commission` below), never
-   * by the ordinary money math — an item's price still counts fully toward
-   * `subtotal`/`total` whether or not it earns commission. Defaults to
-   * `false` when omitted, so every existing caller is unaffected. */
+   * `Product.noCommission`'s doc comment in schema.prisma).
+   *
+   * Consumed two ways: (1) the commission calculation
+   * (`PricingTotals.commission` below) subtracts this item's raw
+   * (pre-discount) contribution from the commission base; and (2) neither
+   * an item-level nor a document-level percentage/amount discount reaches
+   * this item's own unit price — see `computeTotals`'s doc comment ("a
+   * no-commission line takes no discount") for the reasoning. Neither of
+   * those touches the ordinary money math otherwise — an item's price
+   * still counts fully toward `subtotal`/`total` whether or not it earns
+   * commission; only a hand-set `unitPrice` (never a `discountValue`) can
+   * move it, right down to 0. Defaults to `false` when omitted, so every
+   * existing caller is unaffected. */
   isNoCommission?: boolean;
 };
 
@@ -338,9 +346,18 @@ export type DocumentConcession = {
    */
   parts: {
     /** The document-level discount amount (`discountAmountCents` in
-     * `computeTotals`) — never negative. */
+     * `computeTotals`) — never negative. Smaller than a flat
+     * `discountValue`% of the whole `subtotal` once any line is flagged
+     * `isNoCommission` — the discount is resolved against the commissionable
+     * part of `subtotal` only (see `computeTotals`'s doc comment); a
+     * no-commission line's charged price simply isn't in this figure at all,
+     * which correctly shrinks the resulting concession rather than opening a
+     * loophole (the customer still pays that line's full charged price). */
     documentDiscount: string;
-    /** Sum of every item's own discount amount — never negative. */
+    /** Sum of every item's own discount amount — never negative. Same
+     * no-commission carve-out as `documentDiscount` above, one level down:
+     * an item (or line) flagged `isNoCommission` contributes 0 here
+     * regardless of its own `discountValue`. */
     itemDiscounts: string;
     /** Net of `(listPrice − unitPrice) × qty` across every item and option
      * line — signed; see this field's doc comment above. */
@@ -604,12 +621,37 @@ export function capPct(mode: DiscountMode, value: string | null, baseCents: numb
  *   violation is reported — the cap is NOT auto-applied, the math still uses
  *   the requested discount. Callers decide whether to reject the save when
  *   violations are present.
+ *
+ *   A NO-COMMISSION LINE TAKES NO DISCOUNT (director's ruling: a line that
+ *   earns the business no commission earns it no discount either, "because
+ *   we don't make money on such items"). Concretely, the item's own
+ *   discount is resolved against a *narrower* base than plain `unitPrice +
+ *   Σlines` — every line flagged `isNoCommission`, and the item's own
+ *   unitPrice if the ITEM itself is flagged (`EngineItem.isNoCommission`),
+ *   is carved out of that base first; the discount (whatever `discountValue`
+ *   asks for) is computed and subtracted from what's left, and the carved-out
+ *   portion passes through to `itemTotal` completely untouched. A wholly
+ *   no-commission item ends up with a base of 0, so its discount silently
+ *   resolves to 0 no matter what `discountValue` says — "no discount is
+ *   applied", full stop; no violation is reported in that case either (see
+ *   the commission section below and the inline comment at the check itself
+ *   for why). A HAND-SET `unitPrice` is a completely different mechanism
+ *   (see `EngineItem.isNoCommission`'s doc comment) and is never affected by
+ *   any of this — a salesperson can still price a no-commission line down to
+ *   $0 by hand, same as any other line.
  * - grossSubtotal = Σ item bases + Σ(extraLine.qty * extraLine.unitPrice),
  *   before any discounts.
  * - subtotal = Σ itemTotals + Σ(extraLine.qty * extraLine.unitPrice).
  * - The document-level discount (same mode + value shape, default "no
- *   discount") is resolved and subtracted from subtotal → taxableBase.
- *   discountAmount = subtotal - taxableBase.
+ *   discount") gets the identical no-commission carve-out one level up: it is
+ *   resolved against `subtotal` minus the raw charged amount of every
+ *   no-commission item/line across the whole document (not just this one
+ *   item's own no-commission lines) — see the commission section below for
+ *   where that running total is accumulated — and subtracted from `subtotal`
+ *   → taxableBase. discountAmount = subtotal - taxableBase. A no-commission
+ *   line's charged price is therefore identical before and after the
+ *   document-level discount is applied — the customer pays its full charged
+ *   price regardless of how deep a document discount cuts everything else.
  * - taxAmount = taxableBase * taxRate/100.
  * - total = taxableBase + taxAmount.
  *
@@ -694,26 +736,44 @@ export function computeTotals(input: EngineInput): PricingTotals {
   // itself (and therefore `PricingTotals.itemDiscounts`/`totalDiscountAmount`)
   // exactly like any other item's discount would, for display purposes.
   let itemDiscountConcessionCents = 0;
-  // The raw (pre-item-discount, pre-document-discount) contribution of
-  // every item/option line flagged `isNoCommission` — see the commission
-  // section below for why the RAW amount, not each one's own discounted
-  // share, is what gets subtracted from `taxableBaseCents`. Excluded for a
-  // credit item the same way `itemDiscountConcessionCents` is: a credit
-  // item's contribution to the document is already handled entirely
-  // through `creditItemsAbsCents`/`tradeIns`, so folding its raw amount in
-  // here too would double-count money that was never a "sale" to begin
-  // with.
-  let noCommissionCents = 0;
+  // The RAW charged amount (qty * unitPrice) of every item/option line
+  // flagged `isNoCommission` — before ITS OWN item-level discount, and
+  // before the document-level discount. A credit item is excluded, the
+  // same way it's excluded from `itemDiscountConcessionCents` — its
+  // contribution to the document is already handled entirely through
+  // `creditItemsAbsCents`/`tradeIns`. Used two ways below: (1) to carve the
+  // document-level discount's base down to the commissionable part of
+  // `subtotal` (Commit 1: "a no-commission line takes no discount" — see
+  // `computeTotals`'s doc comment; the same carve-out at the *item* level
+  // happens inline in the loop below, against each item's own
+  // `discountBaseCents`), and (2) subtracted from the commission base
+  // further down, unchanged from how this figure was already used before
+  // this feature — see the commission section below.
+  let noCommissionChargedCents = 0;
 
   const itemDiscountsCents: number[] = [];
   const itemTotalsCents = input.items.map((item, itemIndex) => {
     const isCredit = item.isCredit ?? false;
+    const isItemNoCommission = item.isNoCommission ?? false;
     const itemUnitPriceCents = toCents(item.unitPrice);
     const itemListPriceCents = item.listPrice != null ? toCents(item.listPrice) : itemUnitPriceCents;
 
-    const linesCents = item.lines.reduce((sum, line) => {
+    let linesCents = 0;
+    // The sum of this item's own lines that are NOT individually flagged
+    // `isNoCommission` — together with the item's own unitPrice (unless the
+    // ITEM itself is flagged), this is the base this item's OWN discount is
+    // computed against; see `discountBaseCents` below. Accumulated
+    // regardless of `isCredit` (a credit item's own discount, if any, is
+    // still resolved the same way one level down — see `EngineItem.isCredit`'s
+    // doc comment on why that's an unsupported-but-harmless edge case), but
+    // only non-credit items fold their no-commission lines into the two
+    // document-wide running totals above.
+    let lineCommissionableChargedCents = 0;
+    for (const line of item.lines) {
       const lineUnitPriceCents = toCents(line.unitPrice);
       const lineListPriceCents = line.listPrice != null ? toCents(line.listPrice) : lineUnitPriceCents;
+      const lineChargedCents = line.qty * lineUnitPriceCents;
+      linesCents += lineChargedCents;
       // A credit item is excluded from the price-adjustment/list-value
       // accumulation entirely — its money is counted once, via
       // `creditItemsAbsCents` below, not through this term too (see the
@@ -721,17 +781,38 @@ export function computeTotals(input: EngineInput): PricingTotals {
       if (!isCredit) {
         concessionCents += (lineListPriceCents - lineUnitPriceCents) * line.qty;
         listValueCents += lineListPriceCents * line.qty;
-        if (line.isNoCommission) noCommissionCents += line.qty * lineUnitPriceCents;
       }
-      return sum + line.qty * lineUnitPriceCents;
-    }, 0);
+      if (line.isNoCommission) {
+        if (!isCredit) {
+          noCommissionChargedCents += lineChargedCents;
+        }
+      } else {
+        lineCommissionableChargedCents += lineChargedCents;
+      }
+    }
     const baseCents = itemUnitPriceCents + linesCents;
+
+    // Commit 1: a no-commission line takes no discount — this item's own
+    // discount is resolved against a narrower base than plain `baseCents`,
+    // carving out every no-commission line above plus the item's own
+    // unitPrice if the ITEM itself is flagged (the two flags are
+    // independent — see `EngineItem.isNoCommission`'s doc comment). A wholly
+    // no-commission item (or one whose only lines are all flagged) ends up
+    // with a base of 0, so `discountCents` below resolves to 0 regardless of
+    // what `discountValue` asks for.
+    const discountBaseCents = (isItemNoCommission ? 0 : itemUnitPriceCents) + lineCommissionableChargedCents;
 
     const mode = item.discountMode ?? "PERCENT";
     const value = item.discountValue ?? null;
-    const discount = discountCents(baseCents, mode, value);
+    const discount = discountCents(discountBaseCents, mode, value);
     const allowedPct = item.maxDiscountPct ?? 100;
-    if (capPct(mode, value, baseCents, discount) > allowedPct) {
+    // Guarded on `discountBaseCents > 0`: `capPct`'s PERCENT branch reports
+    // the *typed* value regardless of base (see its own doc comment), which
+    // would otherwise flag a "cap violation" against a discount that
+    // (per the carve-out above) can never actually apply to anything — a
+    // wholly no-commission item's `discountValue` is inert, not a violation
+    // waiting to happen.
+    if (discountBaseCents > 0 && capPct(mode, value, discountBaseCents, discount) > allowedPct) {
       violations.push({ itemIndex, allowedPct });
     }
 
@@ -752,7 +833,9 @@ export function computeTotals(input: EngineInput): PricingTotals {
 
     concessionCents += itemListPriceCents - itemUnitPriceCents;
     listValueCents += itemListPriceCents;
-    if (item.isNoCommission) noCommissionCents += itemUnitPriceCents;
+    if (isItemNoCommission) {
+      noCommissionChargedCents += itemUnitPriceCents;
+    }
     return itemMagnitudeCents;
   });
 
@@ -773,7 +856,18 @@ export function computeTotals(input: EngineInput): PricingTotals {
 
   const documentMode = input.documentDiscountMode ?? "PERCENT";
   const documentValue = input.documentDiscountValue ?? null;
-  const discountAmountCents = discountCents(subtotalCents, documentMode, documentValue);
+  // Commit 1's document-level carve-out: the same "no-commission line takes
+  // no discount" rule as each item's own discount above, applied to the
+  // whole document at once. `noCommissionChargedCents` is every
+  // no-commission item/line's raw charged amount across the entire
+  // document (accumulated in the items/lines loop above) — subtracting it
+  // from `subtotalCents` leaves exactly the commissionable part of the
+  // document for the discount to be resolved against. The excluded portion
+  // still passes straight through from `subtotalCents` to `taxableBaseCents`
+  // unchanged (below), so a no-commission line's charged price is identical
+  // before and after the document discount is applied.
+  const documentDiscountBaseCents = subtotalCents - noCommissionChargedCents;
+  const discountAmountCents = discountCents(documentDiscountBaseCents, documentMode, documentValue);
   const totalDiscountAmountCents = itemDiscountTotalCents + discountAmountCents;
   const taxableBaseCents = subtotalCents - discountAmountCents;
 
@@ -828,20 +922,19 @@ export function computeTotals(input: EngineInput): PricingTotals {
   //                    earns the 0% tier, not a negative rate)
   //   commission     = commissionBase × rate
   //
-  // `noCommissionCents` (accumulated above) is each flagged item/line's RAW
-  // amount — before ITS OWN item-level discount, and before the
-  // document-level discount — not the discounted share a proportional read
-  // would give it. The owner was explicit about this with a worked example
-  // (5 items, one flagged, only a document-level discount applied): the
-  // flagged item's full raw price is subtracted from the document's
-  // discounted total, not that item's own discounted slice of it. Do NOT
-  // "simplify" this to prorating the document discount across the flagged
-  // amount first — in practice the two read the same, because an item
-  // excluded from commission is, on every real price list this shipped
-  // against, also excluded from discounting in the first place; this is
-  // simply what the owner specified, and it's the simpler rule to compute
-  // and to explain besides.
-  const commissionBaseCents = Math.max(0, taxableBaseCents - noCommissionCents);
+  // `noCommissionChargedCents` (accumulated above, and now also doing double
+  // duty carving the document-level discount's base — see above) is each
+  // flagged item/line's RAW amount — before ITS OWN item-level discount, and
+  // before the document-level discount — not the discounted share a
+  // proportional read would give it. The owner was explicit about this with
+  // a worked example (5 items, one flagged, only a document-level discount
+  // applied): the flagged item's full raw price is subtracted from the
+  // document's discounted total, not that item's own discounted slice of
+  // it. Do NOT "simplify" this to prorating the document discount across
+  // the flagged amount first — since Commit 1, the document-level discount
+  // no longer reaches a no-commission line's charged price at all, so this
+  // is now simply the item/line's own unchanged charged price either way.
+  const commissionBaseCents = Math.max(0, taxableBaseCents - noCommissionChargedCents);
   let commission: CommissionResult | null = null;
   if (input.commissionTiers && input.commissionTiers.length > 0) {
     const ratePct = commissionRateForPct(input.commissionTiers, Math.max(0, documentEffectivePct));

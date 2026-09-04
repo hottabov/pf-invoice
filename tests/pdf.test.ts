@@ -647,16 +647,19 @@ describe("renderQuotationHtml — Ex Works delivery terms", () => {
 // but that's exactly the property a careless future change (e.g. spreading
 // `document` straight into `QuotationData`, or copy-pasting the builder's
 // `DocumentTotals` block into a sheet component) could quietly break. This
-// test reproduces the owner's own worked example end to end — a real
-// document that DOES earn a real, non-trivial commission ($1,917, at the
-// pricing-engine level — see the "reproduces the owner's worked example"
-// test in tests/pricing.test.ts) — and asserts that figure, and the word
-// "commission" itself, never appear anywhere in the rendered quotation HTML.
+// test reproduces the owner's own corrected worked example end to end — a
+// real document that DOES earn a real, non-trivial commission ($1,944, at
+// the pricing-engine level — see the "reproduces the owner's corrected
+// worked example" test in tests/pricing.test.ts) — and asserts that figure,
+// and the word "commission" itself, never appear anywhere in the rendered
+// quotation HTML.
 describe("renderQuotationHtml — commission never appears in the rendered quotation", () => {
-  it("does not render the owner's worked-example commission figure ($1,917) or the word 'commission'", async () => {
-    // Same document as the owner's example: 5 items (10,000 / 15,000 /
-    // 20,000 / 3,000 / 6,000), a 10% document discount -> $48,600, and (at
-    // the pricing-engine level, verified separately) a $1,917 commission.
+  it("does not render the owner's worked-example commission figure ($1,944) or the word 'commission'", async () => {
+    // Same document as the owner's corrected example: 5 items (10,000 /
+    // 15,000 / 20,000 / 3,000 commissionable, 6,000 no-commission), a 10%
+    // document discount that reaches only the 48,000 commissionable total
+    // (Commit 1) -> the customer pays $49,200, and (at the pricing-engine
+    // level, verified separately) a $1,944 commission.
     const engineResult = computeTotals({
       items: [
         { unitPrice: 10000, lines: [] },
@@ -671,9 +674,10 @@ describe("renderQuotationHtml — commission never appears in the rendered quota
       taxRate: 0,
       commissionTiers: DEFAULT_COMMISSION_TIERS,
     });
-    // Confirms this test is actually exercising the $1,917 scenario it
+    // Confirms this test is actually exercising the $1,944 scenario it
     // claims to, not a stale/wrong fixture.
-    expect(engineResult.commission).toEqual({ base: "42600.00", ratePct: 4.5, amount: "1917.00" });
+    expect(engineResult.taxableBase).toBe(49200);
+    expect(engineResult.commission).toEqual({ base: "43200.00", ratePct: 4.5, amount: "1944.00" });
 
     const html = await renderQuotationHtml(
       baseQuotationData({
@@ -689,22 +693,22 @@ describe("renderQuotationHtml — commission never appears in the rendered quota
           subtotal: "54000.00",
           discountMode: "PERCENT",
           discountValue: "10",
-          discountAmount: "5400.00",
+          discountAmount: "4800.00",
           taxName: "GST",
           taxRate: "0",
           taxAmount: "0.00",
-          total: "48600.00",
+          total: "49200.00",
           deliveryTerms: "DELIVERED",
         },
       })
     );
 
-    // Sanity check: this really is the $48,600 document the commission was
+    // Sanity check: this really is the $49,200 document the commission was
     // computed against, not an unrelated fixture that trivially passes.
-    expect(html).toContain("48,600");
+    expect(html).toContain("49,200");
 
-    expect(html).not.toContain("1,917");
-    expect(html).not.toContain("1917");
+    expect(html).not.toContain("1,944");
+    expect(html).not.toContain("1944");
     expect(html.toLowerCase()).not.toContain("commission");
   });
 

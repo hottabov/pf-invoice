@@ -163,10 +163,11 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
   const document = await client.document.findUnique({
     where: { id: documentId },
     include: {
-      // `isCredit` only — see `EngineItem.isCredit`'s doc comment
-      // (src/lib/pricing.ts) for why this flag (not the sign of a typed
-      // price) is what turns an item into a subtraction.
-      items: { include: { lines: true, product: { select: { isCredit: true } } } },
+      // `isCredit`/`noCommission` — see `EngineItem.isCredit`'s and
+      // `EngineItem.isNoCommission`'s doc comments (src/lib/pricing.ts) for
+      // why these flags (never the sign or size of a typed price) are what
+      // drive the engine's credit/no-commission handling.
+      items: { include: { lines: true, product: { select: { isCredit: true, noCommission: true } } } },
       lines: { where: { itemId: null } },
       region: true,
     },
@@ -181,6 +182,31 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
     };
   }
 
+  // `Option.noCommission` is read live off the option, the same "joined,
+  // never snapshotted" rule `EngineItem.isNoCommission`'s doc comment
+  // describes — resolved here via one extra query for every OPTION line's
+  // `refId` (a document-level extra line is always CUSTOM, never OPTION —
+  // see the `LineKind` enum — so only item lines can ever need this). This
+  // is what makes the persisted `subtotal`/`taxAmount`/`total` below (what
+  // the customer is actually charged) respect the "a no-commission line
+  // takes no discount" rule — without it, `EngineInput.items[].isNoCommission`/
+  // `lines[].isNoCommission` would always read `false` here regardless of
+  // the catalogue, and the discount-exclusion computeTotals now does would
+  // never actually take effect on a saved document.
+  const optionRefIds = Array.from(
+    new Set(
+      document.items
+        .flatMap((item) => item.lines)
+        .filter((line): line is (typeof document.lines)[number] & { refId: string } => line.kind === "OPTION" && line.refId !== null)
+        .map((line) => line.refId)
+    )
+  );
+  const optionRows =
+    optionRefIds.length > 0
+      ? await db.option.findMany({ where: { id: { in: optionRefIds } }, select: { id: true, noCommission: true } })
+      : [];
+  const optionNoCommissionMap = new Map(optionRows.map((o) => [o.id, o.noCommission]));
+
   const regionMaxDiscountPct = document.region.maxDiscountPct ? Number(document.region.maxDiscountPct) : null;
   const regionMaxMarkupPct = document.region.maxMarkupPct ? Number(document.region.maxMarkupPct) : null;
   const engineInput: EngineInput = {
@@ -191,10 +217,12 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
       discountValue: item.discountValue !== null ? item.discountValue.toString() : null,
       maxDiscountPct: regionMaxDiscountPct,
       isCredit: item.product?.isCredit ?? false,
+      isNoCommission: item.product?.noCommission ?? false,
       lines: item.lines.map((line) => ({
         qty: line.qty,
         unitPrice: Number(line.unitPrice),
         listPrice: line.listPrice !== null ? Number(line.listPrice) : null,
+        isNoCommission: line.refId !== null ? (optionNoCommissionMap.get(line.refId) ?? false) : false,
       })),
     })),
     extraLines: document.lines.map((line) => ({ qty: line.qty, unitPrice: Number(line.unitPrice) })),
@@ -1001,6 +1029,22 @@ function discountCapMessage(
  * is compared to the cap using the typed value directly instead — see
  * `capPct` in src/lib/pricing.ts for why the two modes are compared
  * differently.
+ *
+ * That "item's own base" is narrowed the same way `computeTotals` narrows
+ * it (see its "a no-commission line takes no discount" doc comment): the
+ * item's own unitPrice is excluded when the item itself is flagged
+ * `Product.noCommission`, and any OPTION line whose `Option.noCommission` is
+ * set is excluded too. This has to match the engine's own `discountBaseCents`
+ * exactly, not just approximate it — for a PERCENT discount it wouldn't
+ * matter (`capPct`'s PERCENT branch reports the typed value regardless of
+ * base either way), but for an AMOUNT discount the resolved cash amount is
+ * clamped to whatever base it's checked against (`discountCents`), so
+ * checking against the item's FULL price here while the engine later
+ * resolves it against the smaller commissionable-only price would let a
+ * MANAGER save a dollar discount that reads as comfortably under cap here
+ * but concentrates entirely onto the smaller commissionable slice once
+ * actually applied — silently a much bigger effective percentage discount
+ * than what this check approved.
  */
 export async function setItemDiscount(itemId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -1025,7 +1069,7 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
     include: {
       document: { include: { region: true } },
       lines: true,
-      product: { select: { isCredit: true } },
+      product: { select: { isCredit: true, noCommission: true } },
     },
   });
   if (!item) return { error: NOT_FOUND_ERROR };
@@ -1044,12 +1088,33 @@ export async function setItemDiscount(itemId: string, formData: FormData): Promi
 
   let warning: string | undefined;
   if (parsedValue.data !== null && cap !== null) {
+    // Narrowed to the commissionable-only base — see this function's own
+    // doc comment above for why this must mirror `computeTotals`'s
+    // `discountBaseCents` exactly, not just the item's plain full price.
+    const optionRefIds = item.lines
+      .filter((line): line is (typeof item.lines)[number] & { refId: string } => line.kind === "OPTION" && line.refId !== null)
+      .map((line) => line.refId);
+    const optionRows =
+      optionRefIds.length > 0
+        ? await db.option.findMany({ where: { id: { in: optionRefIds } }, select: { id: true, noCommission: true } })
+        : [];
+    const optionNoCommissionMap = new Map(optionRows.map((o) => [o.id, o.noCommission]));
+    const isItemNoCommission = item.product?.noCommission ?? false;
+
     const baseCents =
-      toCents(item.unitPrice.toString()) +
-      item.lines.reduce((sum, line) => sum + line.qty * toCents(line.unitPrice.toString()), 0);
+      (isItemNoCommission ? 0 : toCents(item.unitPrice.toString())) +
+      item.lines.reduce((sum, line) => {
+        const lineNoCommission = line.refId !== null ? (optionNoCommissionMap.get(line.refId) ?? false) : false;
+        return lineNoCommission ? sum : sum + line.qty * toCents(line.unitPrice.toString());
+      }, 0);
     const discount = discountCents(baseCents, parsedMode.data, parsedValue.data);
     const effPct = capPct(parsedMode.data, parsedValue.data, baseCents, discount);
-    if (effPct > cap) {
+    // Guarded on `baseCents > 0` the same way `computeTotals` guards its own
+    // violation check: a wholly no-commission item's discount is inert
+    // (resolves to 0 regardless of the typed value), so there's no actual
+    // over-cap money movement here to block — see this function's own doc
+    // comment.
+    if (baseCents > 0 && effPct > cap) {
       const message = discountCapMessage(
         parsedMode.data,
         parsedValue.data,
@@ -1398,11 +1463,18 @@ export async function setItemDescription(itemId: string, formData: FormData): Pr
  *
  * A cash (AMOUNT) discount is converted back to an effective percentage of
  * the document's own subtotal before the cap check, same reasoning (and the
- * same `capPct` helper) as `setItemDiscount`. The subtotal used is the
- * document's already-persisted `subtotal` column (items + extra lines,
- * computed by the last `recalcDocument`) rather than a fresh engine run —
- * this action never touches items/lines, so that figure is already exactly
- * right and re-deriving it would just be the same read done twice.
+ * same `capPct` helper) as `setItemDiscount`. The subtotal used starts from
+ * the document's already-persisted `subtotal` column (items + extra lines,
+ * computed by the last `recalcDocument`) — this action never touches
+ * items/lines, so that figure is already exactly right — but then has every
+ * no-commission item/line's charged amount subtracted out of it, mirroring
+ * `computeTotals`'s own `documentDiscountBaseCents` (see its "a
+ * no-commission line takes no discount" doc comment) so this pre-check is
+ * comparing against the exact same base the engine will actually resolve
+ * the discount against. Skipping that narrowing (comparing against the
+ * plain, un-narrowed subtotal instead) would have the same AMOUNT-mode
+ * under-reporting problem `setItemDiscount`'s own doc comment describes one
+ * level down.
  */
 export async function setDocumentDiscount(documentId: string, formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
@@ -1421,7 +1493,14 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
 
   const document = await db.document.findFirst({
     where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
-    include: { region: true },
+    include: {
+      region: true,
+      // Only needed to narrow the cap check's base below (see this
+      // function's own doc comment) — `product`/lines' `refId` are read to
+      // find every no-commission item/line's charged amount, the same
+      // "joined live" rule `computeTotals`'s inputs already follow.
+      items: { include: { lines: true, product: { select: { noCommission: true } } } },
+    },
   });
   if (!document) return { error: NOT_FOUND_ERROR };
 
@@ -1429,10 +1508,31 @@ export async function setDocumentDiscount(documentId: string, formData: FormData
 
   let warning: string | undefined;
   if (parsedValue.data !== null && cap !== null) {
-    const subtotalCents = toCents(document.subtotal.toString());
+    const optionRefIds = document.items
+      .flatMap((item) => item.lines)
+      .filter((line): line is (typeof document.items)[number]["lines"][number] & { refId: string } => line.kind === "OPTION" && line.refId !== null)
+      .map((line) => line.refId);
+    const optionRows =
+      optionRefIds.length > 0
+        ? await db.option.findMany({ where: { id: { in: optionRefIds } }, select: { id: true, noCommission: true } })
+        : [];
+    const optionNoCommissionMap = new Map(optionRows.map((o) => [o.id, o.noCommission]));
+
+    let noCommissionChargedCents = 0;
+    for (const item of document.items) {
+      if (item.product?.noCommission) noCommissionChargedCents += toCents(item.unitPrice.toString());
+      for (const line of item.lines) {
+        const lineNoCommission = line.refId !== null ? (optionNoCommissionMap.get(line.refId) ?? false) : false;
+        if (lineNoCommission) noCommissionChargedCents += line.qty * toCents(line.unitPrice.toString());
+      }
+    }
+
+    const subtotalCents = toCents(document.subtotal.toString()) - noCommissionChargedCents;
     const discount = discountCents(subtotalCents, parsedMode.data, parsedValue.data);
     const effPct = capPct(parsedMode.data, parsedValue.data, subtotalCents, discount);
-    if (effPct > cap) {
+    // Guarded on `subtotalCents > 0` the same way `computeTotals`'s own
+    // violation check is — see `setItemDiscount`'s equivalent guard.
+    if (subtotalCents > 0 && effPct > cap) {
       const message = discountCapMessage(
         parsedMode.data,
         parsedValue.data,
