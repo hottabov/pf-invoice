@@ -32,7 +32,6 @@ export function ItemsSection({
   resetLineUnitPriceAction,
   setItemShowImageAction,
   setItemSerialNumberAction,
-  setItemDescriptionAction,
   reorderItemsAction,
   showOptionIcons = true,
   screenSideImages,
@@ -55,9 +54,6 @@ export function ItemsSection({
   /** Credit-item-only field (see `ItemsList`'s doc comment) — sets
    * `DocumentItem.serialNumber`, the machine being taken in trade. */
   setItemSerialNumberAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
-  /** Credit-item-only field, alongside `setItemSerialNumberAction` — sets
-   * `DocumentItem.description`. */
-  setItemDescriptionAction: (itemId: string, formData: FormData) => Promise<ActionResult>;
   reorderItemsAction: (documentId: string, orderedItemIds: string[]) => Promise<ActionResult>;
   /** "ui.showOptionIcons" app setting, read server-side by the builder page
    * and threaded down to `ItemOptionsEditor` — see its own doc comment. */
@@ -85,7 +81,6 @@ export function ItemsSection({
           resetLineUnitPriceAction={resetLineUnitPriceAction}
           setItemShowImageAction={setItemShowImageAction}
           setItemSerialNumberAction={setItemSerialNumberAction}
-          setItemDescriptionAction={setItemDescriptionAction}
           reorderItemsAction={reorderItemsAction}
           showOptionIcons={showOptionIcons}
           screenSideImages={screenSideImages}

@@ -39,7 +39,6 @@ import {
   exceedsPercentCeiling,
   idSchema,
   isPermutation,
-  itemDescriptionSchema,
   notesSchema,
   optionSelectionSchema,
   optionalIdSchema,
@@ -1428,8 +1427,7 @@ export async function setItemShowImage(itemId: string, show: boolean): Promise<A
  * product) is taking in trade. `DocumentItem.serialNumber` exists for every
  * item but is not editable anywhere else in the builder — it's opened up
  * here specifically so a salesperson can record which physical machine was
- * traded, alongside `setItemDescription` below recording its model. Purely
- * a record-keeping field — it doesn't affect pricing, so like
+ * traded. Purely a record-keeping field — it doesn't affect pricing, so like
  * `setItemShowImage` there's no `recalcDocument` call.
  */
 export async function setItemSerialNumber(itemId: string, formData: FormData): Promise<ActionResult> {
@@ -1453,42 +1451,6 @@ export async function setItemSerialNumber(itemId: string, formData: FormData): P
   await db.documentItem.update({
     where: { id: item.id },
     data: { serialNumber: parsed.data },
-  });
-
-  revalidatePath(`/documents/${item.documentId}`);
-  return {};
-}
-
-/**
- * Edits an item's own `description` — normally just a snapshot of the
- * catalogue product's description taken at `addItem` time and never
- * touched again. For a credit item (the TRADE-IN product) this field
- * carries the trade-in terms text, and the salesperson needs to append the
- * traded-in machine's model to it — hence making it editable here,
- * specifically for credit items (see the `isCredit`-gated UI in
- * `items-list.tsx`). Purely descriptive — no `recalcDocument` call.
- */
-export async function setItemDescription(itemId: string, formData: FormData): Promise<ActionResult> {
-  const session = await requireSession();
-
-  const parsedItemId = idSchema.safeParse(itemId);
-  if (!parsedItemId.success) return { error: NOT_FOUND_ERROR };
-
-  const parsed = itemDescriptionSchema.safeParse(formData.get("description"));
-  if (!parsed.success) return { error: flattenZodError(parsed.error) };
-
-  const item = await db.documentItem.findFirst({
-    where: {
-      id: parsedItemId.data,
-      document: { status: "DRAFT", ...documentWhereForUser(session.user) },
-    },
-    select: { id: true, documentId: true },
-  });
-  if (!item) return { error: NOT_FOUND_ERROR };
-
-  await db.documentItem.update({
-    where: { id: item.id },
-    data: { description: parsed.data },
   });
 
   revalidatePath(`/documents/${item.documentId}`);

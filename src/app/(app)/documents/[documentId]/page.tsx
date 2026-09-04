@@ -33,7 +33,6 @@ import {
   setDocumentDiscount,
   setDocumentHeroImage,
   setDocumentNotes,
-  setItemDescription,
   setItemDiscount,
   setItemOptions,
   setItemSerialNumber,
@@ -202,7 +201,6 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
             resetLineUnitPriceAction={resetLineUnitPrice}
             setItemShowImageAction={setItemShowImage}
             setItemSerialNumberAction={setItemSerialNumber}
-            setItemDescriptionAction={setItemDescription}
             reorderItemsAction={reorderItems}
             showOptionIcons={showOptionIcons}
             screenSideImages={screenSideImages}
