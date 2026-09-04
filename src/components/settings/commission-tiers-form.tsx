@@ -10,6 +10,25 @@ import type { ActionResult } from "@/lib/actions/settings";
 
 const MAX_ROWS = 12;
 
+/** Both columns and the remove button, shared by the header row and every
+ * tier row so they line up by construction. Stacks on a phone, where the
+ * per-cell labels take over from the column headings. */
+const TIER_GRID =
+  "grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.75rem] sm:items-center sm:gap-3";
+
+/** The percentage a row starts at: 0 for the first, one hundredth past the
+ * row above for the rest — the same derivation `toTiers` performs, shown to
+ * the admin so each row reads as the range it is rather than a lone number.
+ * Rendered, never submitted. */
+function lowerBoundOf(rows: TierRow[], index: number): number {
+  let minPct = 0;
+  for (let i = 0; i < index; i++) {
+    const upTo = Number(rows[i].upToPct);
+    minPct = Math.round(((Number.isFinite(upTo) ? upTo : 0) + 0.01) * 100) / 100;
+  }
+  return minPct;
+}
+
 /** One edited row — only the upper bound and the rate are ever typed; a
  * row's `minPct` is always derived from the row before it (see `toTiers`
  * below), and the LAST row is always rendered as "and above" with no upper
@@ -124,39 +143,77 @@ export function CommissionTiersForm({
         <p className="text-sm text-slate-500">No commission tiers — the builder won&apos;t show a commission figure.</p>
       ) : null}
 
+      {/* A real two-column grid rather than a flex row per tier. The previous
+          layout kept the last row's rate input in line with the others using
+          an invisible spacer standing in for the upper-bound field it does
+          not have, which is exactly the kind of alignment that comes apart
+          the moment anything around it changes — and it did. Here every cell
+          sits in a named column, so the "and above" row aligns because it
+          occupies the same column, not because something is padding it. */}
+      {rows.length > 0 ? (
+        <div className={cn(TIER_GRID, "hidden sm:grid")}>
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Discount given</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-brand sm:border-l sm:border-slate-200 sm:pl-3">
+            Commission earned
+          </span>
+          <span aria-hidden="true" />
+        </div>
+      ) : null}
+
       {rows.map((row, index) => {
         const isLast = index === rows.length - 1;
+        const fromPct = lowerBoundOf(rows, index);
         return (
-          <div key={row.id} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <span className="w-20 shrink-0 text-sm text-slate-500">{isLast ? "and above" : "Up to"}</span>
-            {isLast ? (
-              <span className="hidden sm:block sm:w-32" aria-hidden="true" />
-            ) : (
+          <div key={row.id} className={TIER_GRID}>
+            <div className="flex items-center gap-2">
+              <span className="w-24 shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:hidden">
+                Discount
+              </span>
+              {/* The lower bound is derived from the row above, never typed
+                  (see `toTiers`), so it reads as text — showing it turns a
+                  bare number into the range it actually means. */}
+              <span className="shrink-0 text-sm tabular-nums text-slate-500">{fromPct}%</span>
+              {isLast ? (
+                <span className="text-sm text-slate-500">and above</span>
+              ) : (
+                <>
+                  <span aria-hidden="true" className="text-sm text-slate-400">
+                    –
+                  </span>
+                  <input
+                    aria-label={`Tier ${index + 1} upper bound, percent`}
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.01}
+                    value={row.upToPct}
+                    onChange={(e) => updateRow(row.id, { upToPct: e.target.value })}
+                    disabled={pending}
+                    className={cn(fieldInputClass, "w-full min-w-0")}
+                  />
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2 sm:border-l sm:border-slate-200 sm:pl-3">
+              <span className="w-24 shrink-0 text-xs font-semibold uppercase tracking-wide text-brand sm:hidden">
+                Commission
+              </span>
               <input
-                aria-label={`Tier ${index + 1} upper bound, percent`}
+                aria-label={`Tier ${index + 1} rate, percent`}
+                placeholder="Rate %"
                 type="number"
                 min={0}
                 max={100}
                 step={0.01}
-                value={row.upToPct}
-                onChange={(e) => updateRow(row.id, { upToPct: e.target.value })}
+                value={row.ratePct}
+                onChange={(e) => updateRow(row.id, { ratePct: e.target.value })}
                 disabled={pending}
-                className={cn(fieldInputClass, "sm:w-32")}
+                className={cn(fieldInputClass, "w-full min-w-0")}
               />
-            )}
-            <input
-              aria-label={`Tier ${index + 1} rate, percent`}
-              placeholder="Rate %"
-              type="number"
-              min={0}
-              max={100}
-              step={0.01}
-              value={row.ratePct}
-              onChange={(e) => updateRow(row.id, { ratePct: e.target.value })}
-              disabled={pending}
-              className={cn(fieldInputClass, "sm:w-32")}
-            />
-            {pending ? null : (
+            </div>
+            {pending ? (
+              <span aria-hidden="true" className="hidden sm:block" />
+            ) : (
               <Button
                 type="button"
                 variant="outline"
