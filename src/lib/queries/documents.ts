@@ -208,6 +208,13 @@ export type BuilderItem = {
    * `EngineItem.isCredit` in src/lib/pricing.ts for why the sign lives on
    * the product, not on what the salesperson types. */
   isCredit: boolean;
+  /** `Product.noCommission`, read live off the joined product (same rule as
+   * `isCredit` above). The engine already consumes this to keep the line out
+   * of the commission base and out of any percentage discount; the builder
+   * card additionally tints itself so a salesperson sees at a glance that
+   * this line earns them nothing — otherwise the only way to find out is to
+   * notice the commission figure failing to move. */
+  noCommission: boolean;
   imageUrl: string | null;
   /** Whether the item's thumbnail should actually be shown on a rendered
    * document (the sheet renderer/PDF) — distinct from `imageUrl` being
@@ -673,6 +680,7 @@ export async function getDocumentForBuilder(
       specs: item.product?.specs ?? null,
       serialNumber: item.serialNumber,
       isCredit: item.product?.isCredit ?? false,
+      noCommission: item.product?.noCommission ?? false,
       imageUrl: item.imageUrl,
       showImage: item.showImage,
       productHasImage: item.imageUrl !== null,

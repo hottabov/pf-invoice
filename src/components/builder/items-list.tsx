@@ -217,6 +217,13 @@ export function ItemsList({
             }}
             className={cn(
               "rounded-xl border border-slate-200 p-3 transition-[opacity,box-shadow] duration-150 motion-reduce:transition-none sm:p-4",
+              // A line the salesperson earns nothing on carries a faint amber
+              // wash (owner's request). Deliberately barely-there: it is a
+              // standing fact about the product, not a problem to fix, so it
+              // must not read as a warning — but without it the only way to
+              // discover a line pays no commission is to notice the figure at
+              // the bottom failing to move.
+              item.noCommission && "bg-amber-50/60",
               isDragging && "opacity-50",
               isDropTarget && "ring-2 ring-brand"
             )}
