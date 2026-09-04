@@ -42,25 +42,78 @@ installed.
 
    `.env` is git-ignored and never leaves the VPS.
 
-3. Build and start the stack:
+3. Log in to GHCR so the box can pull the images CI builds.
+
+   The registry accepts **only a classic personal access token** — fine-grained
+   tokens do not authenticate to GHCR, whatever their package permissions
+   ([GitHub Docs](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-to-the-container-registry):
+   "GitHub Packages only supports authentication using a personal access token
+   (classic)"). The VPS never builds or pushes, so give it the narrowest scope
+   that exists for this: `read:packages`, and nothing else.
+
+   Create it at **github.com → Settings → Developer settings → Personal access
+   tokens → Tokens (classic) → Generate new token (classic)**, or open the
+   pre-scoped form directly:
+
+   <https://github.com/settings/tokens/new?scopes=read:packages&description=pathquote-vps-pull>
+
+   Tick **only** `read:packages` — the UI pre-selects `repo` when you touch
+   `write:packages`, which would hand the box full repository access it has no
+   use for. Set an expiry you will actually renew (90 days is reasonable; the
+   symptom of an expired token is `docker compose pull` failing with
+   `denied`). Copy the token — GitHub shows it once.
+
+   Then on the VPS, paste it at the prompt (the `read -rs` line waits silently
+   for input, so nothing is echoed and nothing lands in shell history):
 
    ```bash
-   docker compose up -d --build
+   read -rs GHCR_TOKEN && echo
+   echo "$GHCR_TOKEN" | docker login ghcr.io -u hottabov --password-stdin
+   unset GHCR_TOKEN
    ```
 
-4. Apply migrations:
+   Expect `Login Succeeded`. The credential is stored in
+   `~/.docker/config.json` and survives reboots, so this is a one-time step.
+
+   Verify before relying on it:
+
+   ```bash
+   docker pull ghcr.io/hottabov/pathquote:latest
+   ```
+
+   (This fails with `manifest unknown` until CI has pushed at least once —
+   that is a different error from `denied`, which means the token is wrong.)
+
+   The packages are `ghcr.io/hottabov/pathquote` (the app) and
+   `ghcr.io/hottabov/pathquote-tools` (migrations, seeding, operator scripts).
+   Both are private by default and inherit the repository's access.
+
+4. Pull and start the stack:
+
+   ```bash
+   docker compose --profile tools pull app tools
+   docker compose up -d
+   ```
+
+   Without a `TAG` in the environment both services resolve to `:latest`,
+   which is what CI tags on every successful deploy. To pin a specific build,
+   `export TAG=<commit sha>` first — that is exactly what the deploy workflow
+   does, and what a rollback uses (see §5).
+
+5. Apply migrations:
 
    ```bash
    docker compose run --rm tools npx prisma migrate deploy
    ```
 
-5. Seed the catalog (idempotent — safe to re-run):
+6. Seed the catalog (idempotent — safe to re-run, ~4s):
 
    ```bash
    docker compose run --rm tools npm run db:seed
+   docker compose run --rm tools npm run db:verify-seed   # optional sanity check
    ```
 
-6. Create the first admin user. Prefer piping the password in rather than
+7. Create the first admin user. Prefer piping the password in rather than
    typing it as a plain CLI argument — anything passed as an argv token is
    written to the shell's history file (`~/.bash_history` etc.) and is
    visible to any other process on the box via `/proc/<pid>/cmdline` while it
@@ -89,7 +142,7 @@ installed.
    Either way, clear your host shell history afterwards if the password did
    end up on the command line (`history -d <line>` or `history -c`).
 
-7. Verify: `curl -fsS http://127.0.0.1:3010/api/health` should return
+8. Verify: `curl -fsS http://127.0.0.1:3010/api/health` should return
    `{"ok":true,"db":true,"schemaOk":true}`, and
    `https://q.pathfindercut.com/login` should load once Nginx and TLS are
    configured (section 3).
@@ -114,6 +167,45 @@ local Docker/Prisma commands already on the box, the corresponding GitHub
 deploy key (if you also register the public key as a repo Deploy Key rather
 than relying on an already-cloned repo with its own remote credentials)
 only needs **read access** — do not grant it write/push access.
+
+No registry secret is needed here: the `build` job pushes to GHCR with the
+workflow's own `GITHUB_TOKEN` under `permissions: packages: write`. Only the
+VPS needs a credential of its own, and it is read-only (§1, step 3).
+
+## 2b. What a deploy actually does
+
+Since 2026-09-04 the VPS builds nothing. On a push to `main`:
+
+1. **`ci`** — one runner, one `npm ci`: lint, typecheck, tests, then against a
+   Postgres service container `prisma migrate diff --exit-code` (schema has a
+   matching migration), migrate, seed twice (idempotency), `db:verify-seed`.
+2. **`build`** — builds the `run` and `tools` targets on a 4-vCPU runner with
+   a persistent BuildKit layer cache and pushes both to GHCR, tagged with the
+   commit SHA and `latest`.
+3. **`deploy`** — SSH to the VPS: `git pull` (for `docker-compose.yml` only),
+   `docker compose pull`, `up -d postgres`, `prisma migrate deploy` from the
+   `tools` image, `up -d app gotenberg`, then a health check that asserts both
+   `"ok":true` and `"schemaOk":true` before pruning old layers.
+
+Migrations always run before the new app starts, so the code and the schema
+can never disagree in the window between them.
+
+### Rolling back
+
+The previous image is still on the box (the workflow's `docker image prune -f`
+keeps tagged images) and every build is in GHCR by SHA:
+
+```bash
+cd /opt/pathquote
+TAG=<previous commit sha> docker compose up -d app
+curl -fsS http://127.0.0.1:3010/api/health
+```
+
+If that SHA's image was pruned, `TAG=<sha> docker compose pull app` first.
+
+A rollback does **not** revert migrations. If the bad deploy migrated the
+schema, roll back to a commit whose code still works against the current
+schema, or restore from a dump (§4).
 
 ## 3. Nginx + TLS
 

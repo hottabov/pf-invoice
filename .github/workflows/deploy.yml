@@ -5,30 +5,16 @@ name: CI & Deploy
     branches: [main]
   pull_request:
 
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
 jobs:
+  # One job, one `npm ci`. This used to be two jobs (`ci` and `verify-db`),
+  # each paying a full install and a Prisma client generation on its own
+  # runner. The database half needs nothing the lint/test half doesn't already
+  # have except a Postgres service container, which costs seconds.
   ci:
-    name: Lint, typecheck, test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-
-      - run: npx prisma generate
-
-      - run: npm run lint
-
-      - run: npm run typecheck
-
-      - run: npm test
-
-  verify-db:
-    name: Verify DB migrate + seed
+    name: Lint, typecheck, test, verify DB
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -54,9 +40,26 @@ jobs:
           node-version: 22
           cache: npm
 
+      # `npm ci` runs the postinstall hook, which is `prisma generate` — so a
+      # separate generate step here would be the same work twice.
       - run: npm ci
 
-      - run: npx prisma generate
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      # Catches a schema.prisma edited without a matching migration — the
+      # failure mode behind the 2026-08-31 incident — in seconds, before the
+      # slower migrate/seed steps below get a chance to pass by accident.
+      - name: Schema matches migrations
+        run: >-
+          npx prisma migrate diff
+          --from-migrations prisma/migrations
+          --to-schema-datamodel prisma/schema.prisma
+          --shadow-database-url "$DATABASE_URL"
+          --exit-code
 
       - name: Migrate
         run: npm run db:migrate
@@ -64,76 +67,82 @@ jobs:
       - name: Seed (first run)
         run: npm run db:seed
 
+      # The seed is ~4s (measured on the VPS 2026-09-04), so proving
+      # idempotency by simply running it twice stays cheap.
       - name: Seed (second run — idempotency check)
         run: npm run db:seed
 
+      # Was a 60-line CommonJS script inlined in this file, which could not
+      # import seed-lib.ts and so had to hardcode the region count. Now a tsx
+      # script that derives every expected number from the seed's own inputs.
       - name: Verify seeded row counts
-        run: |
-          cat > ./.ci-verify-seed.cjs <<'EOF'
-          const { PrismaClient } = require("@prisma/client");
-          const { PrismaPg } = require("@prisma/adapter-pg");
+        run: npm run db:verify-seed
 
-          const db = new PrismaClient({
-            adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-          });
+  # Images are built here, on a 4-vCPU runner with a persistent layer cache,
+  # and pushed to GHCR. The VPS used to do this itself on every deploy: a cold
+  # `npm ci` (115s) plus `next build`, then a second image export for `tools`
+  # (52s export + 17s unpack, measured 2026-09-04), all competing with the
+  # live app for CPU. It now only pulls — and a pull is incremental per layer,
+  # so the 1.2 GB node_modules layer moves only when package-lock.json changes.
+  build:
+    name: Build and push images
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
 
-          // Derived from the seed data itself, not hardcoded. A literal count
-          // here is a second source of truth for a number that changes every
-          // time the catalogue does, and it drifted exactly that way: removing
-          // Punchline and adding the trade-in product updated the seed and its
-          // tests, but not this file, so deploy failed on a stale 67. What
-          // this step is actually for is proving the seed reached the database
-          // intact — so it asks the seed what to expect.
-          const catalog = require("./prisma/seed-data/catalog.json");
-          const expected = {
-            // Regions live in prisma/seed-lib.ts (TypeScript, not requirable
-            // from this plain CJS script) and change far more rarely than the
-            // catalogue, so this one stays literal.
-            regions: 3,
-            series: catalog.series.length,
-            products: catalog.series.reduce((n, s) => n + s.products.length, 0),
-          };
+      - uses: docker/setup-buildx-action@v3
 
-          async function main() {
-            const [regions, series, products] = await Promise.all([
-              db.region.count(),
-              db.series.count(),
-              db.product.count(),
-            ]);
-            const actual = { regions, series, products };
-            console.log(`counts: ${JSON.stringify(actual)}`);
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-            const mismatches = Object.keys(expected).filter(
-              (k) => expected[k] !== actual[k]
-            );
-            if (mismatches.length) {
-              console.error(
-                `FAIL: mismatch on ${mismatches.join(", ")} (expected ${JSON.stringify(
-                  expected
-                )}, got ${JSON.stringify(actual)})`
-              );
-              process.exitCode = 1;
-              return;
-            }
-            console.log("OK: seed counts match expected values");
-          }
+      # `provenance: false` keeps each tag a plain single-platform image
+      # rather than a manifest list with an attestation, which is what the VPS
+      # wants to pull and what `docker compose` handles most predictably.
+      - name: Build and push app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: run
+          push: true
+          provenance: false
+          tags: ${{ env.IMAGE }}:${{ github.sha }},${{ env.IMAGE }}:latest
+          build-args: APP_VERSION=${{ github.sha }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
 
-          main()
-            .catch((e) => {
-              console.error(e);
-              process.exitCode = 1;
-            })
-            .finally(() => db.$disconnect());
-          EOF
-          node ./.ci-verify-seed.cjs
+      - name: Build and push tools image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: tools
+          push: true
+          provenance: false
+          tags: ${{ env.IMAGE }}-tools:${{ github.sha }},${{ env.IMAGE }}-tools:latest
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=tools
 
   deploy:
     name: Deploy to VPS
-    needs: [ci, verify-db]
+    needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: appleboy/ssh-action@v1
+        # Set explicitly rather than relying on the runner's default
+        # GITHUB_SHA being visible to the action process: `envs` below can
+        # only forward what is in this step's environment, and the remote
+        # script runs under `set -u`, so a missing value aborts the deploy
+        # after the images are already built.
+        env:
+          GITHUB_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -141,31 +150,36 @@ jobs:
           # WordOps moves sshd off port 22; set VPS_PORT to that port.
           # Falls back to 22 when the secret is unset.
           port: ${{ secrets.VPS_PORT || 22 }}
+          envs: GITHUB_SHA
           script: |
             set -euo pipefail
             cd /opt/pathquote
+
+            # Still needed, but only for docker-compose.yml and .env-adjacent
+            # files — never for application code, which now arrives as an image.
             git pull --ff-only
 
-            # Build the new images without starting anything yet — the old
-            # app container (old schema-compatible code) keeps serving
-            # traffic while this happens.
-            # `tools` is behind a Compose profile, so a bare `build` skips it.
-            # Build it explicitly or migrations run from a stale image.
-            docker compose build app tools
+            # Pin both services to this commit's image. docker-compose.yml
+            # reads ${TAG}, defaulting to `latest` for a manual `up`.
+            export TAG="$GITHUB_SHA"
+            echo "deploying $TAG"
+            # `tools` sits behind a Compose profile; naming it explicitly is
+            # enough for `run`, but `--profile tools` makes `pull` unambiguous.
+            docker compose --profile tools pull app tools
 
-            # Bring up postgres (if not already) and apply migrations
-            # BEFORE the new app code starts. Migrating after `up -d --build`
-            # lets the new code run against the old schema for however long
-            # the migrate step takes — and if that step fails silently or
-            # is misconfigured, it can run against the old schema
-            # indefinitely. `docker compose run` exits non-zero on failure
-            # and `set -euo pipefail` above stops the deploy right here.
+            # Bring up postgres (if not already) and apply migrations BEFORE
+            # the new app code starts. Migrating after the app is up lets the
+            # new code run against the old schema for however long the migrate
+            # step takes — and if that step fails silently or is misconfigured,
+            # it can run against the old schema indefinitely. `docker compose
+            # run` exits non-zero on failure and `set -euo pipefail` above
+            # stops the deploy right here.
             docker compose up -d postgres
             docker compose run --rm tools npx prisma migrate deploy
 
-            # Only now start/update the app (and gotenberg) — schema is
+            # Only now start/update the app (and gotenberg) — the schema is
             # guaranteed to match the code that's about to run.
-            docker compose up -d --build
+            docker compose up -d app gotenberg
 
             # Health check: verify both DB connectivity AND schema, with
             # retries for the brief window while the new container boots.
@@ -185,6 +199,13 @@ jobs:
             if [ "$ok" != "true" ]; then
               echo "deploy health check failed after retries"
               docker compose logs --tail=100 app
+              echo "to roll back: TAG=<previous sha> docker compose up -d app"
               exit 1
             fi
             echo "deploy healthy: $response"
+
+            # Reclaim the layers the previous tag left behind. Only after the
+            # health check passed, so a rollback target survives a failure.
+            # `-f` (not `-af`) keeps tagged images, including the previous
+            # deploy's, which is exactly what a rollback needs.
+            docker image prune -f

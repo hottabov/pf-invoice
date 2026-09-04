@@ -2,17 +2,27 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // Inlines package.json's "version" at build time (npm sets
-  // npm_package_version for any script run via `npm run …`, which is how
-  // the Dockerfile's `run build` stage invokes this) into
-  // process.env.APP_VERSION wherever it's referenced — see
-  // src/lib/app-version.ts. Needed because the standalone runtime image
-  // never ships package.json itself, so there's nothing to read at request
-  // time otherwise. This is the "app version" attached to a support-form
-  // submission (src/lib/actions/support.ts) so a bug report carries a build
-  // reference without a round trip back to whoever filed it.
+  typescript: {
+    // CI type-checks the whole tree (`npm run typecheck`) before any image is
+    // built, and the deploy job only runs once that passed — so the copy of
+    // `tsc` that `next build` runs is duplicated work. The Dockerfile sets
+    // SKIP_TYPECHECK=1 to skip it there; a local or CI `next build` with the
+    // variable unset still type-checks as before.
+    ignoreBuildErrors: process.env.SKIP_TYPECHECK === "1",
+  },
+  // Inlines the build's version into process.env.APP_VERSION wherever it's
+  // referenced — see src/lib/app-version.ts. Needed because the standalone
+  // runtime image never ships package.json itself, so there's nothing to read
+  // at request time otherwise. This is the "app version" attached to a
+  // support-form submission (src/lib/actions/support.ts) so a bug report
+  // carries a build reference without a round trip back to whoever filed it.
+  //
+  // APP_VERSION wins when set (the deploy passes a git SHA as a build arg);
+  // otherwise it falls back to package.json's "version", which npm exposes as
+  // npm_package_version for any script run via `npm run …` — which is how the
+  // Dockerfile's build stage invokes this.
   env: {
-    APP_VERSION: process.env.npm_package_version,
+    APP_VERSION: process.env.APP_VERSION || process.env.npm_package_version,
   },
 };
 

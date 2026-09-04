@@ -1,7 +1,41 @@
+# Everything here is excluded from the build context. Two reasons it matters:
+# the context is transferred on every build, and — more importantly — any file
+# that reaches the context can invalidate a cached layer. Before this list, a
+# one-line edit to a runbook or a Claude skill forced a full `next build` on
+# the VPS, because the `build` stage used a blanket `COPY . .`.
+#
+# The Dockerfile now copies only the build inputs explicitly, so this file is
+# a second line of defence rather than the only one — but it still keeps the
+# transferred context small (468 tracked files, of which ~3.6 MB is .claude).
+
 .git
+.github
 .worktrees
+.claude
 node_modules
 .next
 RAW
+data
 docs
+
+# Test and lint sources: never needed to build or run the image.
+# `scripts/` is deliberately NOT here — the `tools` stage ships it so an
+# operator can run `npm run user:create` / `images:import` in the container.
+# It reaches only that stage; the `build` stage copies neither it nor tests.
+tests
+coverage
+vitest.config.ts
+eslint.config.mjs
+
+# Secrets never enter the image; real values come from the container env_file.
 .env
+.env.*
+!.env.example
+
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+*.md
+docker-compose*.yml
+Dockerfile
+.dockerignore

@@ -1,5 +1,15 @@
+# TAG selects which built image to run. CI exports it as the deploying
+# commit's SHA (.github/workflows/deploy.yml), so a deploy is pinned and a
+# rollback is `TAG=<previous sha> docker compose up -d app`. It defaults to
+# `latest` for a manual `up` on the box.
+#
+# Each service keeps both `image:` and `build:`. On the VPS only `image:` is
+# used — the workflow pulls before it starts anything, and the VPS no longer
+# compiles. Locally `docker compose build` still works and tags into the same
+# name, so nothing about development changed.
 services:
   app:
+    image: ghcr.io/hottabov/pathquote:${TAG:-latest}
     build:
       context: .
       target: run
@@ -15,6 +25,7 @@ services:
     volumes:
       - uploads:/data/uploads
   tools:
+    image: ghcr.io/hottabov/pathquote-tools:${TAG:-latest}
     build:
       context: .
       target: tools
