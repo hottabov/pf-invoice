@@ -161,12 +161,25 @@ export function ProductReorderList({
               href={`/catalog/${seriesId}/${p.id}`}
               className="focus-ring flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-1"
             >
-              <span className="shrink-0 font-mono text-sm text-brand-dark">{p.code}</span>
-              {/* Product photos are landscape (1280x768 as shot), so they get
+              {/* Image, then code, then name, then description — the same
+                  order the read-only rows and the options list use. This view
+                  is what an ADMIN actually sees on a series page, so it
+                  leading with the code instead was the whole reason products
+                  looked different from options.
+
+                  Product photos are landscape (1280x768 as shot), so they get
                   a wider box than CatalogThumb's square default — same width
-                  SeriesProductsPage's own rows use. */}
+                  SeriesProductsPage's own rows use. CatalogThumb reserves that
+                  box even with no image, which is what keeps the codes in a
+                  column rather than ragged. */}
               <CatalogThumb src={p.imageUrl} width={64} />
-              <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{p.name}</span>
+              <span className="shrink-0 font-mono text-sm text-brand-dark">{p.code}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm text-slate-700">{p.name}</span>
+                {p.description ? (
+                  <span className="block truncate text-xs text-slate-500">{p.description}</span>
+                ) : null}
+              </span>
               {!p.active ? <InactiveBadge /> : null}
               <PriceDisplay price={p.price} />
             </Link>
