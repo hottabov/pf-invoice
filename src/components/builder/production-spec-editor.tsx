@@ -140,6 +140,31 @@ export function ProductionSpecEditor({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Record<string, unknown>>(spec);
   const [error, setError] = useState<string | null>(null);
+  // How many of this card's own writes are still in flight. Only used to
+  // decide whether an incoming `spec` may overwrite `draft` -- see below.
+  const [inFlight, setInFlight] = useState(0);
+
+  // This card's `spec` can change without this card having changed it:
+  // writing `ui` propagates the same screen side to every item in the line
+  // (see `setProductionSpec`), and the revalidate that follows re-renders
+  // each sibling with fresh props. A `useState(spec)` initializer runs only
+  // on mount, so a sibling went on showing the old side -- and its diagram
+  // -- until the page was reloaded, even though the toast and the database
+  // were both right. Adopt the server's value when it moves.
+  //
+  // Compared by value, not identity: every server render deserializes a new
+  // object, so `!==` would fire on each refresh. And held back while one of
+  // this card's own writes is in flight, or clicking a section stepper three
+  // times would see the first write's revalidate arrive and yank the number
+  // back to where it was two clicks ago. `inFlight` is state rather than a
+  // ref precisely so that returning to zero re-renders and lets the sync
+  // that was skipped happen now.
+  const specKey = JSON.stringify(spec);
+  const [syncedKey, setSyncedKey] = useState(specKey);
+  if (inFlight === 0 && syncedKey !== specKey) {
+    setSyncedKey(specKey);
+    setDraft(spec);
+  }
   // Most EasyLoaders are one undivided table, so the three section rows
   // start hidden -- unless this item already has a split layout, in which
   // case collapsing it by default would hide the one thing a returning
@@ -153,7 +178,9 @@ export function ProductionSpecEditor({
   async function save(next: Record<string, unknown>) {
     setDraft(next);
     setError(null);
+    setInFlight((n) => n + 1);
     const result = await setProductionSpec(itemId, next);
+    setInFlight((n) => n - 1);
     setError(result.error ?? null);
     if (!result.error && result.propagatedTo && result.propagatedTo.length > 0) {
       toast.success(`Also updated screen side on ${result.propagatedTo.join(", ")}`);

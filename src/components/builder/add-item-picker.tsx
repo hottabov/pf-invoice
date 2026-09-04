@@ -57,11 +57,11 @@ export function AddItemPicker({
     return (
       <Button
         type="button"
-        variant="outline"
+        variant="success"
         onClick={() => setOpen(true)}
-        className="h-11 w-full sm:w-fit"
+        className="h-11 w-full gap-2 px-5 text-[0.9375rem] sm:w-fit"
       >
-        <Plus className="size-4" data-icon="inline-start" aria-hidden="true" />
+        <Plus className="size-4" aria-hidden="true" />
         Add item
       </Button>
     );

@@ -17,6 +17,19 @@ const buttonVariants = cva(
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+        // The additive counterpart to `destructive`, for the one button on a
+        // screen that adds something (the builder's "Add item"). Filled
+        // rather than tinted, because its whole job is to stay findable at
+        // the bottom of a long list where an outline button disappears into
+        // the card borders around it.
+        //
+        // emerald-700, not the brighter emerald-600: white on 600 is 3.8:1,
+        // under the 4.5:1 this label needs at 14px. 700 is 5.5:1. The shade
+        // matches the emerald the app already uses for its "green" status
+        // badge (see StatusBadge's TONE_CLASSES), so "green" means one thing
+        // here.
+        success:
+          "bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 focus-visible:border-emerald-800 focus-visible:ring-emerald-700/30",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
