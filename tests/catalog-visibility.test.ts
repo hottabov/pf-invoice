@@ -226,6 +226,7 @@ describe("a hidden product already on a document still renders and totals identi
       notes: null,
       showItemPrices: true,
       showOptionPrices: true,
+      heroImageUrl: null,
       ...overrides,
     };
   }

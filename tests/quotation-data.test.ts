@@ -206,6 +206,7 @@ function baseDoc(overrides: Partial<QuotationDataDoc> = {}): QuotationDataDoc {
     showOptionPrices: false,
     author: { name: "Jane Author", email: "jane@example.com", phone: "0400 000 000", avatar: null },
     notes: null,
+    heroImageUrl: null,
     ...overrides,
   };
 }
@@ -1096,5 +1097,23 @@ describe("buildQuotationData — item descriptionHtml", () => {
     });
     const data = buildQuotationData(doc, []);
     expect(data.items[0].descriptionHtml).toBeNull();
+  });
+});
+
+// Commit: "a setup image on the quotation's first page" — buildQuotationData
+// carries `heroImageUrl` through `toSheetData`'s own `resolveImage`
+// resolution (see tests/sheet-data.test.ts for that mapper-level assertion)
+// straight onto `QuotationData.heroImage`, exactly like `logo`.
+describe("buildQuotationData — hero image", () => {
+  it("resolves the document's hero image through resolveImage onto QuotationData.heroImage", () => {
+    const doc = baseDoc({ heroImageUrl: "/api/files/setup.jpg" });
+    const data = buildQuotationData(doc, [], { resolveImage: (url) => `resolved:${url}` });
+    expect(data.heroImage).toBe("resolved:/api/files/setup.jpg");
+  });
+
+  it("is null when the document has no hero image", () => {
+    const doc = baseDoc({ heroImageUrl: null });
+    const data = buildQuotationData(doc, []);
+    expect(data.heroImage).toBeNull();
   });
 });

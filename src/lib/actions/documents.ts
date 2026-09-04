@@ -30,6 +30,7 @@ import { catalogVisibilityUserId, isProductHidden } from "@/lib/catalog-visibili
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
 import { getCommissionTiers } from "@/lib/queries/settings";
 import { formatMoney } from "@/lib/format";
+import { IMAGE_URL_PATTERN } from "@/lib/uploads";
 import {
   customLineSchema,
   deliveryTermsSchema,
@@ -1718,6 +1719,49 @@ export async function setDocumentNotes(documentId: string, formData: FormData): 
   await db.document.update({
     where: { id: document.id },
     data: { notes },
+  });
+
+  revalidatePath(`/documents/${document.id}`);
+  return {};
+}
+
+/** Validates a submitted hero-image URL is either `null` (clear it) or
+ * exactly the `/api/files/<uuid>.<ext>` shape `saveUpload` produces — mirrors
+ * `parseImageUrl` in src/lib/actions/catalog.ts/regions.ts, duplicated
+ * locally rather than shared since none of those modules export it. */
+function parseHeroImageUrl(url: string | null): { ok: true; value: string | null } | { ok: false } {
+  if (url === null) return { ok: true, value: null };
+  if (!IMAGE_URL_PATTERN.test(url)) return { ok: false };
+  return { ok: true, value: url };
+}
+
+/**
+ * Sets (or, given `null`, clears) the quotation's setup image
+ * (`Document.heroImageUrl` — see that column's doc comment in schema.prisma)
+ * — one photo for the whole quote, uploaded from the builder via
+ * `/api/uploads` (purpose `document-hero`) then persisted here, same
+ * two-step flow as `updateProductImage`/`updateRegionLogo`. DRAFT-only and
+ * scoped like every other document mutation in this file; purely a display
+ * field, so unlike `setItemDiscount`/`setDocumentDiscount` there's no
+ * `recalcDocument` call here (mirrors `setItemShowImage`/`setDocumentNotes`).
+ */
+export async function setDocumentHeroImage(documentId: string, url: string | null): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const parsedDocumentId = idSchema.safeParse(documentId);
+  if (!parsedDocumentId.success) return { error: NOT_FOUND_ERROR };
+
+  const parsedUrl = parseHeroImageUrl(url);
+  if (!parsedUrl.ok) return { error: "Invalid image URL" };
+
+  const document = await db.document.findFirst({
+    where: { id: parsedDocumentId.data, status: "DRAFT", ...documentWhereForUser(session.user) },
+  });
+  if (!document) return { error: NOT_FOUND_ERROR };
+
+  await db.document.update({
+    where: { id: document.id },
+    data: { heroImageUrl: parsedUrl.value },
   });
 
   revalidatePath(`/documents/${document.id}`);

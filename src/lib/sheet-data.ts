@@ -195,6 +195,12 @@ export type ToSheetDataDoc = {
    * `itemPriceVisible = showItemPrices || showOptionPrices`. */
   showItemPrices: boolean;
   showOptionPrices: boolean;
+  /** `Document.heroImageUrl` — the quotation's setup image (see that
+   * column's doc comment in schema.prisma), unresolved: a stored
+   * `/api/files/<name>` URL, or `null` when none has been uploaded.
+   * `toSheetData` resolves it through `resolveImage` into `DocSheetData.heroImage`
+   * exactly like `logoUrl`/the author's avatar. */
+  heroImageUrl: string | null;
 };
 
 /** Resolves a stored image URL (e.g. `/api/files/<uuid>.jpg`) to whatever
@@ -387,6 +393,12 @@ export type DocSheetData = {
    * produces `null` here any more. */
   validityDate: string | null;
   logo: string | null;
+  /** Resolved setup-image source (already run through `resolveImage`, same
+   * as `logo`), or `null` when the document has none. `null` here means
+   * "print nothing at all" — no frame, no placeholder — see
+   * `ToSheetDataDoc.heroImageUrl` and quotation-sheet.tsx's `pq-hero-image`
+   * block; a quote without one must look finished, not unfinished. */
+  heroImage: string | null;
   entity: DocSheetEntity;
   client: DocSheetClient | null;
   /** See `DocSheetDelivery` — `null` whenever there's no client (draft) or
@@ -666,6 +678,7 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
   };
 
   const logo = entitySource.logoUrl ? (resolveImage(entitySource.logoUrl) ?? null) : null;
+  const heroImage = doc.heroImageUrl ? (resolveImage(doc.heroImageUrl) ?? null) : null;
 
   const client: DocSheetClient | null = doc.company
     ? {
@@ -720,6 +733,7 @@ export function toSheetData(doc: ToSheetDataDoc, resolveImage: ImageResolver = i
     issueDate: formatDateAU(doc.issueDate),
     validityDate,
     logo,
+    heroImage,
     entity,
     client,
     delivery,

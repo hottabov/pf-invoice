@@ -30,6 +30,7 @@ import {
   setDeliveryTerms,
   setDocumentClient,
   setDocumentDiscount,
+  setDocumentHeroImage,
   setDocumentNotes,
   setItemDescription,
   setItemDiscount,
@@ -44,6 +45,7 @@ import {
 import { createCompanyInline, createContactInline } from "@/lib/actions/clients";
 import { PageHeader, SectionCard, StatusBadge, STATUS_TONE } from "@/components/ui-kit";
 import { ClientSection } from "@/components/builder/client-section";
+import { HeroImageSection } from "@/components/builder/hero-image-section";
 import { ItemsSection } from "@/components/builder/items-section";
 import { ExtraLinesSection } from "@/components/builder/extra-lines-section";
 import { DocumentDiscountField } from "@/components/builder/document-discount-field";
@@ -254,6 +256,22 @@ export default async function DocumentBuilderPage({ params }: { params: Promise<
               documentId={document.id}
               notes={document.notes}
               setNotesAction={setDocumentNotes}
+              readOnly={!isDraft}
+            />
+          </SectionCard>
+
+          {/* The setup image: one photo of the whole configuration together
+              (usually already drawn up in SketchUp and shown to the
+              customer), printed full-width on the quotation's first page —
+              see HeroImageSection's own doc comment. */}
+          <SectionCard
+            title="Setup image"
+            description="A photo of the finished configuration, shown full width on the quotation's first page."
+          >
+            <HeroImageSection
+              documentId={document.id}
+              heroImageUrl={document.heroImageUrl}
+              setHeroImageAction={setDocumentHeroImage}
               readOnly={!isDraft}
             />
           </SectionCard>

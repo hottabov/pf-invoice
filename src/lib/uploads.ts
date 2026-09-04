@@ -32,7 +32,14 @@ export const DOCUMENT_LINE_TYPES = ["jpg", "png", "webp"] as const;
  * in someone else's browser the next time their avatar is rendered. */
 export const AVATAR_TYPES = ["jpg", "png", "webp"] as const;
 
-export type UploadPurpose = "catalog" | "document-line" | "avatar";
+/** Extensions the quotation's setup image (`Document.heroImageUrl`) may use.
+ * Uploaded from the builder by any authenticated user (not admin-gated —
+ * same permission level as `DOCUMENT_LINE_TYPES`), so SVG is excluded for
+ * the same reason: it's XML and can carry script, and unlike a catalogue
+ * image (admin-only) this uploader isn't a trusted role. */
+export const DOCUMENT_HERO_TYPES = ["jpg", "png", "webp"] as const;
+
+export type UploadPurpose = "catalog" | "document-line" | "avatar" | "document-hero";
 
 /** A validation failure `saveUpload` can throw — wrong type or too large.
  * Callers (the /api/uploads route) turn this into a 400 with `.message`. */

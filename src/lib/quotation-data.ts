@@ -456,6 +456,9 @@ export type QuotationData = {
   issueDate: string;
   validityDate: string | null;
   logo: string | null;
+  /** See `DocSheetData.heroImage` — carried straight through from
+   * `toSheetData`, same as `logo`. */
+  heroImage: string | null;
   entity: DocSheetEntity;
   client: DocSheetClient | null;
   /** See `DocSheetDelivery` — carried straight through from `toSheetData`,
@@ -757,6 +760,7 @@ export function buildQuotationData(
     issueDate: sheet.issueDate,
     validityDate: sheet.validityDate,
     logo: sheet.logo,
+    heroImage: sheet.heroImage,
     entity: sheet.entity,
     client: sheet.client,
     delivery: sheet.delivery,

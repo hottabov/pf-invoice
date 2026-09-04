@@ -378,6 +378,11 @@ export type DocumentForBuilder = {
    * `QuotationDataDoc` regardless of `type` (see `buildQuotationData`). */
   showItemPrices: boolean;
   showOptionPrices: boolean;
+  /** `Document.heroImageUrl` — see that column's doc comment in
+   * schema.prisma. `toSheetData` resolves it through its `ImageResolver`
+   * exactly like `logoUrl`/`author.avatar` above, so this stays an
+   * unresolved `/api/files/<name>` URL (or `null`) here. */
+  heroImageUrl: string | null;
   updatedAt: Date;
 };
 
@@ -701,6 +706,7 @@ export async function getDocumentForBuilder(
     },
     showItemPrices: document.showItemPrices,
     showOptionPrices: document.showOptionPrices,
+    heroImageUrl: document.heroImageUrl,
     updatedAt: document.updatedAt,
   };
 }

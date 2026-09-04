@@ -9,6 +9,7 @@ import {
   DOCUMENT_LINE_TYPES,
   CATALOG_TYPES,
   AVATAR_TYPES,
+  DOCUMENT_HERO_TYPES,
 } from "../src/lib/uploads";
 
 const VALID_NAME = "a1b2c3d4-e5f6-4789-a0b1-c2d3e4f56789.jpg";
@@ -184,6 +185,16 @@ describe("upload purpose type sets", () => {
   it("accepts jpg, png, and webp for an avatar", () => {
     for (const ext of ["jpg", "png", "webp"]) {
       expect(() => assertAllowedType(ext, AVATAR_TYPES)).not.toThrow();
+    }
+  });
+
+  it("rejects SVG for a quotation's setup (hero) image", () => {
+    expect(() => assertAllowedType("svg", DOCUMENT_HERO_TYPES)).toThrow(/not allowed/i);
+  });
+
+  it("accepts jpg, png, and webp for a quotation's setup (hero) image", () => {
+    for (const ext of ["jpg", "png", "webp"]) {
+      expect(() => assertAllowedType(ext, DOCUMENT_HERO_TYPES)).not.toThrow();
     }
   });
 });

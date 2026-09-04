@@ -56,6 +56,7 @@ function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
     notes: null,
     showItemPrices: true,
     showOptionPrices: true,
+    heroImageUrl: null,
     ...overrides,
   };
 }

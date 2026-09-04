@@ -1,27 +1,52 @@
 import { auth } from "@/auth";
-import { AVATAR_TYPES, CATALOG_TYPES, DOCUMENT_LINE_TYPES, saveUpload, UploadValidationError } from "@/lib/uploads";
+import {
+  AVATAR_TYPES,
+  CATALOG_TYPES,
+  DOCUMENT_HERO_TYPES,
+  DOCUMENT_LINE_TYPES,
+  saveUpload,
+  UploadValidationError,
+  type UploadPurpose,
+} from "@/lib/uploads";
 import { isAdminRole } from "@/lib/roles";
 
 // Needs real filesystem access (fs/promises) — not available on the edge
 // runtime.
 export const runtime = "nodejs";
 
+/** Every recognised `purpose` value, mapped to its allow-list and whether it
+ * requires ADMIN/DEVELOPER (`isAdminRole`). A missing or unrecognised
+ * `purpose` in the request falls back to `"catalog"` below — the strictest
+ * permission path — rather than silently granting a looser one. */
+const PURPOSE_CONFIG: Record<UploadPurpose, { allowed: readonly string[]; adminOnly: boolean }> = {
+  // Product/option/series images via `updateProductImage`/`updateOptionImage`
+  // (src/lib/actions/catalog.ts).
+  catalog: { allowed: CATALOG_TYPES, adminOnly: true },
+  // A document's custom extra line via `addCustomLine` — any authenticated
+  // user; a MANAGER may only attach it to a line on a document they can
+  // already edit, which that action's own document authorization covers.
+  "document-line": { allowed: DOCUMENT_LINE_TYPES, adminOnly: false },
+  // A user's avatar via `setUserAvatar` (src/lib/actions/users.ts) — any
+  // authenticated user; this route only validates and stores the file, the
+  // *whose avatar* rule lives in that action since it needs the target user
+  // id this route never sees.
+  avatar: { allowed: AVATAR_TYPES, adminOnly: false },
+  // A quotation's setup image via `setDocumentHeroImage`
+  // (src/lib/actions/documents.ts) — any authenticated user, same reasoning
+  // as `document-line`: the document-scoped authorization lives in that
+  // action, not here.
+  "document-hero": { allowed: DOCUMENT_HERO_TYPES, adminOnly: false },
+};
+
+function parsePurpose(raw: FormDataEntryValue | null): UploadPurpose {
+  return raw !== null && typeof raw === "string" && raw in PURPOSE_CONFIG ? (raw as UploadPurpose) : "catalog";
+}
+
 /**
  * Accepts a single-file multipart upload and writes it under UPLOADS_DIR,
  * returning the `/api/files/<name>` URL the client should then save onto
- * whatever it's attached to — a product/option via
- * `updateProductImage`/`updateOptionImage` (purpose `catalog`, ADMIN-only),
- * a document's custom extra line via `addCustomLine` (purpose
- * `document-line`, any authenticated user — a MANAGER may only attach it to
- * a line on a document they can already edit, which the existing document
- * authorization on that action covers), or a user's avatar via
- * `setUserAvatar` (purpose `avatar`, any authenticated user — this route
- * only validates and stores the file; the *whose avatar* rule — a MANAGER
- * may only set their own, an ADMIN may set anyone's — lives in
- * `setUserAvatar` itself, src/lib/actions/users.ts, since it needs the
- * target user id this route never sees). A missing or unrecognised
- * `purpose` defaults to `catalog` — the stricter permission path — rather
- * than silently granting the looser one.
+ * whatever it's attached to — see `PURPOSE_CONFIG` above for what each
+ * `purpose` value is for and who may use it.
  */
 export async function POST(request: Request) {
   const session = await auth();
@@ -41,19 +66,15 @@ export async function POST(request: Request) {
     return Response.json({ error: "Missing file" }, { status: 400 });
   }
 
-  const rawPurpose = formData.get("purpose");
-  const purpose =
-    rawPurpose === "document-line" ? "document-line" : rawPurpose === "avatar" ? "avatar" : "catalog";
+  const purpose = parsePurpose(formData.get("purpose"));
+  const config = PURPOSE_CONFIG[purpose];
 
-  if (purpose === "catalog" && !isAdminRole(session.user.role)) {
+  if (config.adminOnly && !isAdminRole(session.user.role)) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const allowed =
-    purpose === "catalog" ? CATALOG_TYPES : purpose === "avatar" ? AVATAR_TYPES : DOCUMENT_LINE_TYPES;
-
   try {
-    const name = await saveUpload(file, allowed);
+    const name = await saveUpload(file, config.allowed);
     return Response.json({ url: `/api/files/${name}` });
   } catch (error) {
     if (error instanceof UploadValidationError) {

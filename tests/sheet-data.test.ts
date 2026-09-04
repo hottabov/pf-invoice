@@ -86,6 +86,7 @@ function baseDoc(overrides: Partial<ToSheetDataDoc> = {}): ToSheetDataDoc {
     notes: null,
     showItemPrices: true,
     showOptionPrices: true,
+    heroImageUrl: null,
     ...overrides,
   };
 }
@@ -573,6 +574,18 @@ describe("toSheetData — preparedBy / notes", () => {
     const doc = baseDoc({ author: { name: "Jane Author", email: "jane@example.com", phone: null, avatar: null } });
     const sheet = toSheetData(doc);
     expect(sheet.preparedBy.avatar).toBeNull();
+  });
+
+  it("resolves the document's hero image through resolveImage, like the logo and the avatar", () => {
+    const doc = baseDoc({ heroImageUrl: "/api/files/setup.jpg" });
+    const sheet = toSheetData(doc, (url) => `data:image/jpeg;base64,RESOLVED(${url})`);
+    expect(sheet.heroImage).toBe("data:image/jpeg;base64,RESOLVED(/api/files/setup.jpg)");
+  });
+
+  it("renders no hero image when the document has none", () => {
+    const doc = baseDoc({ heroImageUrl: null });
+    const sheet = toSheetData(doc);
+    expect(sheet.heroImage).toBeNull();
   });
 
   it("passes notes through untouched, null when unset", () => {

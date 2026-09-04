@@ -489,6 +489,18 @@ model Document {
   commissionAmount  Decimal?       @db.Decimal(12, 2)
   commissionRatePct Decimal?       @db.Decimal(5, 2)
   commissionBase    Decimal?       @db.Decimal(12, 2)
+  // The setup image: one photo/render of the whole configuration (cutter +
+  // table + spreader together), usually already produced in SketchUp and
+  // shown to the customer before the quote is drawn up -- owner: "the most
+  // persuasive thing in the quote". One per quote, not per item, on purpose:
+  // the point is showing every item together, not illustrating any single
+  // line. A stored `/api/files/<name>` URL (same shape as every other image
+  // column -- `Region.logoUrl`, `User.image`, `Product.imageUrl`), resolved
+  // through `ImageResolver` by `toSheetData` (src/lib/sheet-data.ts) exactly
+  // like the logo and the author's avatar. `null` renders nothing at all on
+  // the printed quote -- no frame, no placeholder -- see the `heroImage`
+  // block in quotation-sheet.tsx.
+  heroImageUrl      String?
   items            DocumentItem[]
   lines            DocumentLine[]
   createdAt        DateTime       @default(now())

@@ -54,6 +54,7 @@ function baseQuotationData(overrides: Partial<QuotationData> = {}): QuotationDat
     issueDate: "30/08/2026",
     validityDate: null,
     logo: null,
+    heroImage: null,
     entity: {
       name: "Pathfinder Cutting Systems",
       legalId: "ABN 123",
@@ -170,6 +171,51 @@ describe("renderQuotationHtml — page wrapping", () => {
     expect(html).toContain('<div class="pq-entity-line">Tullamarine, VIC 3043, Australia</div>');
     expect(html).toContain('<div class="pq-entity-line">Web: pathfindercut.com</div>');
     expect(html).not.toContain("Dib Court\\n");
+  });
+});
+
+// Commit: "a setup image on the quotation's first page" — placed after the
+// header detail (entity / prepared for / prepared by / delivery) and before
+// the Total investment banner (owner: "the customer sees what they are
+// buying, then the price"). No frame/caption/placeholder when unset — a
+// quote without a hero image must look finished, not unfinished.
+describe("renderQuotationHtml — hero (setup) image", () => {
+  it("renders the hero image as an <img> between the header detail and the Total investment banner", async () => {
+    const data = baseQuotationData({ heroImage: "data:image/jpeg;base64,AAAA" });
+    const html = await renderQuotationHtml(data);
+
+    expect(html).toContain('<img src="data:image/jpeg;base64,AAAA"');
+    expect(html).toContain('class="pq-hero-image"');
+
+    const heroIdx = html.indexOf('class="pq-hero-image"');
+    const bannerIdx = html.indexOf("Total investment");
+    expect(heroIdx).toBeGreaterThan(-1);
+    expect(bannerIdx).toBeGreaterThan(heroIdx);
+  });
+
+  it("already carries a fully-inlined data: URI, never the stored /api/files/... URL — the PDF pipeline resolves it before rendering", async () => {
+    // `buildQuotationData`/`toSheetData` are responsible for running
+    // `heroImageUrl` through the caller's `ImageResolver` (see
+    // tests/quotation-data.test.ts and tests/sheet-data.test.ts) — by the
+    // time `QuotationData` reaches this renderer, `heroImage` is already
+    // whatever the resolver produced. This asserts the renderer just embeds
+    // it verbatim as an <img src>, so a data: URI here really does end up
+    // inlined in the PDF's HTML rather than left as a URL Gotenberg's
+    // headless Chromium (no session cookie) could never fetch.
+    const data = baseQuotationData({ heroImage: "data:image/jpeg;base64,RESOLVEDBYTES" });
+    const html = await renderQuotationHtml(data);
+    expect(html).toContain('<img src="data:image/jpeg;base64,RESOLVEDBYTES"');
+    expect(html).not.toContain("/api/files/");
+  });
+
+  it("renders no <img> at all — no frame, no caption, no placeholder — when the document has no hero image", async () => {
+    const html = await renderQuotationHtml(baseQuotationData({ heroImage: null }));
+    // The embedded <style> block always defines .pq-hero-image regardless
+    // (static CSS) — assert on the actual element, not the bare class name.
+    expect(html).not.toContain('class="pq-hero-image"');
+    // baseQuotationData's logo/avatar are also both null, so no <img> at all
+    // should appear anywhere on the page.
+    expect(html).not.toContain("<img");
   });
 });
 

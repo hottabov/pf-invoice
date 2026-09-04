@@ -167,6 +167,21 @@ export function QuotationSheet({ data }: { data: QuotationData }) {
           </div>
         ) : null}
 
+        {/* The setup image (owner, relaying the director: managers should be
+            able to add a photo of the finished configuration -- usually
+            already drawn in SketchUp and shown to the customer -- to the
+            first page, full width, "гарно та красиво"). One image for the
+            whole quote, not per item, deliberately: the point is showing
+            every item together. Renders full width, after the header detail
+            and before the price, so the customer sees what they're buying
+            before what it costs. Absolutely nothing renders when there's no
+            image -- no frame, no caption, no placeholder -- a quote without
+            one must look finished, not unfinished. */}
+        {data.heroImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={data.heroImage} alt="" className="pq-hero-image" />
+        ) : null}
+
         {/* Total investment banner (owner: "client must see it immediately"
             — the grand total for everything, always shown up top regardless
             of the price-display toggles below, which only gate the
@@ -696,6 +711,19 @@ const SHEET_CSS = `
     border-radius: 4px;
     object-fit: cover;
     flex-shrink: 0;
+  }
+  /* The setup image (see the JSX comment above) — full content width, a
+     bounded height so one oversized upload can't push the price banner off
+     the first page, and object-fit: cover so it fills that box cleanly
+     regardless of the photo's own aspect ratio. No border/frame/caption by
+     design — it should read as part of the page, not a bolted-on photo. */
+  .pq-hero-image {
+    display: block;
+    width: 100%;
+    max-height: 320px;
+    object-fit: cover;
+    border-radius: 6px;
+    margin-top: 18px;
   }
   .pq-total-banner {
     margin-top: 18px;
