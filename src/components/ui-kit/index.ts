@@ -6,5 +6,6 @@ export { StatusBadge, STATUS_TONE, type StatusTone } from "./status-badge";
 export { EmptyState } from "./empty-state";
 export { FieldRow, fieldInputClass } from "./field-row";
 export { CountrySelect } from "./country-select";
+export { PhoneField } from "./phone-field";
 export { ConfirmProvider, useConfirm, type ConfirmOptions } from "./confirm-dialog";
 export { ToastProvider, useToast, type ToastVariant } from "./toast";

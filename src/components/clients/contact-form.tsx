@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { FieldRow, fieldInputClass } from "@/components/ui-kit";
+import { FieldRow, fieldInputClass, PhoneField } from "@/components/ui-kit";
 import type { ActionResult } from "@/lib/actions/clients";
 
 export type ContactFormValues = {
@@ -31,6 +31,7 @@ export function ContactForm({
   onDone,
   onCancel,
   idPrefix,
+  defaultCountry,
 }: {
   action: (formData: FormData) => Promise<ActionResult>;
   defaultValues: ContactFormValues;
@@ -38,12 +39,25 @@ export function ContactForm({
   onDone?: () => void;
   onCancel?: () => void;
   idPrefix: string;
+  /** ISO alpha-2 the phone field opens on for a contact with no number yet
+   * — the company's own country. See `PhoneField`. */
+  defaultCountry?: string;
 }) {
   const [state, formAction, pending] = useActionState(
     (_prevState: ActionResult, formData: FormData) => action(formData),
     initialState
   );
+  // Controlled, every field of it, because React empties an uncontrolled
+  // form once its action returns — including when the action returned an
+  // error. A manager who mistyped a phone number was made to retype the
+  // name, the email and the position as well, none of which the server had
+  // any complaint about. State survives that reset; `defaultValue` does not.
+  const [values, setValues] = useState<ContactFormValues>(defaultValues);
   const wasPending = useRef(false);
+
+  function set<K extends keyof ContactFormValues>(field: K, value: ContactFormValues[K]) {
+    setValues((current) => ({ ...current, [field]: value }));
+  }
 
   useEffect(() => {
     if (wasPending.current && !pending && !state.error) {
@@ -59,7 +73,8 @@ export function ContactForm({
           <input
             id={`${idPrefix}-first-name`}
             name="firstName"
-            defaultValue={defaultValues.firstName}
+            value={values.firstName}
+            onChange={(e) => set("firstName", e.target.value)}
             required
             maxLength={80}
             className={fieldInputClass}
@@ -70,7 +85,8 @@ export function ContactForm({
           <input
             id={`${idPrefix}-last-name`}
             name="lastName"
-            defaultValue={defaultValues.lastName}
+            value={values.lastName}
+            onChange={(e) => set("lastName", e.target.value)}
             maxLength={80}
             className={fieldInputClass}
           />
@@ -81,18 +97,19 @@ export function ContactForm({
             id={`${idPrefix}-email`}
             name="email"
             type="email"
-            defaultValue={defaultValues.email}
+            value={values.email}
+            onChange={(e) => set("email", e.target.value)}
             className={fieldInputClass}
           />
         </FieldRow>
 
         <FieldRow label="Phone" htmlFor={`${idPrefix}-phone`}>
-          <input
+          <PhoneField
             id={`${idPrefix}-phone`}
             name="phone"
-            defaultValue={defaultValues.phone}
-            maxLength={40}
-            className={fieldInputClass}
+            value={values.phone}
+            onChange={(phone) => set("phone", phone)}
+            defaultCountry={defaultCountry}
           />
         </FieldRow>
 
@@ -100,7 +117,8 @@ export function ContactForm({
           <input
             id={`${idPrefix}-position`}
             name="position"
-            defaultValue={defaultValues.position}
+            value={values.position}
+            onChange={(e) => set("position", e.target.value)}
             maxLength={80}
             className={fieldInputClass}
           />
@@ -111,7 +129,8 @@ export function ContactForm({
         <input
           name="isPrimary"
           type="checkbox"
-          defaultChecked={defaultValues.isPrimary}
+          checked={values.isPrimary}
+          onChange={(e) => set("isPrimary", e.target.checked)}
           className="size-4 rounded border-slate-300 accent-brand"
         />
         Primary contact

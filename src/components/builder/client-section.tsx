@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { Building2, Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { FieldRow, SectionCard, fieldInputClass, CountrySelect, useToast } from "@/components/ui-kit";
+import { FieldRow, SectionCard, fieldInputClass, CountrySelect, PhoneField, useToast } from "@/components/ui-kit";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/documents";
 import type {
@@ -570,14 +570,12 @@ export function ClientSection({
                         />
                       </FieldRow>
                       <FieldRow label="Delivery phone" htmlFor="inline-company-delivery-phone" className="sm:col-span-2">
-                        <input
+                        <PhoneField
                           id="inline-company-delivery-phone"
                           value={companyForm.deliveryPhone}
-                          onChange={(e) => setCompanyForm((f) => ({ ...f, deliveryPhone: e.target.value }))}
-                          placeholder="+61 3 9338 3471"
-                          maxLength={40}
+                          onChange={(phone) => setCompanyForm((f) => ({ ...f, deliveryPhone: phone }))}
+                          defaultCountry={companyForm.deliveryCountry || companyForm.country || undefined}
                           disabled={companyFormPending}
-                          className={fieldInputClass}
                         />
                       </FieldRow>
                     </>
@@ -682,13 +680,11 @@ export function ClientSection({
                       />
                     </FieldRow>
                     <FieldRow label="Phone" htmlFor="inline-contact-phone">
-                      <input
+                      <PhoneField
                         id="inline-contact-phone"
                         value={contactForm.phone}
-                        onChange={(e) => setContactForm((f) => ({ ...f, phone: e.target.value }))}
-                        maxLength={40}
+                        onChange={(phone) => setContactForm((f) => ({ ...f, phone }))}
                         disabled={contactFormPending}
-                        className={fieldInputClass}
                       />
                     </FieldRow>
                     <FieldRow label="Position" htmlFor="inline-contact-position" className="sm:col-span-2">

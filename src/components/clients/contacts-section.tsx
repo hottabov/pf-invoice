@@ -36,10 +36,14 @@ export function ContactsSection({
   companyId,
   contacts,
   actions,
+  defaultCountry,
 }: {
   companyId: string;
   contacts: ContactDetail[];
   actions: Actions;
+  /** The company's own country, ISO alpha-2 — which country each contact's
+   * phone field opens on. See `PhoneField`. */
+  defaultCountry?: string;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -58,6 +62,7 @@ export function ContactsSection({
           isPrimary: contacts.length === 0,
         }}
         submitLabel="Add contact"
+        defaultCountry={defaultCountry}
         onDone={() => setAddOpen(false)}
         onCancel={() => setAddOpen(false)}
       />
@@ -115,6 +120,7 @@ export function ContactsSection({
                             isPrimary: contact.isPrimary,
                           }}
                           submitLabel="Save contact"
+                          defaultCountry={defaultCountry}
                           onDone={() => setEditingId(null)}
                           onCancel={() => setEditingId(null)}
                         />
@@ -148,6 +154,7 @@ export function ContactsSection({
                     isPrimary: contact.isPrimary,
                   }}
                   submitLabel="Save contact"
+                  defaultCountry={defaultCountry}
                   onDone={() => setEditingId(null)}
                   onCancel={() => setEditingId(null)}
                 />

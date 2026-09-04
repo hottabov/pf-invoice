@@ -117,6 +117,7 @@ export default async function CompanyEditorPage({ params }: { params: Promise<Pa
         <ContactsSection
           companyId={company.id}
           contacts={company.contacts}
+          defaultCountry={normalizeCountryInput(company.country) ?? undefined}
           actions={{ createContact, updateContact, deleteContact }}
         />
       </SectionCard>

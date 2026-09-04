@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { FieldRow, fieldInputClass, CountrySelect } from "@/components/ui-kit";
+import { FieldRow, fieldInputClass, CountrySelect, PhoneField } from "@/components/ui-kit";
 import { IndustryPicker, type IndustryOption } from "@/components/clients/industry-picker";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/clients";
@@ -86,7 +86,17 @@ export function CompanyForm({
     (_prevState: ActionResult, formData: FormData) => action(formData),
     initialState
   );
-  const [sameAsMain, setSameAsMain] = useState(defaultValues.deliverySameAsMain);
+  // Controlled throughout. React empties an uncontrolled form as soon as its
+  // action returns, error or not, so a single rejected field used to send a
+  // manager back to the top of a nineteen-field form -- and the country
+  // select went back to "Select a country..." quietly enough to be missed on
+  // the way through. State survives that reset; `defaultValue` does not.
+  const [values, setValues] = useState<CompanyFormValues>(defaultValues);
+  const sameAsMain = values.deliverySameAsMain;
+
+  function set<K extends keyof CompanyFormValues>(field: K, value: CompanyFormValues[K]) {
+    setValues((current) => ({ ...current, [field]: value }));
+  }
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -95,7 +105,8 @@ export function CompanyForm({
           <input
             id="company-name"
             name="name"
-            defaultValue={defaultValues.name}
+            value={values.name}
+            onChange={(e) => set("name", e.target.value)}
             required
             minLength={2}
             maxLength={200}
@@ -108,7 +119,8 @@ export function CompanyForm({
             id="company-website"
             name="website"
             type="text"
-            defaultValue={defaultValues.website}
+            value={values.website}
+            onChange={(e) => set("website", e.target.value)}
             placeholder="https://example.com"
             maxLength={200}
             className={fieldInputClass}
@@ -124,7 +136,8 @@ export function CompanyForm({
           <select
             id="company-region"
             name="regionCode"
-            defaultValue={defaultValues.regionCode}
+            value={values.regionCode}
+            onChange={(e) => set("regionCode", e.target.value)}
             autoComplete="off"
             required
             className={fieldInputClass}
@@ -142,7 +155,8 @@ export function CompanyForm({
           <input
             id="company-tax-id"
             name="taxId"
-            defaultValue={defaultValues.taxId}
+            value={values.taxId}
+            onChange={(e) => set("taxId", e.target.value)}
             maxLength={50}
             className={fieldInputClass}
           />
@@ -165,7 +179,8 @@ export function CompanyForm({
           <input
             id="company-street"
             name="street"
-            defaultValue={defaultValues.street}
+            value={values.street}
+            onChange={(e) => set("street", e.target.value)}
             maxLength={120}
             className={fieldInputClass}
           />
@@ -175,7 +190,8 @@ export function CompanyForm({
           <input
             id="company-city"
             name="city"
-            defaultValue={defaultValues.city}
+            value={values.city}
+            onChange={(e) => set("city", e.target.value)}
             maxLength={120}
             className={fieldInputClass}
           />
@@ -185,7 +201,8 @@ export function CompanyForm({
           <input
             id="company-state"
             name="state"
-            defaultValue={defaultValues.state}
+            value={values.state}
+            onChange={(e) => set("state", e.target.value)}
             maxLength={120}
             className={fieldInputClass}
           />
@@ -195,21 +212,28 @@ export function CompanyForm({
           <input
             id="company-postcode"
             name="postcode"
-            defaultValue={defaultValues.postcode}
+            value={values.postcode}
+            onChange={(e) => set("postcode", e.target.value)}
             maxLength={20}
             className={fieldInputClass}
           />
         </FieldRow>
 
         <FieldRow label="Country" htmlFor="company-country" className="lg:col-span-2">
-          <CountrySelect id="company-country" name="country" defaultValue={defaultValues.country} />
+          <CountrySelect
+            id="company-country"
+            name="country"
+            value={values.country}
+            onChange={(country) => set("country", country)}
+          />
         </FieldRow>
 
         <FieldRow label="Notes" htmlFor="company-notes" className="lg:col-span-2">
           <textarea
             id="company-notes"
             name="notes"
-            defaultValue={defaultValues.notes}
+            value={values.notes}
+            onChange={(e) => set("notes", e.target.value)}
             maxLength={2000}
             rows={3}
             className={cn(fieldInputClass, "h-auto min-h-24 py-2")}
@@ -231,7 +255,7 @@ export function CompanyForm({
             name="deliverySameAsMain"
             value="true"
             checked={sameAsMain}
-            onChange={(e) => setSameAsMain(e.target.checked)}
+            onChange={(e) => set("deliverySameAsMain", e.target.checked)}
             className="size-4 rounded border-slate-300 accent-brand"
           />
           Same as main address
@@ -246,7 +270,8 @@ export function CompanyForm({
               <input
                 id="company-delivery-street"
                 name="deliveryStreet"
-                defaultValue={defaultValues.deliveryStreet}
+                value={values.deliveryStreet}
+            onChange={(e) => set("deliveryStreet", e.target.value)}
                 maxLength={120}
                 className={fieldInputClass}
               />
@@ -256,7 +281,8 @@ export function CompanyForm({
               <input
                 id="company-delivery-city"
                 name="deliveryCity"
-                defaultValue={defaultValues.deliveryCity}
+                value={values.deliveryCity}
+            onChange={(e) => set("deliveryCity", e.target.value)}
                 maxLength={120}
                 className={fieldInputClass}
               />
@@ -266,7 +292,8 @@ export function CompanyForm({
               <input
                 id="company-delivery-state"
                 name="deliveryState"
-                defaultValue={defaultValues.deliveryState}
+                value={values.deliveryState}
+            onChange={(e) => set("deliveryState", e.target.value)}
                 maxLength={120}
                 className={fieldInputClass}
               />
@@ -276,7 +303,8 @@ export function CompanyForm({
               <input
                 id="company-delivery-postcode"
                 name="deliveryPostcode"
-                defaultValue={defaultValues.deliveryPostcode}
+                value={values.deliveryPostcode}
+            onChange={(e) => set("deliveryPostcode", e.target.value)}
                 maxLength={20}
                 className={fieldInputClass}
               />
@@ -286,7 +314,8 @@ export function CompanyForm({
               <CountrySelect
                 id="company-delivery-country"
                 name="deliveryCountry"
-                defaultValue={defaultValues.deliveryCountry}
+                value={values.deliveryCountry}
+                onChange={(country) => set("deliveryCountry", country)}
               />
             </FieldRow>
 
@@ -298,7 +327,8 @@ export function CompanyForm({
               <input
                 id="company-delivery-contact-name"
                 name="deliveryContactName"
-                defaultValue={defaultValues.deliveryContactName}
+                value={values.deliveryContactName}
+            onChange={(e) => set("deliveryContactName", e.target.value)}
                 maxLength={160}
                 className={fieldInputClass}
               />
@@ -307,14 +337,14 @@ export function CompanyForm({
             <FieldRow
               label="Delivery phone"
               htmlFor="company-delivery-phone"
-              hint="Recommended, e.g. +61 3 9338 3471."
+              hint="Who to call on arrival — recommended."
             >
-              <input
+              <PhoneField
                 id="company-delivery-phone"
                 name="deliveryPhone"
-                defaultValue={defaultValues.deliveryPhone}
-                maxLength={40}
-                className={fieldInputClass}
+                value={values.deliveryPhone}
+                onChange={(phone) => set("deliveryPhone", phone)}
+                defaultCountry={values.deliveryCountry || values.country || undefined}
               />
             </FieldRow>
 
@@ -322,7 +352,8 @@ export function CompanyForm({
               <textarea
                 id="company-delivery-notes"
                 name="deliveryNotes"
-                defaultValue={defaultValues.deliveryNotes}
+                value={values.deliveryNotes}
+            onChange={(e) => set("deliveryNotes", e.target.value)}
                 maxLength={500}
                 rows={2}
                 className={cn(fieldInputClass, "h-auto min-h-16 py-2")}
