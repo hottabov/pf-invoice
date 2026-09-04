@@ -73,9 +73,10 @@ export type EngineItem = {
    * `Product.noCommission`'s doc comment in schema.prisma).
    *
    * Consumed two ways: (1) the commission calculation
-   * (`PricingTotals.commission` below) subtracts this item's raw
-   * (pre-discount) contribution from the commission base; and (2) neither
-   * an item-level nor a document-level percentage/amount discount reaches
+   * (`PricingTotals.commission` below) subtracts this item's full LIST
+   * price (not its charged price — see `computeTotals`'s commission
+   * section for why) from the commission base; and (2) neither an
+   * item-level nor a document-level percentage/amount discount reaches
    * this item's own unit price — see `computeTotals`'s doc comment ("a
    * no-commission line takes no discount") for the reasoning. Neither of
    * those touches the ordinary money math otherwise — an item's price
@@ -376,11 +377,13 @@ export type DocumentConcession = {
  * `null` vs. present. */
 export type CommissionResult = {
   /** The document's after-discount, pre-tax total (`taxableBase`), minus
-   * the raw (pre-discount) contribution of every item/option line flagged
+   * the full LIST price of every item/option line flagged
    * `isNoCommission` — see `computeTotals`'s commission section for the
-   * exact rule and why it's the *raw*, not the discounted, contribution.
-   * Never negative — clamped to 0 so a document made entirely of
-   * no-commission items reads as "no commission", not a negative number. */
+   * exact rule and why it's the *list*, not the charged, price. Never
+   * negative — clamped to 0 so a document made entirely of no-commission
+   * items (or one where a no-commission line's list price alone exceeds
+   * what's left of `taxableBase`) reads as "no commission", not a
+   * negative number. */
   base: string;
   /** The rate `base` was multiplied by, looked up from `commissionTiers` by
    * the document's own discount percentage (`documentConcession.effectivePct`,
@@ -750,6 +753,29 @@ export function computeTotals(input: EngineInput): PricingTotals {
   // further down, unchanged from how this figure was already used before
   // this feature — see the commission section below.
   let noCommissionChargedCents = 0;
+  // The FULL LIST price (qty * listPrice, list falling back to unitPrice
+  // when unset — same null rule as everywhere else in this module) of
+  // every item/option line flagged `isNoCommission`. Used ONLY by the
+  // commission base below — everywhere else in this file (the discount
+  // carve-outs above and below) keeps using `noCommissionChargedCents`,
+  // the charged amount, because those are about what the CUSTOMER pays,
+  // not what the SALESPERSON is deemed to have sold. This one deliberately
+  // reads like a bug to anyone skimming it cold — "shouldn't commission
+  // come off what was actually charged?" — so spelling it out here: the
+  // owner's ruling is that a no-commission line pays no commission *and*
+  // costs the salesperson commission on its full list value regardless of
+  // what the line was actually sold for, including $0. Give the line away
+  // for free (hand-set unitPrice to 0, a mechanism `isNoCommission` never
+  // touches — see `EngineItem.isNoCommission`'s doc comment) and the
+  // commission base still drops by the line's full list price, not by the
+  // $0 that was actually charged. The two "no commission" behaviors this
+  // flag drives are therefore asymmetric on purpose: it protects the
+  // customer's price on the way in (the discount carve-out, against the
+  // charged amount) and protects the business on the way out (the
+  // commission base, against the list amount) — see the commission
+  // section below for the worked-example arithmetic this was checked
+  // against.
+  let noCommissionListCents = 0;
 
   const itemDiscountsCents: number[] = [];
   const itemTotalsCents = input.items.map((item, itemIndex) => {
@@ -785,6 +811,7 @@ export function computeTotals(input: EngineInput): PricingTotals {
       if (line.isNoCommission) {
         if (!isCredit) {
           noCommissionChargedCents += lineChargedCents;
+          noCommissionListCents += lineListPriceCents * line.qty;
         }
       } else {
         lineCommissionableChargedCents += lineChargedCents;
@@ -835,6 +862,7 @@ export function computeTotals(input: EngineInput): PricingTotals {
     listValueCents += itemListPriceCents;
     if (isItemNoCommission) {
       noCommissionChargedCents += itemUnitPriceCents;
+      noCommissionListCents += itemListPriceCents;
     }
     return itemMagnitudeCents;
   });
@@ -915,26 +943,40 @@ export function computeTotals(input: EngineInput): PricingTotals {
   // Salesperson commission (see `CommissionResult`/`PricingTotals.commission`
   // for the shape and the "null means unconfigured, never $0.00" rule).
   //
-  //   commissionBase = taxableBase − (raw contribution of every item/line
+  //   commissionBase = taxableBase − (FULL LIST PRICE of every item/line
   //                    flagged isNoCommission)
   //   rate           = commissionTiers, looked up by documentConcession's
   //                    effectivePct (clamped to 0 — selling above list
   //                    earns the 0% tier, not a negative rate)
   //   commission     = commissionBase × rate
   //
-  // `noCommissionChargedCents` (accumulated above, and now also doing double
-  // duty carving the document-level discount's base — see above) is each
-  // flagged item/line's RAW amount — before ITS OWN item-level discount, and
-  // before the document-level discount — not the discounted share a
-  // proportional read would give it. The owner was explicit about this with
-  // a worked example (5 items, one flagged, only a document-level discount
-  // applied): the flagged item's full raw price is subtracted from the
-  // document's discounted total, not that item's own discounted slice of
-  // it. Do NOT "simplify" this to prorating the document discount across
-  // the flagged amount first — since Commit 1, the document-level discount
-  // no longer reaches a no-commission line's charged price at all, so this
-  // is now simply the item/line's own unchanged charged price either way.
-  const commissionBaseCents = Math.max(0, taxableBaseCents - noCommissionChargedCents);
+  // THIS SUBTRACTS `noCommissionListCents`, NOT `noCommissionChargedCents` —
+  // read that as deliberate, not a typo, even though every other use of a
+  // no-commission line's price in this file (the item- and document-level
+  // discount carve-outs above) uses the CHARGED amount. The owner's ruling:
+  // a no-commission line earning no commission is not the same claim as "the
+  // salesperson gave nothing away by including it" — giving a no-commission
+  // line away for free (a hand-set `unitPrice` of $0, same mechanism as
+  // always — see `EngineItem.isNoCommission`'s doc comment) still cost the
+  // business that line's full list value, and the salesperson should not be
+  // able to inflate the rest of the quote's *effective discount tier* for
+  // free by zeroing out a no-commission line instead of actually discounting
+  // something commissionable. Subtracting the CHARGED (possibly $0) amount
+  // instead would let exactly that happen. Clamped to 0 (`Math.max`) so a
+  // document whose no-commission lines' list value alone exceeds what's left
+  // of `taxableBase` reads as "no commission", never a negative number.
+  //
+  // Worked example (the one this was checked against, to the cent):
+  // 4 commissionable items totalling $48,000, plus one $6,000-list
+  // no-commission item hand-priced at whatever it's charged; 10% document
+  // discount. Commissionable base 48,000 × 90% = 43,200 = the customer's
+  // charge for those four items; the no-commission item's own charged price
+  // passes through untouched (Commit 1) on top of that. Commission base is
+  // NOT "taxableBase minus what the no-commission item was charged" — it is
+  // `taxableBase − 6,000` (its LIST price) regardless of what it was
+  // actually sold for. At the 4.5% tier that 43,200 base lands in, commission
+  // is 43,200 × 4.5% = $1,944.00.
+  const commissionBaseCents = Math.max(0, taxableBaseCents - noCommissionListCents);
   let commission: CommissionResult | null = null;
   if (input.commissionTiers && input.commissionTiers.length > 0) {
     const ratePct = commissionRateForPct(input.commissionTiers, Math.max(0, documentEffectivePct));

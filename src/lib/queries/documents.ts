@@ -301,13 +301,20 @@ export type DocumentForBuilder = {
    * always present, `exceedsCap` is what a caller actually branches on. */
   documentConcession: DocumentConcession;
   /** The salesperson's commission on this document — see `CommissionResult`
-   * in src/lib/pricing.ts. `null` when no commission tier table is
-   * configured (`getCommissionTiers`, src/lib/queries/settings.ts) — the
-   * builder must show nothing at all in that case, never a misleading
-   * $0.00 (see `CommissionResult`'s doc comment). Internal-only: this must
-   * never be threaded into `buildQuotationData`/`QuotationSheet` or any
-   * other customer-facing render — see the doc comment on those modules for
-   * why the two pipelines stay entirely separate. */
+   * in src/lib/pricing.ts. For a DRAFT, computed live every read (same
+   * engine call as everything else here); for a FINAL document, read back
+   * from the frozen `Document.commissionAmount`/`commissionRatePct`/
+   * `commissionBase` columns instead (see `finalizeDocument`,
+   * src/lib/actions/finalize.ts) so a later edit to the commission-tier
+   * table never rewrites what an already-issued quote is recorded as
+   * having paid out. `null` either when no commission tier table is
+   * configured (`getCommissionTiers`, src/lib/queries/settings.ts) or,
+   * for a FINAL document, when none was configured *at finalize time* —
+   * the builder must show nothing at all in either case, never a
+   * misleading $0.00 (see `CommissionResult`'s doc comment). Internal-only:
+   * this must never be threaded into `buildQuotationData`/`QuotationSheet`
+   * or any other customer-facing render — see the doc comment on those
+   * modules for why the two pipelines stay entirely separate. */
   commission: CommissionResult | null;
   taxAmount: string;
   total: string;
@@ -561,6 +568,30 @@ export async function getDocumentForBuilder(
   };
   const totals = computeTotals(engineInput);
 
+  // Commission is frozen at finalize time (`Document.commissionAmount`/
+  // `commissionRatePct`/`commissionBase` — see finalizeDocument,
+  // src/lib/actions/finalize.ts, and those columns' own doc comment in
+  // schema.prisma): a FINAL document reads back exactly what was frozen
+  // then, rather than `totals.commission` above (which would otherwise
+  // silently drift if the commission-tier table is edited afterwards — the
+  // whole point of freezing it). A DRAFT always uses the live
+  // `totals.commission` so the builder keeps showing an up-to-date figure
+  // while a quote is still being put together. All three columns are
+  // always written/read together (see that doc comment) — `null` across
+  // all three means either "never finalized" or "finalized with no
+  // commission-tier table configured", the same `CommissionResult | null`
+  // shape either way.
+  const commission: CommissionResult | null =
+    document.status === "FINAL"
+      ? document.commissionAmount !== null && document.commissionRatePct !== null && document.commissionBase !== null
+        ? {
+            base: document.commissionBase.toString(),
+            ratePct: Number(document.commissionRatePct),
+            amount: document.commissionAmount.toString(),
+          }
+        : null
+      : totals.commission;
+
   return {
     id: document.id,
     status: document.status,
@@ -579,7 +610,7 @@ export async function getDocumentForBuilder(
     summarySubtotal: totals.grossSubtotal.toString(),
     summaryDiscountAmount: totals.totalDiscountAmount.toString(),
     documentConcession: totals.documentConcession,
-    commission: totals.commission,
+    commission,
     taxAmount: document.taxAmount.toString(),
     total: document.total.toString(),
     regionId: document.regionId,

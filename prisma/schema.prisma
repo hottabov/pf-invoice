@@ -470,6 +470,25 @@ model Document {
   // buildQuotationData in src/lib/quotation-data.ts.
   showItemPrices   Boolean        @default(false)
   showOptionPrices Boolean        @default(false)
+  // Salesperson commission, frozen on finalize -- see finalizeDocument
+  // (src/lib/actions/finalize.ts), alongside entitySnapshot above. Before
+  // FINAL, the builder always computes commission live (see
+  // getDocumentForBuilder, src/lib/queries/documents.ts) so a draft never
+  // shows a stale figure; once FINAL, the builder reads these three columns
+  // instead, so a later change to the commission-tier table (Setting key
+  // "commission.tiers") never rewrites what an already-issued quote is
+  // recorded as having paid out. All three nullable together: a DRAFT (or a
+  // FINAL document issued before this migration) has never had commission
+  // frozen, and a document finalized while no commission-tier table was
+  // configured (`CommissionResult`'s "null means unconfigured, never
+  // $0.00" rule -- src/lib/pricing.ts) freezes all three as null too,
+  // preserving that same distinction rather than collapsing it to a
+  // misleading 0. Re-finalizing (after `unfinalizeDocument`) overwrites all
+  // three with a fresh computation, exactly like entitySnapshot above --
+  // there is no way to "keep the old commission" across a re-finalize.
+  commissionAmount  Decimal?       @db.Decimal(12, 2)
+  commissionRatePct Decimal?       @db.Decimal(5, 2)
+  commissionBase    Decimal?       @db.Decimal(12, 2)
   items            DocumentItem[]
   lines            DocumentLine[]
   createdAt        DateTime       @default(now())

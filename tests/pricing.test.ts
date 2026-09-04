@@ -1304,6 +1304,50 @@ describe("commission calculation (PricingTotals.commission)", () => {
     expect(result.commission?.base).toBe("900.00");
   });
 
+  it("clamps the commission base at zero rather than negative when a no-commission item's list price exceeds the remaining taxable base", () => {
+    // Commit 2: the commission base subtracts a no-commission item's FULL
+    // LIST price, not its charged price -- see computeTotals's commission
+    // section. A cheap commissionable item (1,000) alongside a no-commission
+    // item priced at 100 but listed at 5,000 would drive the base negative
+    // (1,100 - 5,000) if it weren't clamped.
+    const result = computeTotals({
+      items: [
+        { unitPrice: 1000, lines: [] },
+        { unitPrice: 100, listPrice: 5000, lines: [], isNoCommission: true },
+      ],
+      extraLines: [],
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    // taxableBase = 1,000 + 100 = 1,100 (the customer is still charged the
+    // no-commission item's actual, hand-set 100 -- Commit 1).
+    expect(result.taxableBase).toBe(1100);
+    expect(result.commission?.base).toBe("0.00");
+    expect(result.commission?.amount).toBe("0.00");
+  });
+
+  it("a no-commission line hand-set to zero: the customer pays zero for it, and the commission base still drops by its full list price", () => {
+    // Giving a no-commission item away for free doesn't cost the business
+    // nothing -- the commission base still drops by what it was worth
+    // (list), even though the customer's own charge for it is 0.
+    const result = computeTotals({
+      items: [
+        { unitPrice: 2000, lines: [] },
+        { unitPrice: 0, listPrice: 800, lines: [], isNoCommission: true },
+      ],
+      extraLines: [],
+      taxRate: 0,
+      commissionTiers: DEFAULT_COMMISSION_TIERS,
+    });
+    // The customer pays 2,000 total -- the given-away item contributes $0,
+    // not a negative amount and not its list price.
+    expect(result.itemTotals[1]).toBe(0);
+    expect(result.taxableBase).toBe(2000);
+    // Commission base: taxableBase(2,000) - the given-away item's LIST
+    // price (800, NOT the 0 it was actually charged) = 1,200.
+    expect(result.commission?.base).toBe("1200.00");
+  });
+
   it("the concession cap still catches a giveaway on a no-commission line (a hand-set price cut, not a discount)", () => {
     const result = computeTotals({
       items: [

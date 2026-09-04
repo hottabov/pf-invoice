@@ -20,6 +20,7 @@ import {
   discountCents,
   markupCapMessage,
   toCents,
+  type CommissionResult,
   type DocumentConcession,
   type EngineInput,
   type EngineViolation,
@@ -27,6 +28,7 @@ import {
 import { isHtmlContent, sanitizeRichText } from "@/lib/rich-text";
 import { catalogVisibilityUserId, isProductHidden } from "@/lib/catalog-visibility";
 import { getHiddenCatalogIds } from "@/lib/queries/catalog-visibility";
+import { getCommissionTiers } from "@/lib/queries/settings";
 import { formatMoney } from "@/lib/format";
 import {
   customLineSchema,
@@ -134,6 +136,15 @@ export type RecalcResult = {
    * `markupCapMessage`) — the mirror of `concessionMessage` above, present
    * only when `documentConcession.exceedsMarkupCap`. */
   markupMessage: string | null;
+  /** The salesperson's LIVE commission on this document — see
+   * `CommissionResult`'s doc comment for the shape and the "null means
+   * unconfigured" rule. Always the freshly-computed figure, even for a
+   * FINAL document — `recalcDocument` never reads or writes the frozen
+   * `Document.commission*` columns (see `finalizeDocument`,
+   * src/lib/actions/finalize.ts); the builder's own read path
+   * (`getDocumentForBuilder`, src/lib/queries/documents.ts) is what
+   * chooses between this live figure (DRAFT) and the frozen one (FINAL). */
+  commission: CommissionResult | null;
 };
 
 /**
@@ -179,6 +190,7 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
       documentConcession: NO_CONCESSION,
       concessionMessage: null,
       markupMessage: null,
+      commission: null,
     };
   }
 
@@ -201,10 +213,17 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
         .map((line) => line.refId)
     )
   );
-  const optionRows =
+  // Fetched alongside the option lookup (one round trip, not two) — the
+  // admin-editable commission-rate table (`getCommissionTiers`,
+  // src/lib/queries/settings.ts) needed to resolve `totals.commission`
+  // below, same "null/empty means unconfigured" contract that function
+  // documents.
+  const [optionRows, commissionTiers] = await Promise.all([
     optionRefIds.length > 0
-      ? await db.option.findMany({ where: { id: { in: optionRefIds } }, select: { id: true, noCommission: true } })
-      : [];
+      ? db.option.findMany({ where: { id: { in: optionRefIds } }, select: { id: true, noCommission: true } })
+      : Promise.resolve([]),
+    getCommissionTiers(),
+  ]);
   const optionNoCommissionMap = new Map(optionRows.map((o) => [o.id, o.noCommission]));
 
   const regionMaxDiscountPct = document.region.maxDiscountPct ? Number(document.region.maxDiscountPct) : null;
@@ -237,6 +256,7 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
     // (the region's nominal rate) is left untouched; only the rate actually
     // fed to the engine is overridden.
     taxRate: document.deliveryTerms === "EX_WORKS" ? 0 : Number(document.taxRate),
+    commissionTiers,
   };
 
   const totals = computeTotals(engineInput);
@@ -263,6 +283,7 @@ export async function recalcDocument(documentId: string, client: RecalcClient = 
     documentConcession: totals.documentConcession,
     concessionMessage,
     markupMessage,
+    commission: totals.commission,
   };
 }
 

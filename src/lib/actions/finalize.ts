@@ -62,7 +62,9 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
   // would produce one (see NegativeSubtotalError there), so a DRAFT reaching
   // this point should never carry one; rejecting finalize on it is a later
   // task's concern (see the P0 plan's validity-fields task), not this one's.
-  const { violations, documentConcession } = await recalcDocument(document.id);
+  // `commission` — the same `RecalcResult.commission` `getDocumentForBuilder`
+  // shows live for a draft — is what gets frozen onto the document below.
+  const { violations, documentConcession, commission } = await recalcDocument(document.id);
 
   const validationError = validateFinalizable(
     { companyId: document.companyId, items: document.items, lines: document.lines },
@@ -124,6 +126,20 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
     taxRate: document.taxRate.toString(),
   };
 
+  // Frozen alongside entitySnapshot above — see Document.commissionAmount's
+  // doc comment (schema.prisma) for the full reasoning. `null` across all
+  // three when `commission` itself is null (no commission-tier table
+  // configured at finalize time), preserving the "unconfigured, not $0.00"
+  // distinction rather than collapsing it. Re-finalizing (after
+  // unfinalizeDocument) reaches this same code path again and overwrites
+  // whatever was frozen before with a fresh computation — there is no
+  // "keep the old commission" option, the same as entitySnapshot itself.
+  const commissionFields = {
+    commissionAmount: commission ? new Prisma.Decimal(commission.amount) : null,
+    commissionRatePct: commission ? new Prisma.Decimal(commission.ratePct) : null,
+    commissionBase: commission ? new Prisma.Decimal(commission.base) : null,
+  };
+
   // Number allocation and the FINAL update happen inside one interactive
   // transaction: if the update ever fails (e.g. an extremely unlikely
   // `number` unique-constraint collision, or the concurrent-finalize guard
@@ -165,6 +181,7 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
           issueDate: new Date(),
           validityDays,
           entitySnapshot: entitySnapshot as Prisma.InputJsonValue,
+          ...commissionFields,
         },
       });
       if (res.count !== 1) throw new Error("ALREADY_FINALIZED");
@@ -189,9 +206,17 @@ export async function finalizeDocument(documentId: string): Promise<FinalizeResu
 /**
  * ADMIN-only escape hatch for a FINAL document issued in error: flips it
  * back to DRAFT so it becomes editable again, but deliberately keeps
- * `number` and `entitySnapshot` set — re-finalizing (see above) reuses the
- * existing number rather than allocating a new one, so a document can never
- * accumulate more than one number across an unfinalize/finalize cycle.
+ * `number`, `entitySnapshot`, and the frozen `commission*` columns set —
+ * re-finalizing (see above) reuses the existing number rather than
+ * allocating a new one, so a document can never accumulate more than one
+ * number across an unfinalize/finalize cycle. The stale `commission*`
+ * values sitting in the row are harmless: `getDocumentForBuilder`
+ * (src/lib/queries/documents.ts) only ever reads them for a `status ===
+ * "FINAL"` document, so the moment this flips the status back to DRAFT the
+ * builder immediately falls back to computing commission live again,
+ * regardless of what's still sitting in those columns — they're simply
+ * overwritten with a fresh computation the next time `finalizeDocument`
+ * runs (same as `entitySnapshot`), never read in between.
  */
 export async function unfinalizeDocument(documentId: string): Promise<UnfinalizeResult> {
   const session = await requireAdmin();
